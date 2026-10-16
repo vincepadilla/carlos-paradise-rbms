@@ -1,23 +1,91 @@
-# carlos-paradise-rbms
+# Carlos Paradise RBMS — GitHub Workflow Guide
 
-A Centralized Reservation and Booking Management System with Real-Time Calendar, Notifications, and Queue Management.
+## 1. Pull Latest Changes Before Working
 
-## Project Features
+Always pull the latest changes from `develop` before starting your work.
 
-- Online Reservation and Booking
-- Real-Time Availability Calendar
-- Automated Notifications
-- Queue Management
-- Admin Dashboard
-- Database Management
+```bash
+# Switch to develop
+git switch develop
 
-## Development Status
+# Pull the latest changes from GitHub
+git pull origin develop
 
-The project is currently under development.
+# Switch to your feature branch
+git switch feature/login
 
-## Latest Updates
+# Merge the latest develop changes into your branch
+git merge develop
+\
 
-- Added initial project documentation.
-- Testing GitHub branching and Pull Request workflow.
+If there are merge conflicts, resolve them before continuing.
 
-for branches testing only hehe
+## 2. Commit and Push Your Changes
+
+After updating your code:
+
+```bash
+# Check your current branch
+git branch
+
+# Check modifications
+git status
+
+# Stage changes
+git add .
+
+# Commit changes
+git commit -m "feat: update login module"
+
+# Push to GitHub
+git push origin feature/login
+```
+
+After pushing, create a **Pull Request** on GitHub:
+
+- Base: `develop`
+- Compare: `feature/login`
+
+Wait for review and approval before merging.
+
+## 3. Pull and Test Before Merging to Main
+
+The Project Leader or Tester should pull the latest `develop` branch to verify all changes.
+
+```bash
+# Switch to develop
+git switch develop
+
+# Pull latest approved changes
+git pull origin develop
+
+# Check status
+git status
+
+# View recent commits
+git log --oneline -5
+```
+
+Test the updated system locally.
+
+If everything works correctly, create a Pull Request:
+
+- Base: `main`
+- Compare: `develop`
+
+Only merge after testing and approval.
+
+## 4. Update Your Local Main After Approval
+
+Once the Pull Request has been merged into `main` on GitHub:
+
+```bash
+# Switch to main
+git switch main
+
+# Download the latest approved version
+git pull origin main
+
+# Verify repository status
+git status
+```
