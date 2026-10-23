@@ -1,35 +1,26 @@
-import { useEffect, useState } from 'react'
-import axios from 'axios'
-import './App.css'
+import { useEffect } from "react";
+import axios from "axios";
+import LandingPage from "./pages/LandingPage";
 
-function App() {
-  const [message, setMessage] = useState('Checking backend...')
-  const [connected, setConnected] = useState(false)
-
+export default function App() {
   useEffect(() => {
+    const controller = new AbortController();
+
     axios
-      .get('http://127.0.0.1:8000/api/health')
+      .get("http://127.0.0.1:8000/api/health", {
+        signal: controller.signal,
+      })
       .then((response) => {
-        setMessage(response.data.message)
-        setConnected(true)
+        console.log("Laravel API connected:", response.data.message);
       })
-      .catch(() => {
-        setMessage('Cannot connect to Laravel API')
-        setConnected(false)
-      })
-  }, [])
+      .catch((error: unknown) => {
+        if (!axios.isCancel(error)) {
+          console.error("Cannot connect to Laravel API");
+        }
+      });
 
-  return (
-    <div>
-      <h1>Carlos Paradise RBMS</h1>
+    return () => controller.abort();
+  }, []);
 
-      <h2>
-        Backend Status: {connected ? '🟢 Connected' : '🔴 Disconnected'}
-      </h2>
-
-      <p>{message}</p>
-    </div>
-  )
+  return <LandingPage />;
 }
-
-export default App

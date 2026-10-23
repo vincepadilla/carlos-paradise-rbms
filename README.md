@@ -128,3 +128,62 @@ develop = combined development version
 feature/... = where we individually code
 
 If you encounter an error during setup, DO NOT randomly delete or modify project files. Send a screenshot/error first.
+
+## Get the Landing Page Updates
+
+Run these commands from the project’s root folder.
+
+### 1. Check for unfinished changes
+
+```
+git status
+```
+
+Commit your unfinished work before switching branches.
+
+### 2. Download the latest branch information
+
+```
+git fetch origin
+```
+
+### 3. Switch to the landing-page branch
+
+**First time using this branch on your device:**
+
+```
+git switch --track origin/feature/landing-page
+```
+
+**If the branch already exists on your device:**
+
+```
+git switch feature/landing-page
+```
+
+Choose only one of the commands above.
+
+### 4. Pull the latest code
+
+```
+git pull --ff-only
+```
+
+If this fails, share the error with the team before continuing.
+
+### 5. Install dependencies
+
+```
+cd apps/web
+npm ci
+```
+
+This automatically installs Tailwind and the other required packages.
+
+### 6. Start the frontend
+
+```
+npm run dev
+```
+
+Open the local URL displayed in the terminal.
