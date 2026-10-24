@@ -8,11 +8,58 @@ type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
     label: string;
     error?: string;
     hint?: string;
+    hintSatisfied?: boolean;
+    reserveMessageSpace?: boolean;
 };
 
-export function Field({ id, label, error, hint, ...props }: FieldProps) {
+function FieldMessage({
+    id,
+    error,
+    hint,
+    hintSatisfied,
+    reserveSpace,
+}: {
+    id: string;
+    error?: string;
+    hint?: string;
+    hintSatisfied?: boolean;
+    reserveSpace: boolean;
+}) {
+    const message = error ?? hint;
+
+    if (!message && !reserveSpace) return null;
+
     return (
-        <div className="mb-[17px]">
+        <p
+            id={error ? `${id}-error` : hint ? `${id}-hint` : undefined}
+            role={error ? "alert" : undefined}
+            aria-hidden={message ? undefined : true}
+            className={`mt-1.5 flex items-start gap-1.5 text-xs leading-relaxed ${reserveSpace ? "min-h-[19px]" : ""} ${error ? "text-[#a44b45]" : hintSatisfied ? "font-medium text-[#4f7b5d]" : "text-muted"}`}
+        >
+            {hint && !error && hintSatisfied !== undefined && (
+                <span
+                    aria-hidden="true"
+                    className={`mt-px grid size-4 shrink-0 place-items-center rounded-full bg-[#4f7b5d] text-[10px] font-bold leading-none text-white transition duration-200 ${hintSatisfied ? "scale-100 opacity-100" : "scale-75 opacity-0"}`}
+                >
+                    ✓
+                </span>
+            )}
+            <span>{message || "\u00a0"}</span>
+        </p>
+    );
+}
+
+export function Field({
+    id,
+    label,
+    error,
+    hint,
+    hintSatisfied,
+    reserveMessageSpace = false,
+    ...props
+}: FieldProps) {
+    return (
+        <div className={reserveMessageSpace ? "" : "mb-[17px]"}>
             <label htmlFor={id} className="mb-2 block text-xs font-bold">
                 {label}
             </label>
@@ -25,23 +72,13 @@ export function Field({ id, label, error, hint, ...props }: FieldProps) {
                 }
                 className={`${inputStyle} ${error ? "border-[#a44b45]" : "border-line"}`}
             />
-            {hint && !error && (
-                <p
-                    id={`${id}-hint`}
-                    className="mt-1.5 text-xs leading-relaxed text-muted"
-                >
-                    {hint}
-                </p>
-            )}
-            {error && (
-                <p
-                    id={`${id}-error`}
-                    role="alert"
-                    className="mt-1.5 text-xs text-[#a44b45]"
-                >
-                    {error}
-                </p>
-            )}
+            <FieldMessage
+                id={id}
+                error={error}
+                hint={hint}
+                hintSatisfied={hintSatisfied}
+                reserveSpace={reserveMessageSpace}
+            />
         </div>
     );
 }
@@ -51,11 +88,13 @@ export function PasswordField({
     label,
     error,
     hint,
+    hintSatisfied,
+    reserveMessageSpace = false,
     ...props
 }: Omit<FieldProps, "type">) {
     const [visible, setVisible] = useState(false);
     return (
-        <div className="mb-[17px]">
+        <div className={reserveMessageSpace ? "" : "mb-[17px]"}>
             <label htmlFor={id} className="mb-2 block text-xs font-bold">
                 {label}
             </label>
@@ -81,23 +120,13 @@ export function PasswordField({
                     {visible ? "Hide" : "Show"}
                 </button>
             </div>
-            {hint && !error && (
-                <p
-                    id={`${id}-hint`}
-                    className="mt-1.5 text-xs leading-relaxed text-muted"
-                >
-                    {hint}
-                </p>
-            )}
-            {error && (
-                <p
-                    id={`${id}-error`}
-                    role="alert"
-                    className="mt-1.5 text-xs text-[#a44b45]"
-                >
-                    {error}
-                </p>
-            )}
+            <FieldMessage
+                id={id}
+                error={error}
+                hint={hint}
+                hintSatisfied={hintSatisfied}
+                reserveSpace={reserveMessageSpace}
+            />
         </div>
     );
 }

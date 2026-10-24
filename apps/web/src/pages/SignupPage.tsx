@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import AuthLayout from "../components/auth/AuthLayout";
 import {
@@ -10,23 +10,77 @@ import {
 } from "../components/auth/AuthFields";
 import {
     focusFirstError,
+    meetsPasswordRequirements,
     validateSignup,
     type SignupErrors,
     type SignupValues,
 } from "../components/auth/AuthValidation";
 import OtpVerification from "../components/auth/OtpVerification";
 
+const signupDraftKey = "carlos-paradise:signup-draft";
+
+const emptySignupValues: SignupValues = {
+    name: "",
+    email: "",
+    contact: "",
+    password: "",
+    password_confirmation: "",
+    terms: false,
+};
+
+function loadSignupDraft(): SignupValues {
+    if (typeof window === "undefined") return emptySignupValues;
+
+    try {
+        const draft = JSON.parse(
+            window.sessionStorage.getItem(signupDraftKey) ?? "{}",
+        ) as Partial<SignupValues>;
+
+        return {
+            ...emptySignupValues,
+            name: typeof draft.name === "string" ? draft.name : "",
+            email: typeof draft.email === "string" ? draft.email : "",
+            contact: typeof draft.contact === "string" ? draft.contact : "",
+            terms: typeof draft.terms === "boolean" ? draft.terms : false,
+        };
+    } catch {
+        return emptySignupValues;
+    }
+}
+
+function saveSignupDraft(values: SignupValues) {
+    try {
+        window.sessionStorage.setItem(
+            signupDraftKey,
+            JSON.stringify({
+                name: values.name,
+                email: values.email,
+                contact: values.contact,
+                terms: values.terms,
+            }),
+        );
+    } catch {
+        return;
+    }
+}
+
+function clearSignupDraft() {
+    try {
+        window.sessionStorage.removeItem(signupDraftKey);
+    } catch {
+        return;
+    }
+}
+
 export default function SignupPage() {
     const [step, setStep] = useState<"form" | "otp" | "success">("form");
-    const [values, setValues] = useState<SignupValues>({
-        name: "",
-        email: "",
-        contact: "",
-        password: "",
-        password_confirmation: "",
-        terms: false,
-    });
+    const [values, setValues] = useState<SignupValues>(loadSignupDraft);
     const [errors, setErrors] = useState<SignupErrors>({});
+    const passwordRequirementsMet = meetsPasswordRequirements(values.password);
+
+    useEffect(() => {
+        saveSignupDraft(values);
+    }, [values.name, values.email, values.contact, values.terms]);
 
     function change<K extends keyof SignupValues>(
         key: K,
@@ -54,8 +108,13 @@ export default function SignupPage() {
         setStep("otp");
     }
 
+    function completeVerification() {
+        clearSignupDraft();
+        setStep("success");
+    }
+
     return (
-        <AuthLayout>
+        <AuthLayout edgeToEdgeImage>
             {step === "form" ? (
                 <>
                     <AuthHeading
@@ -76,33 +135,36 @@ export default function SignupPage() {
                                 value={values.name}
                                 onChange={(e) => change("name", e.target.value)}
                                 error={errors.name}
+                                reserveMessageSpace
                             />
                             <Field
-                                id="signup-email"
-                                name="email"
-                                label="Email Address"
-                                type="email"
-                                placeholder="you@example.com"
-                                autoComplete="email"
+                                id="signup-contact"
+                                name="contact"
+                                label="Contact Number"
+                                type="tel"
+                                placeholder="+63 912 345 6789"
+                                autoComplete="tel"
                                 required
-                                maxLength={255}
-                                value={values.email}
-                                onChange={(e) => change("email", e.target.value)}
-                                error={errors.email}
+                                maxLength={30}
+                                value={values.contact}
+                                onChange={(e) => change("contact", e.target.value)}
+                                error={errors.contact}
+                                reserveMessageSpace
                             />
                             <div className="min-[560px]:col-span-2">
                                 <Field
-                                    id="signup-contact"
-                                    name="contact"
-                                    label="Contact Number"
-                                    type="tel"
-                                    placeholder="+63 912 345 6789"
-                                    autoComplete="tel"
+                                    id="signup-email"
+                                    name="email"
+                                    label="Email Address"
+                                    type="email"
+                                    placeholder="you@example.com"
+                                    autoComplete="email"
                                     required
-                                    maxLength={30}
-                                    value={values.contact}
-                                    onChange={(e) => change("contact", e.target.value)}
-                                    error={errors.contact}
+                                    maxLength={255}
+                                    value={values.email}
+                                    onChange={(e) => change("email", e.target.value)}
+                                    error={errors.email}
+                                    reserveMessageSpace
                                 />
                             </div>
                             <PasswordField
@@ -116,7 +178,9 @@ export default function SignupPage() {
                                 value={values.password}
                                 onChange={(e) => change("password", e.target.value)}
                                 error={errors.password}
-                                hint="At least 10 characters, including letters and numbers."
+                                hint="Use 10+ chars, letters & numbers."
+                                hintSatisfied={passwordRequirementsMet}
+                                reserveMessageSpace
                             />
                             <PasswordField
                                 id="signup-password_confirmation"
@@ -131,9 +195,10 @@ export default function SignupPage() {
                                     change("password_confirmation", e.target.value)
                                 }
                                 error={errors.password_confirmation}
+                                reserveMessageSpace
                             />
                         </div>
-                        <div className="my-5 text-xs text-muted">
+                        <div className="mt-5 text-xs text-muted">
                             <label className="flex cursor-pointer items-start gap-2 leading-relaxed">
                                 <input
                                     id="signup-terms"
@@ -149,15 +214,14 @@ export default function SignupPage() {
                                 />
                                 I agree to the Terms and Privacy Policy
                             </label>
-                            {errors.terms && (
-                                <p
-                                    id="signup-terms-error"
-                                    role="alert"
-                                    className="mt-1.5 text-[#a44b45]"
-                                >
-                                    {errors.terms}
-                                </p>
-                            )}
+                            <p
+                                id={errors.terms ? "signup-terms-error" : undefined}
+                                role={errors.terms ? "alert" : undefined}
+                                aria-hidden={errors.terms ? undefined : true}
+                                className="mt-1.5 min-h-[19px] text-[#a44b45]"
+                            >
+                                {errors.terms || "\u00a0"}
+                            </p>
                         </div>
                         <AuthButton type="submit">Create Account →</AuthButton>
                     </form>
@@ -173,7 +237,7 @@ export default function SignupPage() {
                 <>
                     <OtpVerification
                         email={values.email}
-                        onVerified={() => setStep("success")}
+                        onVerified={completeVerification}
                         onBack={() => setStep("form")}
                     />
                     <PreviewNotice />

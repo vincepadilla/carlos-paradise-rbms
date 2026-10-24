@@ -230,10 +230,20 @@ export default function LandingPage() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [scrolled, setScrolled] = useState(false);
+    const [activeSection, setActiveSection] = useState("home");
 
     // Track scroll for header background
     const handleScroll = useCallback(() => {
         setScrolled(window.scrollY > 60);
+
+        let currentSection = "home";
+        for (const [id] of navigation) {
+            const section = document.getElementById(id);
+            if (section && section.getBoundingClientRect().top <= 180) {
+                currentSection = id;
+            }
+        }
+        setActiveSection(currentSection);
     }, []);
 
     useEffect(() => {
@@ -283,67 +293,98 @@ export default function LandingPage() {
     return (
         <div className="w-full overflow-x-clip bg-cream font-sans text-sm text-ink">
             <header
-                className={`sticky top-0 z-40 flex h-[76px] w-full items-center justify-between gap-4 border-b border-[#4b3d31] bg-[#33291f] px-[max(3vw,24px)] text-white max-[760px]:h-[68px] max-[760px]:px-[18px] transition-shadow ${scrolled ? "shadow-[0_8px_24px_rgba(0,0,0,.18)]" : "shadow-none"}`}
+                className={`sticky top-0 z-40 flex h-[80px] w-full items-center border-b border-[#493b30] bg-[#33291f] px-[max(3vw,24px)] text-white transition-shadow max-[760px]:h-[68px] max-[760px]:px-[18px] ${scrolled ? "shadow-[0_10px_30px_rgba(25,18,13,.22)]" : "shadow-none"}`}
             >
-                <Logo light />
+                <div className="relative mx-auto flex h-full w-full max-w-[1480px] items-center justify-between gap-4">
+                    <Logo light />
 
-                <nav
-                    className="hidden items-center gap-[18px] min-[1101px]:flex [&>button]:relative [&>button]:cursor-pointer [&>button]:border-0 [&>button]:bg-transparent [&>button]:py-2 [&>button]:text-[11px] [&>button]:font-semibold [&>button]:text-[#e8dfd6] [&>button:hover]:text-white [&>button]:after:absolute [&>button]:after:inset-x-0 [&>button]:after:bottom-[3px] [&>button]:after:h-px [&>button]:after:origin-left [&>button]:after:scale-x-0 [&>button]:after:bg-gold [&>button]:after:transition-transform [&>button:hover]:after:scale-x-100"
-                    aria-label="Main navigation"
-                >
-                    {navigation.map(([id, label]) => (
-                        <button key={id} type="button" onClick={() => openSection(id)}>
-                            {label}
-                        </button>
-                    ))}
-                </nav>
-
-                <div className="hidden items-center gap-2 min-[1101px]:flex">
-                    <Button tone="header" variant="secondary" onClick={login}>
-                        Login
-                    </Button>
-
-                    <Button tone="header" onClick={createAccount}>
-                        Create Account
-                    </Button>
-                </div>
-
-                <button
-                    type="button"
-                    className="inline-flex cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-2 text-[#e8dfd6] focus-visible:outline-2 focus-visible:outline-gold min-[1101px]:hidden"
-                    aria-label={menuOpen ? "Close navigation" : "Open navigation"}
-                    aria-expanded={menuOpen}
-                    aria-controls="mobile-public-navigation"
-                    onClick={() => setMenuOpen((open) => !open)}
-                >
-                    <Icon name={menuOpen ? "close" : "menu"} />
-                </button>
-
-                {menuOpen && (
-                    <div
-                        className="absolute inset-x-0 top-full grid max-h-[calc(100svh-76px)] grid-cols-2 gap-2 overflow-y-auto border-t border-[#4b3d31] bg-[#33291f] p-[18px] shadow-[0_18px_50px_rgba(63,47,33,.09)] min-[1101px]:hidden max-[430px]:grid-cols-1 [&>button]:min-h-[42px] [&>button]:cursor-pointer [&>button]:rounded-lg [&>button]:border [&>button]:border-[#5d5147] [&>button]:px-3 [&>button]:text-left [&>button]:font-bold"
-                        id="mobile-public-navigation"
+                    <nav
+                        className="hidden items-center gap-1 rounded-full border border-[#51443a] bg-[#2b231d] p-1 min-[1101px]:flex"
+                        aria-label="Main navigation"
                     >
-                        {navigation.map(([id, label]) => (
-                            <button key={id} type="button" onClick={() => openSection(id)}>
-                                {label}
-                            </button>
-                        ))}
+                        {navigation.map(([id, label]) => {
+                            const isActive = activeSection === id;
+                            return (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => openSection(id)}
+                                    aria-current={isActive ? "page" : undefined}
+                                    className={`relative cursor-pointer rounded-full border-0 px-3 py-2 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-gold ${
+                                        isActive
+                                            ? "bg-[#5a514b] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]"
+                                            : "bg-transparent text-[#d7cabf] hover:bg-white/[.07] hover:text-white"
+                                    }`}
+                                >
+                                    {label}
+                                </button>
+                            );
+                        })}
+                    </nav>
 
-                        <Button tone="header" variant="secondary" onClick={login}>
-                            Login
-                        </Button>
-
-                        <Button tone="header" onClick={createAccount}>
-                            Create Account
-                        </Button>
+                    <div className="hidden items-center gap-2 min-[1101px]:flex">
+                        <button
+                            type="button"
+                            onClick={login}
+                            className="inline-flex min-h-[46px] cursor-pointer items-center rounded-[10px] border border-paper bg-paper px-5 text-[11px] font-bold text-brown transition duration-200 hover:-translate-y-px hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold motion-reduce:transform-none"
+                        >
+                            Log In
+                        </button>
+                        <button
+                            type="button"
+                            onClick={createAccount}
+                            className="inline-flex min-h-[46px] cursor-pointer items-center rounded-[10px] border border-sage bg-sage px-5 text-[11px] font-bold text-white transition duration-200 hover:-translate-y-px hover:bg-[#708577] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold motion-reduce:transform-none"
+                        >
+                            Sign Up
+                        </button>
                     </div>
-                )}
+
+                    <button
+                        type="button"
+                        className="inline-flex size-10 cursor-pointer items-center justify-center rounded-full border border-white/15 bg-white/[.06] text-[#e8dfd6] transition hover:bg-white/[.12] hover:text-white focus-visible:outline-2 focus-visible:outline-gold min-[1101px]:hidden"
+                        aria-label={menuOpen ? "Close navigation" : "Open navigation"}
+                        aria-expanded={menuOpen}
+                        aria-controls="mobile-public-navigation"
+                        onClick={() => setMenuOpen((open) => !open)}
+                    >
+                        <Icon name={menuOpen ? "close" : "menu"} />
+                    </button>
+
+                    {menuOpen && (
+                        <div
+                            className="absolute inset-x-0 top-[calc(100%+8px)] grid max-h-[calc(100svh-84px)] grid-cols-2 gap-2 overflow-y-auto rounded-2xl border border-white/15 bg-[#2d241d]/[.98] p-3 shadow-[0_20px_55px_rgba(25,18,13,.35)] backdrop-blur-xl min-[1101px]:hidden max-[430px]:grid-cols-1 [&>button]:min-h-[44px] [&>button]:cursor-pointer [&>button]:rounded-xl [&>button]:border [&>button]:border-white/10 [&>button]:px-4 [&>button]:text-left [&>button]:font-bold [&>button]:text-[#e8dfd6] [&>button]:transition [&>button:hover]:bg-white/[.08] [&>button:hover]:text-white"
+                            id="mobile-public-navigation"
+                        >
+                            {navigation.map(([id, label]) => (
+                                <button
+                                    key={id}
+                                    type="button"
+                                    onClick={() => openSection(id)}
+                                    aria-current={activeSection === id ? "page" : undefined}
+                                    className={activeSection === id ? "bg-white/[.1] text-white" : "bg-transparent"}
+                                >
+                                    {label}
+                                </button>
+                            ))}
+
+                            <button type="button" onClick={login}>
+                                Log In
+                            </button>
+                            <button
+                                type="button"
+                                onClick={createAccount}
+                                className="border-sage! bg-sage! text-white!"
+                            >
+                                Sign Up
+                            </button>
+                        </div>
+                    )}
+                </div>
             </header>
 
-            <main id="home" className="scroll-mt-[76px] max-[760px]:scroll-mt-[68px]">
+            <main id="home" className="scroll-mt-[80px] max-[760px]:scroll-mt-[68px]">
                 {/* ── Hero ── */}
-                <section className="relative grid grid-cols-1 grid-rows-[minmax(720px,calc(100svh-76px))_auto] overflow-hidden bg-brown max-[819px]:grid-rows-[minmax(760px,calc(100svh-68px))_auto] after:pointer-events-none after:z-10 after:col-start-1 after:row-start-1 after:bg-[linear-gradient(180deg,rgba(74,50,38,0)_0%,rgba(74,50,38,0)_31%,rgba(74,50,38,.28)_47%,rgba(74,50,38,.82)_68%,#4a3226_84%,#4a3226_100%)] max-[819px]:after:bg-[linear-gradient(180deg,rgba(74,50,38,0)_0%,rgba(74,50,38,0)_30%,rgba(74,50,38,.3)_46%,rgba(74,50,38,.84)_66%,#4a3226_82%,#4a3226_100%)]">
+                <section className="relative grid grid-cols-1 grid-rows-[minmax(720px,calc(100svh-80px))_auto] overflow-hidden bg-brown max-[819px]:grid-rows-[minmax(760px,calc(100svh-68px))_auto] after:pointer-events-none after:z-10 after:col-start-1 after:row-start-1 after:bg-[linear-gradient(180deg,rgba(74,50,38,0)_0%,rgba(74,50,38,0)_31%,rgba(74,50,38,.28)_47%,rgba(74,50,38,.82)_68%,#4a3226_84%,#4a3226_100%)] max-[819px]:after:bg-[linear-gradient(180deg,rgba(74,50,38,0)_0%,rgba(74,50,38,0)_30%,rgba(74,50,38,.3)_46%,rgba(74,50,38,.84)_66%,#4a3226_82%,#4a3226_100%)]">
                     <img
                         src="/assets/villa-exterior.jpg"
                         alt="Carlos Paradise private villa and illuminated pool at dusk"

@@ -38,7 +38,7 @@ export default function LoginPage() {
     }
 
     return (
-        <AuthLayout>
+        <AuthLayout edgeToEdgeImage>
             <AuthHeading
                 eyebrow="Welcome back"
                 title="Sign in to your account"
