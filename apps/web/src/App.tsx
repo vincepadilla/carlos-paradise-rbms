@@ -1,6 +1,11 @@
 import { useEffect } from "react";
+import { BrowserRouter, Routes, Route } from "react-router";
 import axios from "axios";
 import LandingPage from "./pages/LandingPage";
+import VillaPage from "./pages/VillaPage";
+
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
 
 export default function App() {
   useEffect(() => {
@@ -22,5 +27,14 @@ export default function App() {
     return () => controller.abort();
   }, []);
 
-  return <LandingPage />;
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/villa" element={<VillaPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<SignupPage />} />
+      </Routes>
+    </BrowserRouter>
+  );
 }

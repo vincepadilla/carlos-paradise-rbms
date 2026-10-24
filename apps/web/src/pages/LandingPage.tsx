@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, type ReactNode } from "react";
-import "./LandingPage.css";
+
+import { useNavigate } from "react-router";
 
 type IconName =
     | "arrow"
@@ -89,13 +90,7 @@ const policies: {
         },
     ];
 
-function Icon({
-    name,
-    size = 20,
-}: {
-    name: IconName;
-    size?: number;
-}) {
+function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     const icons: Record<IconName, ReactNode> = {
         arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
 
@@ -141,6 +136,7 @@ function Icon({
 
     return (
         <svg
+            className="shrink-0"
             aria-hidden="true"
             width={size}
             height={size}
@@ -160,16 +156,34 @@ function Button({
     children,
     onClick,
     variant = "primary",
+    tone = "default",
 }: {
     children: ReactNode;
     onClick?: () => void;
     variant?: "primary" | "secondary";
+    tone?: "default" | "header" | "hero";
 }) {
+    const colors =
+        tone === "header"
+            ? variant === "secondary"
+                ? "border-paper bg-paper text-brown"
+                : "border-sage bg-sage text-white"
+            : tone === "hero"
+                ? variant === "secondary"
+                    ? "border-white/50 bg-transparent text-white"
+                    : "border-paper bg-paper text-brown shadow-[0_8px_20px_rgba(22,16,11,.25)]"
+                : variant === "secondary"
+                    ? "border-line bg-paper text-brown"
+                    : "border-brown bg-brown text-white shadow-[0_8px_20px_rgba(76,52,37,.18)]";
+    const size =
+        tone === "header"
+            ? "min-h-10 px-[15px] text-[11px]"
+            : "min-h-[46px] px-5 text-sm";
     return (
         <button
             type="button"
-            className={`btn btn-${variant} cp-button ${variant === "secondary" ? "cp-button-outline" : ""}`}
             onClick={onClick}
+            className={`inline-flex cursor-pointer items-center justify-center gap-2.5 border font-bold transition duration-200 hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold motion-reduce:transform-none motion-reduce:transition-none ${tone === "hero" ? "rounded-full" : "rounded-[10px]"} ${colors} ${size}`}
         >
             {children}
         </button>
@@ -178,36 +192,41 @@ function Button({
 
 function scrollToSection(id: string) {
     document.getElementById(id)?.scrollIntoView({
-        behavior: "smooth",
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+            ? "auto"
+            : "smooth",
         block: "start",
     });
 }
 
-function navigate(path: string) {
-    window.location.assign(path);
-}
 
 function Logo({ light = false }: { light?: boolean }) {
     return (
         <button
             type="button"
-            className={`logo cp-brand ${light ? "logo-light" : ""}`}
             onClick={() => scrollToSection("home")}
             aria-label="Carlos Paradise home"
+            className={`inline-flex shrink-0 cursor-pointer items-center gap-2.5 border-0 bg-transparent p-0 text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold ${light ? "text-white" : "text-brown"}`}
         >
-            <span className="logo-mark">
-                <img src="/assets/carlos-paradise-logo.jpg" alt="" />
+            <span className="grid size-[38px] shrink-0 place-items-center overflow-hidden rounded-full border-2 border-current bg-paper">
+                <img
+                    src="/assets/carlos-paradise-logo.jpg"
+                    alt=""
+                    className="size-full object-cover"
+                />
             </span>
-
-            <span>
-                <b>Carlos</b>
-                <strong>Paradise</strong>
+            <span className="flex flex-col leading-none">
+                <b className="font-display text-[17px] font-normal">Carlos</b>
+                <strong className="mt-1 text-[11px] font-bold uppercase tracking-[.15em]">
+                    Paradise
+                </strong>
             </span>
         </button>
     );
 }
 
 export default function LandingPage() {
+    const navigateTo = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [scrolled, setScrolled] = useState(false);
@@ -218,6 +237,7 @@ export default function LandingPage() {
     }, []);
 
     useEffect(() => {
+        handleScroll();
         window.addEventListener("scroll", handleScroll, { passive: true });
         return () => window.removeEventListener("scroll", handleScroll);
     }, [handleScroll]);
@@ -240,46 +260,57 @@ export default function LandingPage() {
         setCurrentSlide((index + slides.length) % slides.length);
     }
 
+    function login() {
+        navigateTo("/login");
+    }
+
     function createAccount() {
-        navigate("/register");
+        navigateTo("/register");
     }
 
     function viewVilla() {
-        navigate("/villa");
+        navigateTo("/villa");
+    }
+
+    function viewAmenities() {
+        navigateTo("/villa#amenities");
+    }
+
+    function viewPolicies() {
+        navigateTo("/villa#policies");
     }
 
     return (
-        <div className="public-page cp-page">
+        <div className="w-full overflow-x-clip bg-cream font-sans text-sm text-ink">
             <header
-                className={`public-header cp-header cp-header-inner ${scrolled ? "scrolled" : ""} ${menuOpen ? "menu-open" : ""}`}
+                className={`sticky top-0 z-40 flex h-[76px] w-full items-center justify-between gap-4 border-b border-[#4b3d31] bg-[#33291f] px-[max(3vw,24px)] text-white max-[760px]:h-[68px] max-[760px]:px-[18px] transition-shadow ${scrolled ? "shadow-[0_8px_24px_rgba(0,0,0,.18)]" : "shadow-none"}`}
             >
                 <Logo light />
 
-                <nav className="cp-navigation" aria-label="Main navigation">
+                <nav
+                    className="hidden items-center gap-[18px] min-[1101px]:flex [&>button]:relative [&>button]:cursor-pointer [&>button]:border-0 [&>button]:bg-transparent [&>button]:py-2 [&>button]:text-[11px] [&>button]:font-semibold [&>button]:text-[#e8dfd6] [&>button:hover]:text-white [&>button]:after:absolute [&>button]:after:inset-x-0 [&>button]:after:bottom-[3px] [&>button]:after:h-px [&>button]:after:origin-left [&>button]:after:scale-x-0 [&>button]:after:bg-gold [&>button]:after:transition-transform [&>button:hover]:after:scale-x-100"
+                    aria-label="Main navigation"
+                >
                     {navigation.map(([id, label]) => (
-                        <button
-                            key={id}
-                            type="button"
-                            onClick={() => openSection(id)}
-                        >
+                        <button key={id} type="button" onClick={() => openSection(id)}>
                             {label}
                         </button>
                     ))}
                 </nav>
 
-                <div className="header-actions cp-header-actions">
-                    <Button variant="secondary" onClick={createAccount}>
-                        Sign Up
+                <div className="hidden items-center gap-2 min-[1101px]:flex">
+                    <Button tone="header" variant="secondary" onClick={login}>
+                        Login
                     </Button>
 
-                    <Button onClick={createAccount}>
+                    <Button tone="header" onClick={createAccount}>
                         Create Account
                     </Button>
                 </div>
 
                 <button
                     type="button"
-                    className="mobile-menu cp-menu-button"
+                    className="inline-flex cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-2 text-[#e8dfd6] focus-visible:outline-2 focus-visible:outline-gold min-[1101px]:hidden"
                     aria-label={menuOpen ? "Close navigation" : "Open navigation"}
                     aria-expanded={menuOpen}
                     aria-controls="mobile-public-navigation"
@@ -290,58 +321,59 @@ export default function LandingPage() {
 
                 {menuOpen && (
                     <div
-                        className="mobile-public-nav"
+                        className="absolute inset-x-0 top-full grid max-h-[calc(100svh-76px)] grid-cols-2 gap-2 overflow-y-auto border-t border-[#4b3d31] bg-[#33291f] p-[18px] shadow-[0_18px_50px_rgba(63,47,33,.09)] min-[1101px]:hidden max-[430px]:grid-cols-1 [&>button]:min-h-[42px] [&>button]:cursor-pointer [&>button]:rounded-lg [&>button]:border [&>button]:border-[#5d5147] [&>button]:px-3 [&>button]:text-left [&>button]:font-bold"
                         id="mobile-public-navigation"
                     >
                         {navigation.map(([id, label]) => (
-                            <button
-                                key={id}
-                                type="button"
-                                onClick={() => openSection(id)}
-                            >
+                            <button key={id} type="button" onClick={() => openSection(id)}>
                                 {label}
                             </button>
                         ))}
 
-                        <Button variant="secondary" onClick={createAccount}>
-                            Sign Up
+                        <Button tone="header" variant="secondary" onClick={login}>
+                            Login
                         </Button>
 
-                        <Button onClick={createAccount}>
+                        <Button tone="header" onClick={createAccount}>
                             Create Account
                         </Button>
                     </div>
                 )}
             </header>
 
-            <main id="home">
+            <main id="home" className="scroll-mt-[76px] max-[760px]:scroll-mt-[68px]">
                 {/* ── Hero ── */}
-                <section className="hero cp-hero">
+                <section className="relative grid grid-cols-1 grid-rows-[minmax(720px,calc(100svh-76px))_auto] overflow-hidden bg-brown max-[819px]:grid-rows-[minmax(760px,calc(100svh-68px))_auto] after:pointer-events-none after:z-10 after:col-start-1 after:row-start-1 after:bg-[linear-gradient(180deg,rgba(74,50,38,0)_0%,rgba(74,50,38,0)_31%,rgba(74,50,38,.28)_47%,rgba(74,50,38,.82)_68%,#4a3226_84%,#4a3226_100%)] max-[819px]:after:bg-[linear-gradient(180deg,rgba(74,50,38,0)_0%,rgba(74,50,38,0)_30%,rgba(74,50,38,.3)_46%,rgba(74,50,38,.84)_66%,#4a3226_82%,#4a3226_100%)]">
                     <img
                         src="/assets/villa-exterior.jpg"
                         alt="Carlos Paradise private villa and illuminated pool at dusk"
                         fetchPriority="high"
-                        className="cp-hero-image"
+                        className="col-start-1 row-start-1 h-full w-full origin-center object-cover object-[center_48%] animate-hero-breathe motion-reduce:animate-none max-[819px]:object-[center_42%]"
                     />
 
-                    <div className="hero-content cp-hero-content cp-container">
-                        <span className="eyebrow light">Welcome to</span>
+                    <div className="relative z-20 col-start-1 row-start-1 flex w-full flex-col items-start justify-end px-[max(6vw,64px)] pb-[52px] text-white max-[819px]:px-6 max-[819px]:pb-10">
+                        <span className="hidden">Welcome to</span>
 
-                        <h1>Carlos Paradise</h1>
-                        <h2 className="cp-hero-subtitle">Private Villa and Resort</h2>
+                        <h1 className="mb-3 font-display text-[clamp(3.2rem,6vw,5.6rem)] font-normal leading-[1.04] tracking-[-.035em] max-[819px]:text-[43px]">
+                            Carlos Paradise
+                        </h1>
+                        <h2 className="mb-[38px] font-display text-[clamp(1.4rem,2.5vw,2.1rem)] font-normal leading-normal text-sand max-[819px]:mb-8">
+                            Private Villa and Resort
+                        </h2>
 
-                        <blockquote>
+                        <blockquote className="m-0 max-w-[620px] font-sans text-[clamp(1rem,1.8vw,1.25rem)] leading-[1.7] text-[#f4eadb] max-[819px]:text-base max-[819px]:leading-[1.75]">
                             &ldquo;Ain&apos;t your ordinary villa!
                             <br />
                             No stress, just memories that will fill ya.&rdquo;
                         </blockquote>
 
-                        <div className="hero-buttons cp-button-group">
-                            <Button onClick={createAccount}>
+                        <div className="mt-[38px] mb-[30px] flex gap-3 max-[819px]:mt-[34px] max-[819px]:mb-7 max-[760px]:w-full max-[760px]:flex-col">
+                            <Button tone="hero" onClick={createAccount}>
                                 Make a reservation <Icon name="arrow" />
                             </Button>
 
                             <Button
+                                tone="hero"
                                 variant="secondary"
                                 onClick={() => openSection("villa-gallery")}
                             >
@@ -349,13 +381,13 @@ export default function LandingPage() {
                             </Button>
                         </div>
 
-                        <small>
+                        <small className="flex items-center gap-2 text-[#d7cabf]">
                             <Icon name="shield" size={17} />
                             One private villa, reserved exclusively for your group.
                         </small>
                     </div>
 
-                    <div className="hero-facts cp-highlights cp-container">
+                    <div className="relative z-20 col-start-1 row-start-2 grid grid-cols-3 border-b border-line bg-paper px-[max(7vw,50px)] py-7 max-[819px]:grid-cols-1 max-[819px]:px-6 max-[819px]:py-[18px] [&>div]:flex [&>div]:gap-3.5 [&>div]:border-r [&>div]:border-line [&>div]:px-6 [&>div:last-child]:border-0 max-[819px]:[&>div]:border-r-0 max-[819px]:[&>div]:border-b max-[819px]:[&>div]:px-0 max-[819px]:[&>div]:py-2.5 [&_svg]:text-gold [&_span]:flex [&_span]:flex-col [&_span]:font-bold [&_small]:mt-[5px] [&_small]:font-normal [&_small]:text-muted">
                         <div>
                             <Icon name="home" />
 
@@ -386,19 +418,25 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── Villa Gallery ── */}
-                <section className="villa-showcase cp-section cp-container" id="villa-gallery">
-                    <div className="section-heading cp-section-heading">
-                        <span className="eyebrow">Villa Gallery</span>
+                <section
+                    className="scroll-mt-[76px] bg-[#eee9df] px-[max(7vw,28px)] py-[100px] max-[760px]:px-[18px] max-[760px]:py-[60px]"
+                    id="villa-gallery"
+                >
+                    <div className="mb-[34px] max-w-[680px] [&>h2]:mb-2.5 [&>p]:mb-0">
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                            Villa Gallery
+                        </span>
 
-                        <h2>One private escape, many ways to unwind.</h2>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                            One private escape, many ways to unwind.
+                        </h2>
 
-                        <p>
-                            Take a closer look at the spaces your group can enjoy
-                            exclusively.
+                        <p className="mb-[1em] text-muted leading-[1.75]">
+                            Take a closer look at the spaces your group can enjoy exclusively.
                         </p>
                     </div>
 
-                    <div className="slideshow-frame cp-gallery">
+                    <div className="relative mx-auto h-[min(68vw,720px)] min-h-[440px] max-w-[1280px] overflow-hidden bg-brown max-[760px]:h-[65vw] max-[760px]:min-h-[330px] [&>img]:h-full [&>img]:w-full [&>img]:object-cover [&>img]:animate-slide-reveal motion-reduce:[&>img]:animate-none">
                         <img
                             key={currentSlide}
                             src={slides[currentSlide].src}
@@ -406,7 +444,7 @@ export default function LandingPage() {
                             loading="lazy"
                         />
 
-                        <div className="slide-caption">
+                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-[#33291f] px-[22px] py-[18px] text-white max-[760px]:px-[15px] max-[760px]:py-[13px] [&>span]:font-display [&>span]:text-xl max-[760px]:[&>span]:text-base [&>b]:text-[11px] [&>b]:tracking-[.1em] [&>b]:text-[#d8c8b9]">
                             <span>{slides[currentSlide].label}</span>
 
                             <b>
@@ -415,7 +453,7 @@ export default function LandingPage() {
                         </div>
                     </div>
 
-                    <div className="slideshow-controls cp-gallery-controls">
+                    <div className="mx-auto mt-3.5 grid max-w-[1280px] grid-cols-[auto_1fr_auto] items-center gap-4 [&>button]:min-w-[120px] max-[760px]:grid-cols-2 max-[760px]:[&>button]:min-w-0">
                         <Button
                             variant="secondary"
                             onClick={() => showSlide(currentSlide - 1)}
@@ -424,14 +462,14 @@ export default function LandingPage() {
                         </Button>
 
                         <div
-                            className="slide-dots cp-gallery-dots"
+                            className="flex min-w-0 justify-center gap-2 max-[760px]:col-span-2 max-[760px]:row-start-1 max-[760px]:justify-start max-[760px]:overflow-x-auto max-[760px]:p-0.5 [&_img]:size-full [&_img]:rounded-[3px] [&_img]:object-cover"
                             aria-label="Choose a villa image"
                         >
                             {slides.map((slide, index) => (
                                 <button
                                     key={slide.src}
                                     type="button"
-                                    className={currentSlide === index ? "active is-active" : ""}
+                                    className={`h-[50px] w-[72px] shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-paper p-[3px] transition duration-200 hover:-translate-y-0.5 hover:border-gold hover:opacity-100 motion-reduce:transform-none max-[760px]:h-[42px] max-[760px]:w-[58px] ${currentSlide === index ? "-translate-y-0.5 border-gold opacity-100" : "border-transparent opacity-[.66]"}`}
                                     aria-label={`Show image ${index + 1}`}
                                     aria-pressed={currentSlide === index}
                                     onClick={() => showSlide(index)}
@@ -451,11 +489,16 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── About ── */}
-                <section className="intro cp-about cp-section cp-container" id="about">
+                <section
+                    className="grid scroll-mt-[76px] grid-cols-[1.1fr_.9fr] items-end gap-[100px] bg-paper px-[max(9vw,40px)] py-[100px] [&_p]:text-base max-[819px]:grid-cols-1 max-[819px]:gap-[25px] max-[819px]:px-[22px] max-[819px]:py-[65px]"
+                    id="about"
+                >
                     <div>
-                        <span className="eyebrow">About Carlos Paradise</span>
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                            About Carlos Paradise
+                        </span>
 
-                        <h2>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
                             Slow days. Warm nights.
                             <br />
                             Your people, together.
@@ -463,16 +506,15 @@ export default function LandingPage() {
                     </div>
 
                     <div>
-                        <p>
-                            A thoughtfully designed private villa where celebrations
-                            feel intimate and weekends feel longer. From the pool at
-                            twilight to relaxed meals around the table, every space
-                            is yours to enjoy.
+                        <p className="mb-[1em] text-muted leading-[1.75]">
+                            A thoughtfully designed private villa where celebrations feel
+                            intimate and weekends feel longer. From the pool at twilight to
+                            relaxed meals around the table, every space is yours to enjoy.
                         </p>
 
                         <button
                             type="button"
-                            className="text-link cp-text-link"
+                            className="flex cursor-pointer items-center gap-2 border-0 border-b border-brown bg-transparent pb-[7px] font-semibold text-ink transition-colors hover:text-gold"
                             onClick={viewVilla}
                         >
                             Discover the private villa
@@ -482,18 +524,25 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── Amenities ── */}
-                <section className="landing-amenities cp-amenities cp-section cp-container" id="amenities">
+                <section
+                    className="grid scroll-mt-[76px] grid-cols-2 items-center gap-[7vw] border-t border-line bg-paper px-[max(8vw,35px)] py-[100px] [&>div]:max-w-[580px] [&>img]:h-[470px] [&>img]:w-full [&>img]:object-cover max-[819px]:grid-cols-1 max-[819px]:gap-[35px] max-[819px]:px-[22px] max-[819px]:py-[60px] max-[819px]:[&>img]:h-[330px]"
+                    id="amenities"
+                >
                     <div>
-                        <span className="eyebrow">Amenities & Experiences</span>
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                            Amenities & Experiences
+                        </span>
 
-                        <h2>Everything for an effortless private stay.</h2>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                            Everything for an effortless private stay.
+                        </h2>
 
-                        <p>
-                            Enjoy the whole villa exclusively with your group, with
-                            spaces designed for comfort, connection, and celebration.
+                        <p className="mb-[1em] text-muted leading-[1.75]">
+                            Enjoy the whole villa exclusively with your group, with spaces
+                            designed for comfort, connection, and celebration.
                         </p>
 
-                        <div className="landing-amenity-list cp-amenity-list">
+                        <div className="mt-[25px] mb-[30px] grid grid-cols-2 border-t border-line max-[819px]:grid-cols-1 [&>span]:flex [&>span]:items-center [&>span]:gap-[9px] [&>span]:border-b [&>span]:border-line [&>span]:py-3.5 [&>span]:font-semibold [&_svg]:text-sage">
                             {amenities.map((amenity) => (
                                 <span key={amenity}>
                                     <Icon name="check" />
@@ -502,9 +551,7 @@ export default function LandingPage() {
                             ))}
                         </div>
 
-                        <Button onClick={viewVilla}>
-                            Explore All Amenities
-                        </Button>
+                        <Button onClick={viewAmenities}>Explore All Amenities</Button>
                     </div>
 
                     <img
@@ -515,12 +562,16 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── Rates & Reservation ── */}
-                <section className="landing-rates-policies cp-rate-grid cp-section cp-container">
-                    <div className="cp-card" id="rates">
-                        <span className="eyebrow">Rates</span>
-                        <h2>Simple, clear pricing.</h2>
+                <section className="grid grid-cols-2 gap-[9vw] border-y border-[#ded6ca] bg-[#eee9df] px-[max(9vw,40px)] py-[95px] max-[819px]:grid-cols-1 max-[819px]:gap-[35px] max-[819px]:px-[22px] max-[819px]:py-[60px]">
+                    <div className="scroll-mt-[90px]" id="rates">
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                            Rates
+                        </span>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                            Simple, clear pricing.
+                        </h2>
 
-                        <div className="landing-rate-list cp-rate-list">
+                        <div className="mt-5 flex flex-col [&>span]:flex [&>span]:justify-between [&>span]:gap-5 [&>span]:border-b [&>span]:border-[#d7cfc3] [&>span]:py-[13px] [&_b]:shrink-0">
                             {rates.map(([label, price]) => (
                                 <span key={label}>
                                     {label}
@@ -530,22 +581,24 @@ export default function LandingPage() {
                         </div>
                     </div>
 
-                    <div className="reservation-information cp-card cp-process">
-                        <span className="eyebrow">
+                    <div className="scroll-mt-[90px]">
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
                             Reservation Information
                         </span>
 
-                        <h2>A fair, guided process.</h2>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                            A fair, guided process.
+                        </h2>
 
-                        <p>
-                            Submit your preferred check-in and check-out dates.
-                            We&apos;ll review availability and notify you when your
-                            reservation opportunity becomes active.
+                        <p className="mb-[1em] text-muted leading-[1.75]">
+                            Submit your preferred check-in and check-out dates. We&apos;ll
+                            review availability and notify you when your reservation
+                            opportunity becomes active.
                         </p>
 
                         <button
                             type="button"
-                            className="text-link cp-text-link"
+                            className="flex cursor-pointer items-center gap-2 border-0 border-b border-brown bg-transparent pb-[7px] font-semibold text-ink transition-colors hover:text-gold"
                             onClick={viewVilla}
                         >
                             Review reservation details
@@ -555,13 +608,20 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── Policies ── */}
-                <section className="landing-policies cp-section cp-container" id="policies">
+                <section
+                    className="grid scroll-mt-[76px] grid-cols-[.7fr_1.3fr_auto] items-center gap-[50px] bg-sage-pale px-[max(9vw,40px)] py-[90px] max-[1050px]:grid-cols-1 max-[1050px]:gap-[25px] max-[760px]:px-[22px] max-[760px]:py-[60px]"
+                    id="policies"
+                >
                     <div>
-                        <span className="eyebrow">Policies</span>
-                        <h2>Clear details before your stay.</h2>
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                            Policies
+                        </span>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                            Clear details before your stay.
+                        </h2>
                     </div>
 
-                    <div className="policy-highlights cp-policy-grid">
+                    <div className="grid grid-cols-3 gap-3 max-[760px]:grid-cols-1 [&>span]:flex [&>span]:min-h-[145px] [&>span]:flex-col [&>span]:gap-2 [&>span]:rounded-[10px] [&>span]:border [&>span]:border-line [&>span]:bg-paper [&>span]:p-5 max-[760px]:[&>span]:min-h-0 [&_svg]:text-sage [&_small]:leading-[1.5] [&_small]:text-muted">
                         {policies.map((policy) => (
                             <span key={policy.title}>
                                 <Icon name={policy.icon} />
@@ -571,25 +631,35 @@ export default function LandingPage() {
                         ))}
                     </div>
 
-                    <Button variant="secondary" onClick={viewVilla}>
+                    <Button variant="secondary" onClick={viewPolicies}>
                         View Full Policies
                     </Button>
                 </section>
 
                 {/* ── Contact & Location ── */}
-                <section className="contact-location cp-contact-grid cp-section cp-container">
-                    <div className="location-panel cp-location" id="location">
-                        <div className="map-visual" aria-hidden="true">
+                <section className="grid scroll-mt-[76px] grid-cols-[1fr_1.15fr] border-b border-line bg-paper max-[819px]:grid-cols-1">
+                    <div
+                        className="grid scroll-mt-[76px] grid-cols-[190px_1fr] items-center gap-7 border-r border-line bg-paper px-[max(5vw,40px)] py-20 [&_h2]:mb-2 [&_h2]:text-[28px] [&_button]:mt-3 max-[1200px]:grid-cols-1 max-[819px]:border-r-0 max-[819px]:border-b max-[819px]:px-[22px] max-[819px]:py-7"
+                        id="location"
+                    >
+                        <div
+                            className="relative grid h-[230px] place-items-center overflow-hidden rounded-lg border border-[#d4ded3] bg-sage-pale before:absolute before:h-px before:w-[150%] before:rotate-[35deg] before:bg-[#c9d4c8] after:absolute after:h-px after:w-[150%] after:-rotate-45 after:bg-[#c9d4c8] max-[819px]:h-[190px] [&>span]:z-10 [&>span]:grid [&>span]:size-[58px] [&>span]:-rotate-45 [&>span]:place-items-center [&>span]:rounded-[50%_50%_50%_0] [&>span]:bg-brown [&>span]:text-white [&>span]:shadow-[0_18px_50px_rgba(63,47,33,.09)] [&_svg]:rotate-45"
+                            aria-hidden="true"
+                        >
                             <span>
                                 <Icon name="home" size={28} />
                             </span>
                         </div>
 
                         <div>
-                            <span className="eyebrow">Location</span>
-                            <h2>Find Carlos Paradise.</h2>
+                            <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                                Location
+                            </span>
+                            <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                                Find Carlos Paradise.
+                            </h2>
 
-                            <p>
+                            <p className="mb-[1em] text-muted leading-[1.75]">
                                 <b>Carlos Paradise Private Villa and Resort</b>
                                 <br />
                                 731 NIA Road, Brgy. Malamig, Bustos, Bulacan
@@ -609,12 +679,21 @@ export default function LandingPage() {
                         </div>
                     </div>
 
-                    <div className="contact-panel cp-card" id="contact">
-                        <span className="eyebrow">Contact Information</span>
-                        <h2>Let&apos;s plan your stay.</h2>
-                        <p>Carlos Paradise Private Villa and Resort</p>
+                    <div
+                        className="scroll-mt-[76px] bg-cream px-[max(5vw,40px)] py-20 [&>h2]:mb-2 [&>h2]:text-[28px] max-[819px]:px-[22px] max-[819px]:py-7"
+                        id="contact"
+                    >
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                            Contact Information
+                        </span>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                            Let&apos;s plan your stay.
+                        </h2>
+                        <p className="mb-[1em] text-muted leading-[1.75]">
+                            Carlos Paradise Private Villa and Resort
+                        </p>
 
-                        <div className="contact-links cp-contact-links">
+                        <div className="mt-[25px] flex flex-col gap-[7px] [&>button]:flex [&>button]:cursor-pointer [&>button]:justify-between [&>button]:gap-[18px] [&>button]:rounded-lg [&>button]:border [&>button]:border-line [&>button]:bg-paper [&>button]:px-3.5 [&>button]:py-[13px] [&>button]:text-left [&>button]:text-ink [&>button]:transition [&>button:hover]:translate-x-[3px] [&>button:hover]:border-gold [&_span]:text-[10px] [&_span]:text-muted [&_b]:text-right [&_b]:text-[11px] [&_b]:wrap-anywhere">
                             <button
                                 type="button"
                                 onClick={() =>
@@ -675,26 +754,26 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── CTA Band ── */}
-                <section className="cta-band cp-cta cp-container">
+                <section className="flex min-h-[280px] items-center justify-between gap-[35px] bg-brown px-[max(8vw,35px)] py-[70px] text-white [&>div]:max-w-[850px] [&_h2]:mb-2 [&_h2]:max-w-[820px] [&_h2]:text-[clamp(1.7rem,3vw,2.8rem)] [&_p]:mb-0 [&_p]:text-[#d8c8b9] max-[819px]:flex-col max-[819px]:items-start max-[819px]:gap-[22px] max-[819px]:px-[25px] max-[819px]:py-[45px]">
                     <div>
-                        <span className="eyebrow light">
+                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-[#ead7b7]">
                             Ready to make memories?
                         </span>
 
-                        <h2>
+                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
                             &ldquo;Ain&apos;t your ordinary villa! No stress, just memories
                             that will fill ya!&rdquo;
                         </h2>
 
-                        <p>
-                            Tell us your preferred dates and we&apos;ll guide you
-                            through the reservation process.
+                        <p className="mb-[1em] text-muted leading-[1.75]">
+                            Tell us your preferred dates and we&apos;ll guide you through the
+                            reservation process.
                         </p>
                     </div>
 
                     <button
                         type="button"
-                        className="cta-text-link"
+                        className="flex min-h-[46px] shrink-0 cursor-pointer items-center gap-[9px] rounded-[9px] border border-[#6d5948] bg-[#403429] px-[18px] font-bold text-[#f8f2ea] transition-colors hover:bg-paper hover:text-brown max-[430px]:w-full max-[430px]:justify-center"
                         onClick={() => openSection("home")}
                     >
                         Back to the villa overview

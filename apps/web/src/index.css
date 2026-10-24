@@ -1,4 +1,46 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Manrope", sans-serif;
+  --font-display: "DM Serif Display", serif;
+
+  --color-ink: #2d261f;
+  --color-brown: #4a3226;
+  --color-cream: #fbf3e6;
+  --color-sand: #dcc0a0;
+  --color-paper: #fffdf8;
+  --color-line: #e5ded2;
+  --color-sage: #607466;
+  --color-sage-pale: #e9efe8;
+  --color-gold: #b08a52;
+  --color-muted: #776f65;
+
+  --animate-hero-breathe: hero-breathe 16s ease-in-out infinite alternate;
+  --animate-slide-reveal: slide-reveal 0.45s ease both;
+}
+
+@keyframes hero-breathe {
+  from {
+    transform: scale(1);
+  }
+
+  to {
+    transform: scale(1.035);
+  }
+}
+
+@keyframes slide-reveal {
+  from {
+    opacity: 0.25;
+    transform: scale(1.015);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 
 html {
   scroll-behavior: smooth;
@@ -7,6 +49,10 @@ html {
 body {
   margin: 0;
   min-width: 320px;
+  background: var(--color-cream);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 14px;
 }
 
 #root {
@@ -16,4 +62,10 @@ body {
   margin: 0;
   padding: 0;
   text-align: left;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }

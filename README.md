@@ -176,6 +176,7 @@ If this fails, share the error with the team before continuing.
 ```
 cd apps/web
 npm ci
+npm install react-router@7
 ```
 
 This automatically installs Tailwind and the other required packages.
