@@ -34,11 +34,10 @@ export default function AuthLayout({
         <main className="grid min-h-screen grid-cols-[1.05fr_.95fr] overflow-hidden bg-paper font-sans text-sm text-ink max-[819px]:block">
             <section
                 aria-label="Carlos Paradise villa"
-                className={`relative max-[819px]:m-0 max-[819px]:h-[220px] ${
-                    edgeToEdgeImage
-                        ? "m-0 overflow-visible after:pointer-events-none after:absolute after:inset-y-0 after:right-[-80px] after:z-20 after:w-[280px] after:bg-[linear-gradient(90deg,rgba(74,50,38,0)_0%,rgba(74,50,38,.1)_22%,rgba(255,253,248,.55)_45%,rgba(255,253,248,.9)_62%,#fffdf8_72%,#fffdf8_100%)] max-[819px]:overflow-hidden max-[819px]:after:hidden"
-                        : "m-[18px] overflow-hidden"
-                }`}
+                className={`relative max-[819px]:m-0 max-[819px]:h-[220px] ${edgeToEdgeImage
+                    ? "m-0 overflow-hidden after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-20 after:w-[24px] after:bg-[linear-gradient(90deg,transparent,#fffdf8)] max-[819px]:after:hidden"
+                    : "m-[18px] overflow-hidden"
+                    }`}
             >
                 <img
                     src="/assets/villa-exterior.jpg"
@@ -46,7 +45,7 @@ export default function AuthLayout({
                     className="absolute inset-0 size-full object-cover"
                     fetchPriority="high"
                 />
-                <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(32,24,18,.7),transparent_65%)]" />
+                <div className="absolute inset-0 bg-[#140f0b]/25" />
                 <div className="relative z-10 flex h-full min-h-[650px] flex-col justify-between p-9 text-white max-[819px]:min-h-0 max-[819px]:p-[25px]">
                     <AuthLogo light />
                     {edgeToEdgeImage ? (
@@ -70,9 +69,9 @@ export default function AuthLayout({
                         </blockquote>
                     ) : (
                         <blockquote className="w-fit max-w-[90%] bg-[#33291f] px-[22px] py-[18px] font-display text-[clamp(1.7rem,3vw,2.7rem)] font-normal leading-[1.2] max-[819px]:max-w-full max-[819px]:px-[15px] max-[819px]:py-3 max-[819px]:text-[23px]">
-                        “Ain&apos;t your ordinary villa!
-                        <br />
-                        No stress, just memories that will fill ya!”
+                            “Ain&apos;t your ordinary villa!
+                            <br />
+                            No stress, just memories that will fill ya!”
                         </blockquote>
                     )}
                 </div>
