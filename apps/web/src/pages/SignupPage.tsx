@@ -1,12 +1,12 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import AuthLayout from "../components/auth/AuthLayout";
+import GoogleAuthButton from "../components/auth/GoogleAuthButton";
 import {
     AuthButton,
     AuthHeading,
     Field,
     PasswordField,
-    PreviewNotice,
 } from "../components/auth/AuthFields";
 import {
     focusFirstError,
@@ -15,7 +15,11 @@ import {
     type SignupErrors,
     type SignupValues,
 } from "../components/auth/AuthValidation";
-import OtpVerification from "../components/auth/OtpVerification";
+
+// VITE_API_URL must point to the Laravel origin, without /api.
+const apiBaseUrl = (
+    import.meta.env.VITE_API_URL || "http://localhost:8000"
+).replace(/\/+$/, "");
 
 const signupDraftKey = "carlos-paradise:signup-draft";
 
@@ -48,7 +52,9 @@ function loadSignupDraft(): SignupValues {
     }
 }
 
-function saveSignupDraft(values: SignupValues) {
+function saveSignupDraft(
+    values: Pick<SignupValues, "name" | "email" | "contact" | "terms">,
+) {
     try {
         window.sessionStorage.setItem(
             signupDraftKey,
@@ -73,44 +79,154 @@ function clearSignupDraft() {
 }
 
 export default function SignupPage() {
-    const [step, setStep] = useState<"form" | "otp" | "success">("form");
+    const [step, setStep] = useState<"form" | "success">("form");
     const [values, setValues] = useState<SignupValues>(loadSignupDraft);
     const [errors, setErrors] = useState<SignupErrors>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [formError, setFormError] = useState<string | null>(null);
+    const submittingRef = useRef(false);
     const passwordRequirementsMet = meetsPasswordRequirements(values.password);
 
     useEffect(() => {
-        saveSignupDraft(values);
-    }, [values.name, values.email, values.contact, values.terms]);
+        if (step !== "form") return;
+        saveSignupDraft({
+            name: values.name,
+            email: values.email,
+            contact: values.contact,
+            terms: values.terms,
+        });
+    }, [step, values.name, values.email, values.contact, values.terms]);
 
     function change<K extends keyof SignupValues>(
         key: K,
         value: SignupValues[K],
     ) {
+        setFormError(null);
         setValues((current) => ({ ...current, [key]: value }));
         setErrors((current) => ({ ...current, [key]: undefined }));
     }
-    function submit(event: FormEvent<HTMLFormElement>) {
+    async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
+        if (submittingRef.current) return;
+
         const next = validateSignup(values);
         setErrors(next);
+        setFormError(null);
         if (Object.keys(next).length) {
             focusFirstError("signup", next);
             return;
         }
-        // Frontend preview only. A real registration/OTP flow must be handled by Laravel.
-        setValues((v) => ({
-            ...v,
-            name: v.name.trim(),
-            email: v.email.trim(),
-            password: "",
-            password_confirmation: "",
-        }));
-        setStep("otp");
-    }
 
-    function completeVerification() {
-        clearSignupDraft();
-        setStep("success");
+        submittingRef.current = true;
+        setIsSubmitting(true);
+
+        try {
+            // Sanctum's cookie endpoint initializes CSRF for browser requests.
+            const csrfResponse = await fetch(`${apiBaseUrl}/sanctum/csrf-cookie`, {
+                headers: { Accept: "application/json" },
+                credentials: "include",
+            });
+            if (!csrfResponse.ok) throw new Error("CSRF initialization failed");
+
+            const xsrfCookie = document.cookie.split("; ").find(
+                (cookie) => cookie.startsWith("XSRF-TOKEN="),
+            );
+            const xsrfToken = xsrfCookie
+                ? decodeURIComponent(xsrfCookie.substring("XSRF-TOKEN=".length))
+                : null;
+            if (!xsrfToken) throw new Error("CSRF cookie is unavailable");
+
+            const response = await fetch(`${apiBaseUrl}/api/register`, {
+                method: "POST",
+                credentials: "include",
+                headers: {
+                    "X-XSRF-TOKEN": xsrfToken,
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    name: values.name.trim(),
+                    email: values.email.trim().toLowerCase(),
+                    // The form calls this contact; Laravel expects phone.
+                    phone: values.contact.trim(),
+                    password: values.password,
+                    password_confirmation: values.password_confirmation,
+                    terms: values.terms,
+                }),
+            });
+
+            const payload: unknown = await response.json().catch(() => null);
+            const data =
+                payload !== null && typeof payload === "object"
+                    ? (payload as Record<string, unknown>)
+                    : null;
+
+            if (!response.ok) {
+                if (response.status === 422 && data?.errors &&
+                    typeof data.errors === "object") {
+                    const validation = data.errors as Record<string, unknown>;
+                    const fieldErrors: SignupErrors = {};
+                    const fieldMap = {
+                        name: "name",
+                        email: "email",
+                        phone: "contact",
+                        password: "password",
+                        password_confirmation: "password_confirmation",
+                        terms: "terms",
+                    } as const;
+
+                    for (const [apiField, formField] of Object.entries(fieldMap)) {
+                        const messages = validation[apiField];
+                        if (Array.isArray(messages) &&
+                            typeof messages[0] === "string") {
+                            fieldErrors[formField] = messages[0];
+                        }
+                    }
+
+                    setErrors(fieldErrors);
+                    setFormError("Please check the highlighted fields.");
+                    focusFirstError("signup", fieldErrors);
+                } else if (response.status === 419) {
+                    setFormError(
+                        "Your session has expired. Refresh the page and try again.",
+                    );
+                } else if (response.status === 429) {
+                    setFormError(
+                        "Too many attempts. Please wait a minute and try again.",
+                    );
+                } else {
+                    // Avoid displaying backend exception or SQL details.
+                    setFormError(
+                        "Registration could not be completed. Please try again later.",
+                    );
+                }
+                return;
+            }
+
+            if (!data || !data.user || typeof data.user !== "object") {
+                setFormError(
+                    "The server returned an unexpected response. Check your account status before trying again.",
+                );
+                return;
+            }
+
+            clearSignupDraft();
+            setValues((current) => ({
+                ...current,
+                name: current.name.trim(),
+                email: current.email.trim().toLowerCase(),
+                password: "",
+                password_confirmation: "",
+            }));
+            setStep("success");
+        } catch {
+            setFormError(
+                "Could not confirm registration. Check your connection. If it continues, check whether the account was created before trying again.",
+            );
+        } finally {
+            submittingRef.current = false;
+            setIsSubmitting(false);
+        }
     }
 
     return (
@@ -122,125 +238,131 @@ export default function SignupPage() {
                         title="Create your account"
                         description="Save your details and follow your reservation request."
                     />
-                    <form noValidate onSubmit={submit} className="mt-[30px]">
-                        <div className="grid grid-cols-1 gap-x-4 min-[560px]:grid-cols-2">
-                            <Field
-                                id="signup-name"
-                                name="name"
-                                label="Full Name"
-                                placeholder="Your full name"
-                                autoComplete="name"
-                                required
-                                maxLength={120}
-                                value={values.name}
-                                onChange={(e) => change("name", e.target.value)}
-                                error={errors.name}
-                                reserveMessageSpace
-                            />
-                            <Field
-                                id="signup-contact"
-                                name="contact"
-                                label="Contact Number"
-                                type="tel"
-                                placeholder="+63 912 345 6789"
-                                autoComplete="tel"
-                                required
-                                maxLength={30}
-                                value={values.contact}
-                                onChange={(e) => change("contact", e.target.value)}
-                                error={errors.contact}
-                                reserveMessageSpace
-                            />
-                            <div className="min-[560px]:col-span-2">
+                    <form noValidate onSubmit={submit} className="mt-[30px]"
+                        aria-busy={isSubmitting}>
+                        {formError && (
+                            <p role="alert" className="mb-4 text-sm text-[#a44b45]">
+                                {formError}
+                            </p>
+                        )}
+                        <fieldset disabled={isSubmitting}
+                            className="m-0 min-w-0 border-0 p-0 disabled:opacity-70">
+                            <div className="grid grid-cols-1 gap-x-4 min-[560px]:grid-cols-2">
                                 <Field
-                                    id="signup-email"
-                                    name="email"
-                                    label="Email Address"
-                                    type="email"
-                                    placeholder="you@example.com"
-                                    autoComplete="email"
+                                    id="signup-name"
+                                    name="name"
+                                    label="Full Name"
+                                    placeholder="Your full name"
+                                    autoComplete="name"
                                     required
-                                    maxLength={255}
-                                    value={values.email}
-                                    onChange={(e) => change("email", e.target.value)}
-                                    error={errors.email}
+                                    maxLength={120}
+                                    value={values.name}
+                                    onChange={(e) => change("name", e.target.value)}
+                                    error={errors.name}
+                                    reserveMessageSpace
+                                />
+                                <Field
+                                    id="signup-contact"
+                                    name="contact"
+                                    label="Contact Number"
+                                    type="tel"
+                                    placeholder="+63 912 345 6789"
+                                    autoComplete="tel"
+                                    required
+                                    maxLength={30}
+                                    value={values.contact}
+                                    onChange={(e) => change("contact", e.target.value)}
+                                    error={errors.contact}
+                                    reserveMessageSpace
+                                />
+                                <div className="min-[560px]:col-span-2">
+                                    <Field
+                                        id="signup-email"
+                                        name="email"
+                                        label="Email Address"
+                                        type="email"
+                                        placeholder="you@example.com"
+                                        autoComplete="email"
+                                        required
+                                        maxLength={254}
+                                        value={values.email}
+                                        onChange={(e) => change("email", e.target.value)}
+                                        error={errors.email}
+                                        reserveMessageSpace
+                                    />
+                                </div>
+                                <PasswordField
+                                    id="signup-password"
+                                    name="password"
+                                    label="Password"
+                                    placeholder="Create a password"
+                                    autoComplete="new-password"
+                                    required
+                                    maxLength={128}
+                                    value={values.password}
+                                    onChange={(e) => change("password", e.target.value)}
+                                    error={errors.password}
+                                    hint="Use 10+ chars, letters & numbers."
+                                    hintSatisfied={passwordRequirementsMet}
+                                    reserveMessageSpace
+                                />
+                                <PasswordField
+                                    id="signup-password_confirmation"
+                                    name="password_confirmation"
+                                    label="Confirm Password"
+                                    placeholder="Repeat your password"
+                                    autoComplete="new-password"
+                                    required
+                                    maxLength={128}
+                                    value={values.password_confirmation}
+                                    onChange={(e) =>
+                                        change("password_confirmation", e.target.value)
+                                    }
+                                    error={errors.password_confirmation}
                                     reserveMessageSpace
                                 />
                             </div>
-                            <PasswordField
-                                id="signup-password"
-                                name="password"
-                                label="Password"
-                                placeholder="Create a password"
-                                autoComplete="new-password"
-                                required
-                                maxLength={128}
-                                value={values.password}
-                                onChange={(e) => change("password", e.target.value)}
-                                error={errors.password}
-                                hint="Use 10+ chars, letters & numbers."
-                                hintSatisfied={passwordRequirementsMet}
-                                reserveMessageSpace
-                            />
-                            <PasswordField
-                                id="signup-password_confirmation"
-                                name="password_confirmation"
-                                label="Confirm Password"
-                                placeholder="Repeat your password"
-                                autoComplete="new-password"
-                                required
-                                maxLength={128}
-                                value={values.password_confirmation}
-                                onChange={(e) =>
-                                    change("password_confirmation", e.target.value)
-                                }
-                                error={errors.password_confirmation}
-                                reserveMessageSpace
-                            />
-                        </div>
-                        <div className="mt-5 text-xs text-muted">
-                            <label className="flex cursor-pointer items-start gap-2 leading-relaxed">
-                                <input
-                                    id="signup-terms"
-                                    type="checkbox"
-                                    checked={values.terms}
-                                    onChange={(e) => change("terms", e.target.checked)}
-                                    required
-                                    aria-invalid={Boolean(errors.terms)}
-                                    aria-describedby={
-                                        errors.terms ? "signup-terms-error" : undefined
-                                    }
-                                    className="mt-0.5 size-4 shrink-0 accent-brown"
-                                />
-                                I agree to the Terms and Privacy Policy
-                            </label>
-                            <p
-                                id={errors.terms ? "signup-terms-error" : undefined}
-                                role={errors.terms ? "alert" : undefined}
-                                aria-hidden={errors.terms ? undefined : true}
-                                className="mt-1.5 min-h-[19px] text-[#a44b45]"
-                            >
-                                {errors.terms || "\u00a0"}
-                            </p>
-                        </div>
-                        <AuthButton type="submit">Create Account →</AuthButton>
+                            <div className="mt-5 text-xs text-muted">
+                                <label className="flex cursor-pointer items-start gap-2 leading-relaxed">
+                                    <input
+                                        id="signup-terms"
+                                        type="checkbox"
+                                        checked={values.terms}
+                                        onChange={(e) => change("terms", e.target.checked)}
+                                        required
+                                        aria-invalid={Boolean(errors.terms)}
+                                        aria-describedby={
+                                            errors.terms ? "signup-terms-error" : undefined
+                                        }
+                                        className="mt-0.5 size-4 shrink-0 accent-brown"
+                                    />
+                                    I agree to the Terms and Privacy Policy
+                                </label>
+                                <p
+                                    id={errors.terms ? "signup-terms-error" : undefined}
+                                    role={errors.terms ? "alert" : undefined}
+                                    aria-hidden={errors.terms ? undefined : true}
+                                    className="mt-1.5 min-h-[19px] text-[#a44b45]"
+                                >
+                                    {errors.terms || "\u00a0"}
+                                </p>
+                            </div>
+                            <AuthButton type="submit">
+                                {isSubmitting ? "Creating account…" : "Create Account →"}
+                            </AuthButton>
+                        </fieldset>
                     </form>
+                    <GoogleAuthButton
+                        intent="register"
+                        termsAccepted={values.terms}
+                        disabled={isSubmitting}
+                    />
                     <p className="mt-6 text-center text-muted">
                         Already have an account?{" "}
                         <Link to="/login" className="font-bold text-brown hover:underline">
                             Sign in
                         </Link>
                     </p>
-                    <PreviewNotice />
-                </>
-            ) : step === "otp" ? (
-                <>
-                    <OtpVerification
-                        email={values.email}
-                        onVerified={completeVerification}
-                        onBack={() => setStep("form")}
-                    />
-                    <PreviewNotice />
                 </>
             ) : (
                 <section className="pt-[30px] text-center">
@@ -251,19 +373,18 @@ export default function SignupPage() {
                         ✓
                     </div>
                     <AuthHeading
-                        eyebrow="Verification Preview Complete"
-                        title="You completed the signup preview"
-                        description="The demo code was accepted. No real account has been created or verified yet."
+                        eyebrow="Account Created"
+                        title="Your account has been created"
+                        description="Your details have been saved. Your email is not verified yet; email verification will be available once it is connected."
                     />
                     <div className="mt-6">
                         <Link
                             to="/login"
                             className="inline-flex min-h-[46px] w-full items-center justify-center rounded-[10px] bg-brown px-5 font-bold text-white transition hover:bg-[#6e4b35]"
                         >
-                            Continue to Login →
+                            Back to Login →
                         </Link>
                     </div>
-                    <PreviewNotice />
                 </section>
             )}
         </AuthLayout>

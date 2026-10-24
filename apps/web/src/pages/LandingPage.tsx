@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, type ReactNode } from "react";
+import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 
 import { useNavigate } from "react-router";
 
@@ -11,7 +11,66 @@ type IconName =
     | "check"
     | "sparkle"
     | "menu"
-    | "close";
+    | "close"
+    | "user";
+
+const apiBaseUrl = (
+    import.meta.env.VITE_API_URL || "http://localhost:8000"
+).replace(/\/+$/, "");
+
+type AccountUser = { id: number | string; name: string; email: string };
+type AccountStatus = "loading" | "ready" | "error";
+
+async function getSessionUser(signal: AbortSignal): Promise<AccountUser | null> {
+    const response = await fetch(`${apiBaseUrl}/auth/user`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+        signal,
+    });
+    if (response.status === 401) return null;
+    if (!response.ok) throw new Error("Unable to check your account.");
+
+    const data: unknown = await response.json();
+    if (!data || typeof data !== "object" || !("user" in data)) {
+        throw new Error("Invalid account response.");
+    }
+    const user = data.user;
+    if (!user || typeof user !== "object" ||
+        !("id" in user) || !("name" in user) || !("email" in user) ||
+        (typeof user.id !== "number" && typeof user.id !== "string") ||
+        typeof user.name !== "string" || typeof user.email !== "string") {
+        throw new Error("Invalid account response.");
+    }
+    return { id: user.id, name: user.name, email: user.email };
+}
+
+async function endSession(): Promise<void> {
+    const csrf = await fetch(`${apiBaseUrl}/sanctum/csrf-cookie`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+    });
+    if (!csrf.ok) throw new Error("Unable to initialize logout.");
+
+    const cookie = document.cookie.split("; ").find(
+        (item) => item.startsWith("XSRF-TOKEN="),
+    );
+    if (!cookie) throw new Error("Missing logout cookie.");
+
+    const response = await fetch(`${apiBaseUrl}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        headers: {
+            Accept: "application/json",
+            "X-XSRF-TOKEN": decodeURIComponent(
+                cookie.substring("XSRF-TOKEN=".length),
+            ),
+        },
+    });
+    if (!response.ok && response.status !== 401) {
+        throw new Error("Logout failed.");
+    }
+}
 
 const navigation = [
     ["home", "Home"],
@@ -132,6 +191,13 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
         menu: <path d="M4 7h16M4 12h16M4 17h16" />,
 
         close: <path d="M18 6 6 18M6 6l12 12" />,
+
+        user: (
+            <>
+                <circle cx="12" cy="8" r="4" />
+                <path d="M4 21v-2a8 8 0 0 1 16 0v2" />
+            </>
+        ),
     };
 
     return (
@@ -232,6 +298,97 @@ export default function LandingPage() {
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState("home");
 
+    const [accountUser, setAccountUser] = useState<AccountUser | null>(null);
+    const [accountStatus, setAccountStatus] = useState<AccountStatus>("loading");
+    const [accountOpen, setAccountOpen] = useState(false);
+    const [accountRetry, setAccountRetry] = useState(0);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [logoutError, setLogoutError] = useState("");
+    const accountPanelRef = useRef<HTMLDivElement>(null);
+    const accountButtonRef = useRef<HTMLButtonElement>(null);
+    const sessionRequestRef = useRef<AbortController | null>(null);
+    const isLoggingOutRef = useRef(false);
+    const mountedRef = useRef(false);
+
+    // Laravel's session is the source of truth; nothing is read from localStorage.
+    useEffect(() => {
+        mountedRef.current = true;
+        let active = true;
+
+        async function refreshAccount() {
+            if (isLoggingOutRef.current) return;
+            sessionRequestRef.current?.abort();
+            const controller = new AbortController();
+            sessionRequestRef.current = controller;
+            try {
+                const user = await getSessionUser(controller.signal);
+                if (!active || controller.signal.aborted) return;
+                setAccountUser(user);
+                setAccountStatus("ready");
+                if (!user) setAccountOpen(false);
+            } catch {
+                if (!active || controller.signal.aborted) return;
+                setAccountStatus("error");
+                setAccountOpen(false);
+            }
+        }
+
+        void refreshAccount();
+        window.addEventListener("focus", refreshAccount);
+        return () => {
+            active = false;
+            mountedRef.current = false;
+            sessionRequestRef.current?.abort();
+            window.removeEventListener("focus", refreshAccount);
+        };
+    }, [accountRetry]);
+
+    useEffect(() => {
+        if (!accountOpen) return;
+        function closeOutside(event: PointerEvent) {
+            if (event.target instanceof Node &&
+                !accountPanelRef.current?.contains(event.target)) {
+                setAccountOpen(false);
+            }
+        }
+        function closeWithEscape(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                setAccountOpen(false);
+                accountButtonRef.current?.focus();
+            }
+        }
+        document.addEventListener("pointerdown", closeOutside);
+        document.addEventListener("keydown", closeWithEscape);
+        return () => {
+            document.removeEventListener("pointerdown", closeOutside);
+            document.removeEventListener("keydown", closeWithEscape);
+        };
+    }, [accountOpen]);
+
+    async function logout() {
+        if (isLoggingOutRef.current) return;
+        isLoggingOutRef.current = true;
+        setIsLoggingOut(true);
+        setLogoutError("");
+        // Do not let a stale account check restore the signed-in UI after logout.
+        sessionRequestRef.current?.abort();
+        try {
+            await endSession();
+            if (!mountedRef.current) return;
+            setAccountUser(null);
+            setAccountStatus("ready");
+            setAccountOpen(false);
+            setMenuOpen(false);
+        } catch {
+            if (mountedRef.current) {
+                setLogoutError("Could not confirm logout. Please try again.");
+            }
+        } finally {
+            isLoggingOutRef.current = false;
+            if (mountedRef.current) setIsLoggingOut(false);
+        }
+    }
+
     // Track scroll for header background
     const handleScroll = useCallback(() => {
         setScrolled(window.scrollY > 60);
@@ -310,11 +467,10 @@ export default function LandingPage() {
                                     type="button"
                                     onClick={() => openSection(id)}
                                     aria-current={isActive ? "page" : undefined}
-                                    className={`relative cursor-pointer rounded-full border-0 px-3 py-2 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-gold ${
-                                        isActive
+                                    className={`relative cursor-pointer rounded-full border-0 px-3 py-2 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-gold ${isActive
                                             ? "bg-[#5a514b] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]"
                                             : "bg-transparent text-[#d7cabf] hover:bg-white/[.07] hover:text-white"
-                                    }`}
+                                        }`}
                                 >
                                     {label}
                                 </button>
@@ -322,21 +478,74 @@ export default function LandingPage() {
                         })}
                     </nav>
 
-                    <div className="hidden items-center gap-2 min-[1101px]:flex">
-                        <button
-                            type="button"
-                            onClick={login}
-                            className="inline-flex min-h-[46px] cursor-pointer items-center rounded-[10px] border border-paper bg-paper px-5 text-[11px] font-bold text-brown transition duration-200 hover:-translate-y-px hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold motion-reduce:transform-none"
-                        >
-                            Log In
-                        </button>
-                        <button
-                            type="button"
-                            onClick={createAccount}
-                            className="inline-flex min-h-[46px] cursor-pointer items-center rounded-[10px] border border-sage bg-sage px-5 text-[11px] font-bold text-white transition duration-200 hover:-translate-y-px hover:bg-[#708577] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold motion-reduce:transform-none"
-                        >
-                            Sign Up
-                        </button>
+                    <div className="ml-auto flex shrink-0 items-center gap-2 min-[1101px]:ml-0">
+                        {accountStatus === "loading" ? (
+                            <span role="status" className="grid size-11 place-items-center">
+                                <span aria-hidden="true"
+                                    className="size-10 animate-pulse rounded-full bg-white/10 motion-reduce:animate-none" />
+                                <span className="sr-only">Checking your account</span>
+                            </span>
+                        ) : accountStatus === "error" ? (
+                            <button type="button"
+                                onClick={() => {
+                                    setAccountStatus("loading");
+                                    setAccountRetry((value) => value + 1);
+                                }}
+                                title="Account status is unavailable. Retry the session check."
+                                className="min-h-11 cursor-pointer rounded-lg border border-white/20 px-3 text-xs font-semibold text-white focus-visible:outline-2 focus-visible:outline-gold">
+                                Retry account
+                            </button>
+                        ) : accountUser ? (
+                            <div ref={accountPanelRef} className="relative">
+                                <button type="button"
+                                    ref={accountButtonRef}
+                                    aria-label={`Account: ${accountUser.name}`}
+                                    aria-expanded={accountOpen}
+                                    aria-controls="landing-account-panel"
+                                    title={accountUser.name}
+                                    onClick={() => {
+                                        setMenuOpen(false);
+                                        setAccountOpen((open) => !open);
+                                    }}
+                                    className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full border border-paper/30 bg-paper text-brown transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold">
+                                    <Icon name="user" size={22} />
+                                </button>
+                                {accountOpen && (
+                                    <div id="landing-account-panel"
+                                        className="absolute right-0 top-[calc(100%+12px)] z-50 w-[min(272px,calc(100vw-36px))] rounded-2xl border border-line bg-paper p-4 text-ink shadow-[0_16px_45px_rgba(25,18,13,.25)]">
+                                        <p className="truncate font-bold text-brown">{accountUser.name}</p>
+                                        <p className="mt-1 break-all text-xs text-muted">{accountUser.email}</p>
+                                        <button type="button"
+                                            disabled={isLoggingOut}
+                                            onClick={() => void logout()}
+                                            className="mt-4 inline-flex min-h-11 w-full cursor-pointer items-center justify-center rounded-[10px] border border-line bg-cream px-4 text-sm font-bold text-brown transition hover:bg-sage-pale focus-visible:outline-2 focus-visible:outline-gold disabled:cursor-wait disabled:opacity-60">
+                                            {isLoggingOut ? "Logging out…" : "Log Out"}
+                                        </button>
+                                        {logoutError && (
+                                            <p role="alert" className="mt-3 text-xs text-[#a44b45]">{logoutError}</p>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="hidden items-center gap-2 min-[1101px]:flex">
+                                <button
+                                    type="button"
+                                    onClick={login}
+                                    className="inline-flex min-h-[46px] cursor-pointer items-center rounded-[10px] border border-paper bg-paper px-5 text-[11px] font-bold text-brown transition duration-200 hover:-translate-y-px hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold motion-reduce:transform-none"
+                                >
+                                    Log In
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={createAccount}
+                                    className="inline-flex min-h-[46px] cursor-pointer items-center rounded-[10px] border border-sage bg-sage px-5 text-[11px] font-bold text-white transition duration-200 hover:-translate-y-px hover:bg-[#708577] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold motion-reduce:transform-none"
+                                >
+                                    Sign Up
+                                </button>
+                            </div>
+
+                        )}
                     </div>
 
                     <button
@@ -345,7 +554,10 @@ export default function LandingPage() {
                         aria-label={menuOpen ? "Close navigation" : "Open navigation"}
                         aria-expanded={menuOpen}
                         aria-controls="mobile-public-navigation"
-                        onClick={() => setMenuOpen((open) => !open)}
+                        onClick={() => {
+                            setAccountOpen(false);
+                            setMenuOpen((open) => !open);
+                        }}
                     >
                         <Icon name={menuOpen ? "close" : "menu"} />
                     </button>
@@ -367,16 +579,20 @@ export default function LandingPage() {
                                 </button>
                             ))}
 
-                            <button type="button" onClick={login}>
-                                Log In
-                            </button>
-                            <button
-                                type="button"
-                                onClick={createAccount}
-                                className="border-sage! bg-sage! text-white!"
-                            >
-                                Sign Up
-                            </button>
+                            {accountStatus === "ready" && !accountUser && (
+                                <>
+                                    <button type="button" onClick={login}>
+                                        Log In
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={createAccount}
+                                        className="border-sage! bg-sage! text-white!"
+                                    >
+                                        Sign Up
+                                    </button>
+                                </>
+                            )}
                         </div>
                     )}
                 </div>
