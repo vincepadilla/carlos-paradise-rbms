@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback, useRef, type ReactNode } from "react"
 
 import { useNavigate } from "react-router";
 
+import MakeReservationButton from "../components/MakeReservationButton";
+
 type IconName =
     | "arrow"
     | "home"
@@ -468,8 +470,8 @@ export default function LandingPage() {
                                     onClick={() => openSection(id)}
                                     aria-current={isActive ? "page" : undefined}
                                     className={`relative cursor-pointer rounded-full border-0 px-3 py-2 text-[11px] font-semibold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-gold ${isActive
-                                            ? "bg-[#5a514b] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]"
-                                            : "bg-transparent text-[#d7cabf] hover:bg-white/[.07] hover:text-white"
+                                        ? "bg-[#5a514b] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]"
+                                        : "bg-transparent text-[#d7cabf] hover:bg-white/[.07] hover:text-white"
                                         }`}
                                 >
                                     {label}
@@ -625,9 +627,9 @@ export default function LandingPage() {
                         </blockquote>
 
                         <div className="mt-[38px] mb-[30px] flex gap-3 max-[819px]:mt-[34px] max-[819px]:mb-7 max-[760px]:w-full max-[760px]:flex-col">
-                            <Button tone="hero" onClick={createAccount}>
+                            <MakeReservationButton tone="hero">
                                 Make a reservation <Icon name="arrow" />
-                            </Button>
+                            </MakeReservationButton>
 
                             <Button
                                 tone="hero"

@@ -6,6 +6,7 @@ import VillaPage from "./pages/VillaPage";
 
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import ReservationRoute from "./pages/ReservationRoute";
 
 export default function App() {
   useEffect(() => {
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/villa" element={<VillaPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<SignupPage />} />
+        <Route path="/make-reservation" element={<ReservationRoute />} />
       </Routes>
     </BrowserRouter>
   );
