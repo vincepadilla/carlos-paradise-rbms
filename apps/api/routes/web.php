@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\SessionAuthController;
 use App\Http\Controllers\Auth\GoogleAuthController;
+use App\Http\Controllers\GuestProfileController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -22,3 +23,55 @@ Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])
 
 Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
     ->middleware('throttle:20,1');
+
+Route::get(
+    '/api/settings',
+    [
+        \App\Http\Controllers\ReservationSettingsController::class,
+        'index',
+    ]
+);
+
+Route::get('/api/csrf', function () {
+    return response()->json([
+        'token' => csrf_token(),
+    ]);
+});
+
+Route::post(
+    '/api/quote',
+    [
+        \App\Http\Controllers\ReservationQuoteController::class,
+        'quote',
+    ]
+)->middleware('auth');
+
+Route::get(
+    '/api/settings',
+    [
+        \App\Http\Controllers\ReservationSettingsController::class,
+        'index',
+    ]
+);
+
+Route::get('/api/csrf', function () {
+    return response()->json([
+        'token' => csrf_token(),
+    ]);
+});
+
+Route::post(
+    '/api/quote',
+    [
+        \App\Http\Controllers\ReservationQuoteController::class,
+        'quote',
+    ]
+)->middleware('auth');
+
+require __DIR__.'/reservations.php';
+
+Route::middleware('auth')->prefix('api')->group(function () {
+    Route::get('profile', [GuestProfileController::class, 'show']);
+    Route::patch('profile', [GuestProfileController::class, 'update'])
+        ->middleware('throttle:20,1');
+});
