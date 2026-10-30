@@ -6,9 +6,11 @@ import MakeReservationPage from "./MakeReservationPage";
 
 export default function ReservationPage({
     user,
+    initialPage = "reservation",
 }: {
     user?: User | null;
     settings?: Settings | null;
+    initialPage?: "reservation" | "dashboard";
 }) {
     const [configuration, setConfiguration] = useState<SettingsResponse | null>(
         null,
@@ -84,6 +86,7 @@ export default function ReservationPage({
             user={user}
             settings={configuration.settings}
             paymentMethods={configuration.payment_methods}
+            initialPage={initialPage}
         />
     );
 }

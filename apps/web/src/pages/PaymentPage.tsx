@@ -32,6 +32,7 @@ const labels: Record<string, string> = {
     confirmed: "Confirmed",
     expired: "Deposit Period Ended",
     cancelled: "Cancelled",
+    rejected: "Dates Secured by Earlier Request",
     completed: "Completed",
     declined: "Declined",
     held: "Held for Review",
@@ -298,7 +299,15 @@ export default function PaymentPage({
         description = `Your reservation opportunity is active. Complete the ${money(reservation.deposit)} deposit before the deadline.`;
     else if (waiting)
         description =
-            "Your request has been received. Staff will review your dates and notify you when a reservation opportunity is available.";
+            reservation.queue_position
+                ? "Your request is queue position " +
+                  reservation.queue_position +
+                  ". " +
+                  (reservation.reservations_ahead || 0) +
+                  " reservation" +
+                  (reservation.reservations_ahead === 1 ? "" : "s") +
+                  " are ahead for overlapping dates."
+                : "Your request has been received. You will be notified when a reservation opportunity is available.";
     else if (reservation.status === "awaiting_deposit")
         description = expired
             ? "Your payment deadline has ended. Contact the resort for the next steps."
@@ -424,25 +433,35 @@ export default function PaymentPage({
                                         ))}
                                     </div>
                                     {method && (
-                                        <div className="mb-5 flex items-center justify-between gap-4 rounded-lg bg-[#f6f1e7] p-5">
+                                        <div className="mb-5 flex flex-col items-center justify-between gap-5 rounded-lg bg-[#f6f1e7] p-5 sm:flex-row">
                                             <div className="min-w-0">
                                                 <span className="mb-2 block text-[9px] font-bold uppercase tracking-widest text-[#b08a52]">
                                                     Pay via {method.name}
                                                 </span>
-                                                <b className="block text-sm font-semibold">
-                                                    {method.account_name}
-                                                </b>
-                                                <strong className="mt-2 block text-xl wrap-anywhere">
-                                                    {method.account_number}
+                                                <strong className="block text-xl font-semibold">
+                                                    Carlos Paradise
                                                 </strong>
                                                 <p className="mt-2 mb-0 text-[10px] leading-relaxed text-[#776f65]">
-                                                    {method.instructions ||
-                                                        "Verify the receiving account name before transferring your deposit."}
+                                                    Scan the QR code using your {method.name} app.
                                                 </p>
                                             </div>
-                                            <span className="hidden size-14 shrink-0 place-items-center rounded-full bg-[#e8eee5] text-[#607466] sm:grid">
-                                                <Icon name="credit" size={25} />
-                                            </span>
+                                            {method.qr_code_url ? (
+                                                <img
+                                                    src={method.qr_code_url}
+                                                    alt={
+                                                        method.name +
+                                                        " payment QR code for Carlos Paradise"
+                                                    }
+                                                    className="size-32 shrink-0 rounded-lg border border-[#e3d9cb] bg-white object-contain p-2"
+                                                />
+                                            ) : (
+                                                <div
+                                                    role="status"
+                                                    className="grid size-32 shrink-0 place-items-center rounded-lg border border-dashed border-[#b08a52] bg-white p-3 text-center text-[9px] font-semibold text-[#776f65]"
+                                                >
+                                                    QR code not configured
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                     <div className="grid gap-x-4 gap-y-5 sm:grid-cols-2">

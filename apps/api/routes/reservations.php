@@ -29,6 +29,14 @@ Route::prefix('api')->middleware('auth')->group(function () {
         BookingReservationsController::class, 'opportunity',
     ])->whereNumber('reservation');
 
+    Route::post('/reservations/{reservation}/extension', [
+        BookingReservationsController::class, 'requestExtension',
+    ])->whereNumber('reservation')->middleware('throttle:10,1');
+
+    Route::post('/reservations/{reservation}/extension/review', [
+        BookingReservationsController::class, 'reviewExtension',
+    ])->whereNumber('reservation');
+
     Route::post('/reservations/{reservation}/payments', [
         BookingPaymentsController::class, 'store',
     ])->whereNumber('reservation')->middleware('throttle:10,1');

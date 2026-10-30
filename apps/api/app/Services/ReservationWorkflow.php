@@ -51,7 +51,7 @@ class ReservationWorkflow
         abort_unless($user, 401, 'Unauthenticated.');
 
         abort_if(
-            isset($user->is_active) && !$user->is_active,
+            isset($user->is_active) && ! $user->is_active,
             403,
             'This account is inactive.'
         );
@@ -59,7 +59,7 @@ class ReservationWorkflow
 
     public function staff($user): bool
     {
-        if (!$user) {
+        if (! $user) {
             return false;
         }
 
@@ -178,8 +178,7 @@ class ReservationWorkflow
             'to_status' => $map[$to] ?? $to,
             'changed_by' => $actor,
 
-            'reason' =>
-                $reason . ' [application status: ' . $to . ']',
+            'reason' => $reason.' [application status: '.$to.']',
 
             'changed_at' => $this->now()->toIso8601String(),
             'created_at' => $this->stamp(),
@@ -241,15 +240,62 @@ class ReservationWorkflow
             );
         }
 
+        if ($reservations->isNotEmpty()) {
+            $this->promoteQueuedLocked();
+        }
+
         return $reservations->count();
+    }
+
+    public function depositDeadline(object $reservation): CarbonImmutable
+    {
+        $start = CarbonImmutable::parse(
+            $reservation->starts_at,
+            'Asia/Manila'
+        );
+
+        $deadline = $this->now()->addHours(
+            $reservation->deposit_window_hours
+        );
+
+        return $deadline->gte($start)
+            ? $start->subMinute()
+            : $deadline;
+    }
+
+    public function createOpportunity(
+        object $reservation,
+        ?int $actor = null
+    ): CarbonImmutable {
+        $deadline = $this->depositDeadline($reservation);
+
+        abort_unless(
+            $deadline->gt($this->now()),
+            422,
+            'The stay is too close or has already started.'
+        );
+
+        DB::table('reservation_opportunities')->insert([
+            'reservation_id' => $reservation->id,
+            'granted_at' => $this->now()->toIso8601String(),
+            'deposit_deadline' => $deadline->toIso8601String(),
+            'status' => 'active',
+            'granted_by' => $actor,
+            'created_at' => $this->stamp(),
+            'updated_at' => $this->stamp(),
+        ]);
+
+        return $deadline;
     }
 
     /*
      * Check that no other booking or blocked period
      * overlaps this reservation.
      */
-    public function available(object $reservation): void
-    {
+    public function available(
+        object $reservation,
+        bool $includeUnpaid = true
+    ): void {
         $start = CarbonImmutable::parse(
             $reservation->starts_at,
             'Asia/Manila'
@@ -273,29 +319,32 @@ class ReservationWorkflow
                 '>',
                 $start->toIso8601String()
             )
-            ->where(function ($query) {
-                $query
-                    ->whereIn('status', [
-                        'confirmed',
-                        'reserved',
-                        'payment_review',
-                    ])
-                    ->orWhere(function ($held) {
-                        $held
-                            ->whereIn('status', [
-                                'held',
-                                'awaiting_deposit',
-                            ])
-                            ->where(function ($deadline) {
-                                $deadline
-                                    ->whereNull('deadline')
-                                    ->orWhere(
-                                        'deadline',
-                                        '>',
-                                        $this->now()->toIso8601String()
-                                    );
-                            });
-                    });
+            ->where(function ($query) use ($includeUnpaid) {
+                $query->whereIn('status', [
+                    'confirmed',
+                    'reserved',
+                ]);
+
+                if ($includeUnpaid) {
+                    $query
+                        ->orWhere('status', 'payment_review')
+                        ->orWhere(function ($held) {
+                            $held
+                                ->whereIn('status', [
+                                    'held',
+                                    'awaiting_deposit',
+                                ])
+                                ->where(function ($deadline) {
+                                    $deadline
+                                        ->whereNull('deadline')
+                                        ->orWhere(
+                                            'deadline',
+                                            '>',
+                                            $this->now()->toIso8601String()
+                                        );
+                                });
+                        });
+                }
             })
             ->exists();
 
@@ -316,9 +365,102 @@ class ReservationWorkflow
 
         if ($conflict || $blocked) {
             throw ValidationException::withMessages([
-                'dates' =>
-                    'These dates overlap another active commitment or blocked period.',
+                'dates' => 'These dates overlap another active commitment or blocked period.',
             ]);
+        }
+    }
+
+    public function queuePosition(object $reservation): ?int
+    {
+        if (! in_array($reservation->status, ['pending', 'queued'], true)) {
+            return null;
+        }
+
+        $ahead = DB::table('reservations')
+            ->where('villa_id', $reservation->villa_id)
+            ->where('id', '!=', $reservation->id)
+            ->where('starts_at', '<', $reservation->ends_at)
+            ->where('ends_at', '>', $reservation->starts_at)
+            ->where(function ($query) use ($reservation) {
+                $query
+                    ->whereIn('status', [
+                        'awaiting_deposit',
+                        'held',
+                        'payment_review',
+                    ])
+                    ->orWhere(function ($queued) use ($reservation) {
+                        $queued
+                            ->whereIn('status', ['pending', 'queued'])
+                            ->where(function ($earlier) use ($reservation) {
+                                $earlier
+                                    ->where(
+                                        'requested_at',
+                                        '<',
+                                        $reservation->requested_at
+                                    )
+                                    ->orWhere(function ($sameTime) use ($reservation) {
+                                        $sameTime
+                                            ->where(
+                                                'requested_at',
+                                                $reservation->requested_at
+                                            )
+                                            ->where('id', '<', $reservation->id);
+                                    });
+                            });
+                    });
+            })
+            ->count();
+
+        return $ahead + 1;
+    }
+
+    public function promoteQueuedLocked(): void
+    {
+        $queued = DB::table('reservations')
+            ->where('villa_id', 1)
+            ->whereIn('status', ['pending', 'queued'])
+            ->orderBy('requested_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($queued as $reservation) {
+            try {
+                $this->available($reservation);
+            } catch (ValidationException) {
+                continue;
+            }
+
+            $deadline = $this->createOpportunity($reservation);
+
+            $this->state(
+                $reservation,
+                'awaiting_deposit',
+                null,
+                'The next queued reservation received the deposit opportunity.',
+                ['deadline' => $deadline->toIso8601String()]
+            );
+        }
+    }
+
+    public function rejectQueuedOverlaps(object $confirmed): void
+    {
+        $queued = DB::table('reservations')
+            ->where('villa_id', $confirmed->villa_id)
+            ->where('id', '!=', $confirmed->id)
+            ->whereIn('status', ['pending', 'queued'])
+            ->where('starts_at', '<', $confirmed->ends_at)
+            ->where('ends_at', '>', $confirmed->starts_at)
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($queued as $reservation) {
+            $this->state(
+                $reservation,
+                'rejected',
+                null,
+                'An earlier reservation completed its required deposit.'
+            );
         }
     }
 
@@ -348,10 +490,10 @@ class ReservationWorkflow
     {
 
         $opportunity = DB::table('reservation_opportunities')
-        ->where('reservation_id', $reservation->id)
-        ->orderByDesc('id')
-        ->first();
-        
+            ->where('reservation_id', $reservation->id)
+            ->orderByDesc('id')
+            ->first();
+
         $payments = DB::table('payments as p')
             ->join(
                 'payment_methods as m',
@@ -388,6 +530,8 @@ class ReservationWorkflow
                 ];
             });
 
+        $queuePosition = $this->queuePosition($reservation);
+
         return [
 
             'opportunity' => $opportunity
@@ -397,19 +541,25 @@ class ReservationWorkflow
             ]
             : null,
 
-        'extension_status' => $reservation->extension_status,
+            'extension_status' => $reservation->extension_status,
+            'extension_reason' => $reservation->extension_reason,
+            'extension_message' => $reservation->extension_message ?? null,
 
-        'extension_date' => $reservation->extension_date
-            ? CarbonImmutable::parse(
-                $reservation->extension_date,
-                'Asia/Manila'
-            )->toDateString()
-            : null,
+            'extension_date' => $reservation->extension_date
+                ? CarbonImmutable::parse(
+                    $reservation->extension_date,
+                    'Asia/Manila'
+                )->toDateString()
+                : null,
             'id' => $reservation->id,
             'user_id' => $reservation->user_id,
             'reference' => $reservation->booking_reference,
             'type' => $reservation->type,
             'status' => $reservation->status,
+            'queue_position' => $queuePosition,
+            'reservations_ahead' => $queuePosition === null
+                ? null
+                : $queuePosition - 1,
 
             'starts_at' => CarbonImmutable::parse(
                 $reservation->starts_at,

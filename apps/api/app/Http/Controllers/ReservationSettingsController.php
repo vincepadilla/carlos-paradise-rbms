@@ -93,16 +93,27 @@ class ReservationSettingsController extends Controller
         $paymentMethods = [];
 
         if (Schema::hasTable('payment_methods')) {
+            $columns = [
+                'id',
+                'name',
+                'account_name',
+                'account_number',
+                'instructions',
+            ];
+
+            if (Schema::hasColumn('payment_methods', 'qr_code_url')) {
+                $columns[] = 'qr_code_url';
+            }
+
             $paymentMethods = DB::table('payment_methods')
                 ->where('is_active', true)
                 ->orderBy('name')
-                ->get([
-                    'id',
-                    'name',
-                    'account_name',
-                    'account_number',
-                    'instructions',
-                ]);
+                ->get($columns)
+                ->map(function ($method) {
+                    $method->qr_code_url ??= null;
+
+                    return $method;
+                });
         }
 
         return response()->json([

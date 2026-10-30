@@ -28,11 +28,13 @@ export default function MakeReservationPage({
     settings,
     paymentMethods,
     onUserUpdated,
+    initialPage = "reservation",
 }: {
     user: User;
     onUserUpdated?: (user: User) => void;
     settings: Settings;
     paymentMethods: PaymentMethod[];
+    initialPage?: "reservation" | "dashboard";
 }) {
     const [user, setUser] = useState(initialUser);
     const [profileOpen, setProfileOpen] = useState(false);
@@ -42,7 +44,9 @@ export default function MakeReservationPage({
     const [focusReservationId, setFocusReservationId] = useState<number | null>(
         null,
     );
-    const [dashboardOpen, setDashboardOpen] = useState(false);
+    const [dashboardOpen, setDashboardOpen] = useState(
+        initialPage === "dashboard",
+    );
     const [rows, setRows] = useState<(SavedReservation & { user_id: number })[]>(
         [],
     );
@@ -528,13 +532,6 @@ export default function MakeReservationPage({
                 onDashboard={openDashboard}
             />
             <div className="mx-auto max-w-[1240px] px-4 py-6 md:p-[34px] pb-8">
-                <p
-                    className="mt-0 mb-6 rounded-lg border border-[#e3d9cb] bg-[#f6ecd7] px-3.5 py-2.5 text-[10px] text-[#4c3425]!"
-                    role="status"
-                >
-                    Live reservation request · Prices and availability are checked by the
-                    server before submission
-                </p>
                 <PageHead
                     eyebrow="Reservation Request"
                     title="Request the entire private villa"
@@ -796,8 +793,9 @@ export default function MakeReservationPage({
                                                 <strong>Reservation opportunity conflict</strong>
                                                 <p>
                                                     Your selected dates overlap with an existing
-                                                    reservation opportunity. Another guest submitted an
-                                                    earlier request for these dates. You may wait for the
+                                                    reservation opportunity. You would be position{" "}
+                                                    {checked?.queue_position ?? "next"} in the request
+                                                    queue. You may wait for the
                                                     opportunity to become available if the earlier request
                                                     is cancelled or expires. Would you like to continue
                                                     waiting?
@@ -1478,13 +1476,12 @@ export default function MakeReservationPage({
                                         <div>
                                             <b>Important</b>
                                             <p>
-                                                Submitting this form does not automatically confirm your
-                                                reservation. We’ll review availability and notify you
-                                                when you may submit the {money(settings.deposit)}{" "}
-                                                deposit. The {settings.opportunity_hours}-hour countdown
-                                                begins only when your reservation opportunity becomes
-                                                active. Your reservation is secured only after payment
-                                                verification and reservation approval.
+                                                Submitting this form does not confirm your reservation.
+                                                If no earlier request is ahead, your{" "}
+                                                {settings.opportunity_hours}-hour deposit opportunity
+                                                starts immediately. Otherwise, your request keeps its
+                                                queue position. Dates are secured only after the{" "}
+                                                {money(settings.deposit)} deposit is verified.
                                             </p>
                                         </div>
                                     </div>

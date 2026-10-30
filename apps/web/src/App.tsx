@@ -36,6 +36,10 @@ export default function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<SignupPage />} />
         <Route path="/make-reservation" element={<ReservationRoute />} />
+        <Route
+          path="/dashboard"
+          element={<ReservationRoute initialPage="dashboard" />}
+        />
       </Routes>
     </BrowserRouter>
   );

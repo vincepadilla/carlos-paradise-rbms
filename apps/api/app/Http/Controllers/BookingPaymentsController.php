@@ -12,8 +12,7 @@ class BookingPaymentsController extends Controller
 {
     public function __construct(
         private ReservationWorkflow $flow
-    ) {
-    }
+    ) {}
 
     /*
      * POST /api/reservations/{reservation}/payments
@@ -31,21 +30,19 @@ class BookingPaymentsController extends Controller
         );
 
         $data = $request->validate([
-            'amount' =>
-                'required|numeric|min:1|max:99999999',
+            'amount' => 'required|numeric|min:1|max:99999999',
 
             'method' => [
                 'required',
                 Rule::in(['GCash', 'MariBank']),
             ],
 
-            'reference' =>
-                'required|string|min:5|max:100',
+            'reference' => 'required|string|min:5|max:100',
 
             'payment_date' => [
                 'required',
                 'date_format:Y-m-d',
-                'before_or_equal:' .
+                'before_or_equal:'.
                     $this->flow->now()->toDateString(),
             ],
 
@@ -187,8 +184,7 @@ class BookingPaymentsController extends Controller
 
                         'payment_date' => $data['payment_date'],
 
-                        'submitted_at' =>
-                            $this->flow->now()->toIso8601String(),
+                        'submitted_at' => $this->flow->now()->toIso8601String(),
 
                         'status' => 'submitted',
                         'submitted_by' => $request->user()->id,
@@ -269,7 +265,7 @@ class BookingPaymentsController extends Controller
 
         return $this->flow->disk()->download(
             $path,
-            'receipt-' . $record->id . '.' . $extension
+            'receipt-'.$record->id.'.'.$extension
         );
     }
 
@@ -327,7 +323,9 @@ class BookingPaymentsController extends Controller
              * Recheck availability before confirming.
              */
             if ($data['decision'] === 'approved') {
-                $this->flow->available($reservation);
+                // Unpaid opportunities remain queued candidates. Only an
+                // already confirmed booking can prevent this confirmation.
+                $this->flow->available($reservation, false);
             }
 
             DB::table('payments')
@@ -344,8 +342,7 @@ class BookingPaymentsController extends Controller
                 'decision' => $data['decision'],
                 'notes' => $data['note'],
 
-                'reviewed_at' =>
-                    $this->flow->now()->toIso8601String(),
+                'reviewed_at' => $this->flow->now()->toIso8601String(),
 
                 'created_at' => $this->flow->stamp(),
                 'updated_at' => $this->flow->stamp(),
@@ -366,6 +363,8 @@ class BookingPaymentsController extends Controller
                     $reservation->id,
                     'completed'
                 );
+
+                $this->flow->rejectQueuedOverlaps($reservation);
             } else {
                 /*
                  * Allow correction before a renewed deadline.
@@ -394,8 +393,7 @@ class BookingPaymentsController extends Controller
                     $request->user()->id,
                     $data['note'],
                     [
-                        'deadline' =>
-                            $deadline->toIso8601String(),
+                        'deadline' => $deadline->toIso8601String(),
                     ]
                 );
 
@@ -412,11 +410,9 @@ class BookingPaymentsController extends Controller
                         )
                         ->where('status', 'active')
                         ->update([
-                            'deposit_deadline' =>
-                                $deadline->toIso8601String(),
+                            'deposit_deadline' => $deadline->toIso8601String(),
 
-                            'updated_at' =>
-                                $this->flow->stamp(),
+                            'updated_at' => $this->flow->stamp(),
                         ]);
                 }
             }

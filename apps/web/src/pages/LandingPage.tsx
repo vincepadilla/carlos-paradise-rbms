@@ -517,10 +517,21 @@ export default function LandingPage() {
                                         className="absolute right-0 top-[calc(100%+12px)] z-50 w-[min(272px,calc(100vw-36px))] rounded-2xl border border-line bg-paper p-4 text-ink shadow-[0_16px_45px_rgba(25,18,13,.25)]">
                                         <p className="truncate font-bold text-brown">{accountUser.name}</p>
                                         <p className="mt-1 break-all text-xs text-muted">{accountUser.email}</p>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setAccountOpen(false);
+                                                setMenuOpen(false);
+                                                navigateTo("/dashboard");
+                                            }}
+                                            className="mt-4 inline-flex min-h-11 w-full cursor-pointer items-center justify-center rounded-[10px] border border-line bg-brown px-4 text-sm font-bold text-white transition hover:bg-[#664936] focus-visible:outline-2 focus-visible:outline-gold"
+                                        >
+                                            Dashboard
+                                        </button>
                                         <button type="button"
                                             disabled={isLoggingOut}
                                             onClick={() => void logout()}
-                                            className="mt-4 inline-flex min-h-11 w-full cursor-pointer items-center justify-center rounded-[10px] border border-line bg-cream px-4 text-sm font-bold text-brown transition hover:bg-sage-pale focus-visible:outline-2 focus-visible:outline-gold disabled:cursor-wait disabled:opacity-60">
+                                            className="mt-2 inline-flex min-h-11 w-full cursor-pointer items-center justify-center rounded-[10px] border border-line bg-cream px-4 text-sm font-bold text-brown transition hover:bg-sage-pale focus-visible:outline-2 focus-visible:outline-gold disabled:cursor-wait disabled:opacity-60">
                                             {isLoggingOut ? "Logging out…" : "Log Out"}
                                         </button>
                                         {logoutError && (

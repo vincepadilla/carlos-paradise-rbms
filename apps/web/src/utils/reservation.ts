@@ -27,6 +27,7 @@ export const statuses: Record<string, string> = {
     confirmed: "Reservation confirmed",
     expired: "Deposit opportunity expired",
     cancelled: "Reservation cancelled",
+    rejected: "Dates secured by an earlier request",
     completed: "Stay completed",
     held: "Held for review",
     reserved: "Reserved",

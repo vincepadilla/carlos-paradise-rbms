@@ -5,12 +5,15 @@ namespace App\Console\Commands;
 use App\Services\ReservationWorkflow;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 
 class ConfigureBookingPayment extends Command
 {
     protected $signature =
-        'reservations:payment-method {method : GCash or MariBank}';
+        'reservations:payment-method
+        {method : GCash or MariBank}
+        {--qr-url= : Public URL for the payment QR image}';
 
     protected $description =
         'Configure the verified receiving account shown to guests';
@@ -20,9 +23,7 @@ class ConfigureBookingPayment extends Command
         $data = [
             'method' => $this->argument('method'),
 
-            'account_name' => $this->ask(
-                'Verified account holder name'
-            ),
+            'account_name' => 'Carlos Paradise',
 
             'account_number' => $this->ask(
                 'Verified receiving account number'
@@ -32,6 +33,8 @@ class ConfigureBookingPayment extends Command
                 'Payment instructions',
                 'Transfer the exact deposit, then upload your receipt.'
             ),
+
+            'qr_code_url' => $this->option('qr-url'),
         ];
 
         $validator = Validator::make($data, [
@@ -39,6 +42,7 @@ class ConfigureBookingPayment extends Command
             'account_name' => 'required|string|max:255',
             'account_number' => 'required|string|max:255',
             'instructions' => 'nullable|string|max:2000',
+            'qr_code_url' => 'nullable|url|max:2000',
         ]);
 
         if ($validator->fails()) {
@@ -72,6 +76,10 @@ class ConfigureBookingPayment extends Command
                 'is_active' => true,
                 'updated_at' => $flow->stamp(),
             ];
+
+            if (Schema::hasColumn('payment_methods', 'qr_code_url')) {
+                $values['qr_code_url'] = $data['qr_code_url'];
+            }
 
             if ($existing) {
                 DB::table('payment_methods')

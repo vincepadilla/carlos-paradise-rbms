@@ -115,6 +115,7 @@ return new class extends Migration
             // Deposit deadline extension
             $table->timestampTz('extension_date')->nullable();
             $table->text('extension_reason')->nullable();
+            $table->text('extension_message')->nullable();
             $table->string('extension_status', 20)->nullable();
 
             // Staff processing information

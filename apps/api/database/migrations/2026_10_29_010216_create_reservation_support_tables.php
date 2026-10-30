@@ -28,6 +28,7 @@ return new class extends Migration
                 $table->string('name');
                 $table->string('account_name');
                 $table->string('account_number');
+                $table->text('qr_code_url')->nullable();
                 $table->text('instructions')->nullable();
 
                 $table->boolean('is_active')->default(true);

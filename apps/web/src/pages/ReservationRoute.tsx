@@ -30,7 +30,11 @@ const previewSettings: Settings = {
     opportunity_hours: 24,
     min_lead_days: 2,
 };
-export default function ReservationRoute() {
+export default function ReservationRoute({
+    initialPage = "reservation",
+}: {
+    initialPage?: "reservation" | "dashboard";
+}) {
     const navigate = useNavigate();
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
@@ -108,7 +112,11 @@ export default function ReservationRoute() {
                     </button>
                 </section>
             ) : user ? (
-                <ReservationPage user={user} settings={previewSettings} />
+                <ReservationPage
+                    user={user}
+                    settings={previewSettings}
+                    initialPage={initialPage}
+                />
             ) : (
                 <p className="p-10 text-center">
                     Please sign in to preview the reservation form.

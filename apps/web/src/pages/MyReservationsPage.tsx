@@ -1,14 +1,22 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+    useEffect,
+    useRef,
+    useState,
+    type FormEvent,
+    type ReactNode,
+} from "react";
 import type { User } from "../api";
 import type { SavedReservation, Payment } from "../types/reservation";
 import ReservationHeader from "../components/GuestHeader";
 import { apiBaseUrl, reservationApi } from "../services/ReservationApi";
-import { money } from "../utils/reservation";
+import { manilaToday, money } from "../utils/reservation";
 
 type Reservation = SavedReservation & {
     opportunity?: { id: number; status: string } | null;
     extension_status?: string | null;
     extension_date?: string | null;
+    extension_reason?: string | null;
+    extension_message?: string | null;
 };
 type Tab = "active" | "pending" | "completed" | "cancelled";
 const tabs: { key: Tab; label: string }[] = [
@@ -25,6 +33,7 @@ const labels: Record<string, string> = {
     confirmed: "Confirmed",
     completed: "Completed",
     cancelled: "Cancelled",
+    rejected: "Dates Secured by Earlier Request",
     expired: "Deposit Period Expired",
     declined: "Declined",
     held: "Held for Review",
@@ -131,7 +140,7 @@ function availabilityStatus(reservation: Reservation, now: number) {
     if (reservation.status === "confirmed") return "Reservation Confirmed";
     if (reservation.status === "completed") return "Stay Completed";
     if (reservation.status === "payment_review") return "Held for Verification";
-    if (["cancelled", "expired", "declined"].includes(reservation.status))
+    if (["cancelled", "expired", "declined", "rejected"].includes(reservation.status))
         return "Request Closed";
     if (reservation.status === "awaiting_deposit") {
         if (reservation.opportunity === undefined)
@@ -143,7 +152,9 @@ function availabilityStatus(reservation: Reservation, now: number) {
             : "Awaiting Staff Update";
     }
     return reservation.status === "queued"
-        ? "Awaiting Opportunity"
+        ? reservation.queue_position
+            ? "Queue position " + reservation.queue_position
+            : "Awaiting Opportunity"
         : "Pending Staff Review";
 }
 function Information({
@@ -435,6 +446,240 @@ function PaymentHistoryDialog({
     );
 }
 
+function ExtensionRequestDialog({
+    reservation,
+    onClose,
+    onSubmitted,
+}: {
+    reservation: Reservation;
+    onClose: () => void;
+    onSubmitted: (reservation: Reservation, message: string) => void;
+}) {
+    const [reason, setReason] = useState("");
+    const [requestedDate, setRequestedDate] = useState("");
+    const [message, setMessage] = useState("");
+    const [submitting, setSubmitting] = useState(false);
+    const [submitError, setSubmitError] = useState("");
+    const tomorrow = new Date(
+        Date.parse(manilaToday() + "T00:00:00Z") + 86400000,
+    )
+        .toISOString()
+        .slice(0, 10);
+    const checkinDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Asia/Manila",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(new Date(reservation.starts_at));
+    const deadlineDate = reservation.deadline
+        ? new Intl.DateTimeFormat("en-CA", {
+              timeZone: "Asia/Manila",
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+          }).format(new Date(reservation.deadline))
+        : tomorrow;
+    const earliestDate = deadlineDate > tomorrow ? deadlineDate : tomorrow;
+    const latestDate = new Date(
+        Date.parse(checkinDate + "T00:00:00Z") - 86400000,
+    )
+        .toISOString()
+        .slice(0, 10);
+    const deadlineIsActive = Boolean(
+        reservation.deadline &&
+            new Date(reservation.deadline).getTime() > Date.now(),
+    );
+    const blockingMessage =
+        reservation.extension_status === "pending"
+            ? "An extension request is already pending for this reservation."
+            : reservation.status !== "awaiting_deposit"
+              ? "A deposit opportunity must be active before you can request a deadline extension."
+              : !deadlineIsActive
+                ? "This deposit deadline has already expired and can no longer be extended."
+                : earliestDate > latestDate
+                  ? "There is no valid extension date before this reservation's check-in time."
+                  : "";
+
+    useEffect(() => {
+        const originalOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = originalOverflow;
+        };
+    }, []);
+
+    async function submit(event: FormEvent<HTMLFormElement>) {
+        event.preventDefault();
+        setSubmitError("");
+
+        if (blockingMessage) {
+            setSubmitError(blockingMessage);
+            return;
+        }
+
+        if (reason.trim().length < 3) {
+            setSubmitError("Please explain why you need additional time.");
+            return;
+        }
+
+        if (!requestedDate || requestedDate < earliestDate) {
+            setSubmitError(
+                "Requested payment date must extend the current deadline.",
+            );
+            return;
+        }
+
+        if (requestedDate > latestDate) {
+            setSubmitError("Requested payment date must be before check-in.");
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const response = await reservationApi<{
+                reservation: Reservation;
+                message: string;
+            }>("/reservations/" + reservation.id + "/extension", "POST", {
+                reason: reason.trim(),
+                requested_date: requestedDate,
+                message: message.trim() || null,
+            });
+
+            if (!response.reservation)
+                throw new Error("The server did not return the updated reservation.");
+
+            onSubmitted(
+                response.reservation,
+                response.message || "Your extension request was submitted.",
+            );
+            onClose();
+        } catch (cause) {
+            setSubmitError(
+                cause instanceof Error
+                    ? cause.message
+                    : "Unable to submit the extension request.",
+            );
+        } finally {
+            setSubmitting(false);
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-[100] overflow-y-auto bg-[#2d261f]/55 p-4 font-sans text-[#2d261f]">
+            <div className="flex min-h-full items-center justify-center">
+                <section
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="extension-request-title"
+                    aria-describedby="extension-request-description"
+                    className="max-h-[90dvh] w-full max-w-[620px] overflow-y-auto rounded-2xl border border-[#e3d9cb] bg-[#fffdf8] shadow-2xl"
+                >
+                    <form onSubmit={submit}>
+                <header className="border-b border-[#e3d9cb] px-5 py-5 sm:px-7 sm:py-6">
+                    <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.18em] text-[#b08a52]">
+                        Deposit Payment
+                    </span>
+                    <h2
+                        id="extension-request-title"
+                        className="m-0 text-2xl font-normal tracking-[-0.035em]"
+                    >
+                        Request Deadline Extension
+                    </h2>
+                    <p
+                        id="extension-request-description"
+                        className="mt-3 mb-0 text-xs leading-relaxed text-[#776f65]"
+                    >
+                        This request will be reviewed by an Admin or Owner. Your
+                        actual deposit deadline remains unchanged until approval.
+                    </p>
+                </header>
+
+                <div className="space-y-5 px-5 py-6 sm:px-7">
+                    {blockingMessage && (
+                        <p
+                            role="status"
+                            className="m-0 rounded-lg border border-[#e4cfaa] bg-[#fff6df] px-4 py-3 text-xs text-[#73572e]"
+                        >
+                            {blockingMessage}
+                        </p>
+                    )}
+                    {submitError && (
+                        <p
+                            role="alert"
+                            className="m-0 rounded-lg border border-[#e7bbb6] bg-[#f7e6e3] px-4 py-3 text-xs text-[#a44b45]"
+                        >
+                            {submitError}
+                        </p>
+                    )}
+
+                    <label className="block text-xs font-semibold">
+                        Reason for requesting an extension
+                        <span className="ml-1 text-[#a44b45]">*</span>
+                        <textarea
+                            autoFocus
+                            required
+                            value={reason}
+                            onChange={(event) => setReason(event.target.value)}
+                            placeholder="Explain why you need additional time."
+                            maxLength={2000}
+                            className="mt-2 min-h-28 w-full resize-y rounded-lg border border-[#e3d9cb] bg-white px-4 py-3 text-sm font-normal text-[#2d261f] outline-none placeholder:text-[#a9a198] focus:border-[#b08a52] focus:ring-2 focus:ring-[#b08a52]/15"
+                        />
+                    </label>
+
+                    <label className="block text-xs font-semibold">
+                        Requested date of payment
+                        <span className="ml-1 text-[#a44b45]">*</span>
+                        <input
+                            required
+                            type="date"
+                            value={requestedDate}
+                            min={earliestDate}
+                            max={latestDate}
+                            placeholder="dd/mm/yyyy"
+                            onChange={(event) => setRequestedDate(event.target.value)}
+                            className="mt-2 min-h-12 w-full rounded-lg border border-[#e3d9cb] bg-white px-4 py-3 text-sm font-normal text-[#2d261f] outline-none focus:border-[#b08a52] focus:ring-2 focus:ring-[#b08a52]/15"
+                        />
+                        <small className="mt-1.5 block font-normal text-[#776f65]">
+                            dd/mm/yyyy
+                        </small>
+                    </label>
+
+                    <label className="block text-xs font-semibold">
+                        Optional message to Admin/Owner
+                        <textarea
+                            value={message}
+                            onChange={(event) => setMessage(event.target.value)}
+                            placeholder="Add any supporting information."
+                            maxLength={2000}
+                            className="mt-2 min-h-24 w-full resize-y rounded-lg border border-[#e3d9cb] bg-white px-4 py-3 text-sm font-normal text-[#2d261f] outline-none placeholder:text-[#a9a198] focus:border-[#b08a52] focus:ring-2 focus:ring-[#b08a52]/15"
+                        />
+                    </label>
+                </div>
+
+                <footer className="flex flex-col-reverse gap-3 border-t border-[#e3d9cb] bg-[#f6f1e7] px-5 py-4 sm:flex-row sm:justify-end sm:px-7">
+                    <button
+                        type="button"
+                        disabled={submitting}
+                        onClick={onClose}
+                        className="min-h-11 rounded-lg border border-[#e3d9cb] bg-[#fffdf8] px-6 py-3 text-xs font-semibold text-[#4c3425] hover:bg-white disabled:cursor-wait disabled:opacity-60"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="submit"
+                        disabled={submitting || Boolean(blockingMessage)}
+                        className="min-h-11 rounded-lg bg-[#4c3425] px-6 py-3 text-xs font-semibold text-white hover:bg-[#6e4b35] disabled:cursor-wait disabled:opacity-60"
+                    >
+                        {submitting ? "Submitting…" : "Submit Request"}
+                    </button>
+                </footer>
+                    </form>
+                </section>
+            </div>
+        </div>
+    );
+}
+
 export default function MyReservationsPage({
     user,
     rows,
@@ -476,8 +721,15 @@ export default function MyReservationsPage({
     const [historyReservationId, setHistoryReservationId] = useState<
         number | null
     >(null);
+    const [extensionReservationId, setExtensionReservationId] = useState<
+        number | null
+    >(null);
+    const [extensionNotice, setExtensionNotice] = useState("");
     const historyReservation = reservations.find(
         (row) => row.id === historyReservationId,
+    );
+    const extensionReservation = reservations.find(
+        (row) => row.id === extensionReservationId,
     );
     useEffect(() => setReservations(rows), [rows]);
     useEffect(() => {
@@ -602,6 +854,22 @@ export default function MyReservationsPage({
                     >
                         {error || refreshError}
                     </p>
+                )}
+                {extensionNotice && (
+                    <div
+                        role="status"
+                        className="mb-4 flex items-center justify-between gap-4 rounded-lg border border-[#cddbc8] bg-[#e8eee5] p-4 text-xs text-[#59754f]"
+                    >
+                        <span>{extensionNotice}</span>
+                        <button
+                            type="button"
+                            aria-label="Dismiss notification"
+                            onClick={() => setExtensionNotice("")}
+                            className="border-0 bg-transparent text-lg text-[#59754f]"
+                        >
+                            ×
+                        </button>
+                    </div>
                 )}
                 <div
                     role="tabpanel"
@@ -773,42 +1041,19 @@ export default function MyReservationsPage({
                                     {["pending", "queued", "awaiting_deposit"].includes(
                                         reservation.status,
                                     ) && (
-                                            <section className="grid items-center gap-4 rounded-[10px] border border-[#e3d9cb] bg-[#f6f1e7] p-[18px] lg:grid-cols-[minmax(0,1fr)_150px_auto]">
-                                                <div>
-                                                    <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.17em] text-[#b08a52]">
-                                                        Deposit Payment
-                                                    </span>
-                                                    <h3 className="m-0 text-sm font-normal">
-                                                        Deadline Extension
-                                                    </h3>
-                                                    <p className="mt-1.5 mb-0 text-[8px] leading-relaxed text-[#776f65]">
-                                                        Requesting a date does not change your current
-                                                        deadline. Admin or Owner approval is required.
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <span className="mb-1.5 block text-[8px] text-[#776f65]">
-                                                        Request Status
-                                                    </span>
-                                                    <span className="inline-flex rounded-full bg-[#eeeae4] px-2.5 py-1.5 text-[8px] uppercase text-[#776f65]">
-                                                        {reservation.extension_status === undefined
-                                                            ? "Unavailable"
-                                                            : reservation.extension_status || "None"}
-                                                    </span>
-                                                    {reservation.extension_date && (
-                                                        <small className="mt-1 block text-[8px] text-[#776f65]">
-                                                            Requested: {reservation.extension_date}
-                                                        </small>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    className={secondary}
-                                                    disabled
-                                                    title="Online deadline extension requests are not available yet. Contact the resort for assistance."
-                                                >
-                                                    Request Deposit Deadline Extension
-                                                </button>
+                                            <section className="rounded-[10px] border border-[#e4cfaa] bg-[#fff6df] p-[18px]">
+                                                <span className="mb-2 block text-[9px] font-bold uppercase tracking-[0.17em] text-[#9a7138]">
+                                                    Need More Time?
+                                                </span>
+                                                <h3 className="m-0 text-sm font-normal text-[#4c3425]">
+                                                    Contact the Admin or Owner
+                                                </h3>
+                                                <p className="mt-1.5 mb-0 max-w-[720px] text-[10px] leading-relaxed text-[#73572e]">
+                                                    To request more time for your deposit payment,
+                                                    please contact the resort Admin or Owner first.
+                                                    The deadline extension request option will remain
+                                                    hidden until staff makes it available.
+                                                </p>
                                             </section>
                                         )}
                                     {![
@@ -835,6 +1080,23 @@ export default function MyReservationsPage({
                     key={historyReservation.id}
                     reservation={historyReservation}
                     onClose={() => setHistoryReservationId(null)}
+                />
+            )}
+            {extensionReservation && (
+                <ExtensionRequestDialog
+                    key={extensionReservation.id}
+                    reservation={extensionReservation}
+                    onClose={() => setExtensionReservationId(null)}
+                    onSubmitted={(updatedReservation, message) => {
+                        setReservations((current) =>
+                            current.map((reservation) =>
+                                reservation.id === updatedReservation.id
+                                    ? updatedReservation
+                                    : reservation,
+                            ),
+                        );
+                        setExtensionNotice(message);
+                    }}
                 />
             )}
         </div>

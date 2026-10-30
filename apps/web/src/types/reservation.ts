@@ -5,6 +5,7 @@ export type PaymentMethod = {
     name: string;
     account_name: string;
     account_number: string;
+    qr_code_url?: string | null;
     instructions: string | null;
 };
 export type Payment = {
@@ -22,6 +23,8 @@ export type SavedReservation = {
     id: number;
     reference: string;
     status: string;
+    queue_position?: number | null;
+    reservations_ahead?: number | null;
     type: "overnight" | "day_tour";
     starts_at: string;
     ends_at: string;
@@ -46,6 +49,7 @@ export type Quote = {
 export type QuoteResponse = {
     quote: Quote;
     availability: "available" | "queue" | "blocked";
+    queue_position: number | null;
 };
 export type SettingsResponse = {
     settings: Settings;

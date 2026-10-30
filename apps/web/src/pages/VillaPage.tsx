@@ -1,5 +1,12 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
+
+const apiBaseUrl = (
+    import.meta.env.VITE_API_URL || "http://localhost:8000"
+).replace(/\/+$/, "");
+
+type AccountUser = { id: number | string; name: string; email: string };
+type AccountStatus = "loading" | "ready" | "error";
 
 const navLinks = [
     ["Home", "/"], ["About", "/#about"], ["Villa", "/villa"],
@@ -35,6 +42,44 @@ const button = "inline-flex min-h-[46px] items-center justify-center rounded-[10
 
 export default function VillaPage() {
     const [menuOpen, setMenuOpen] = useState(false);
+    const [accountUser, setAccountUser] = useState<AccountUser | null>(null);
+    const [accountStatus, setAccountStatus] =
+        useState<AccountStatus>("loading");
+
+    useEffect(() => {
+        const controller = new AbortController();
+
+        async function loadAccount() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/auth/user`, {
+                    credentials: "include",
+                    headers: { Accept: "application/json" },
+                    cache: "no-store",
+                    signal: controller.signal,
+                });
+
+                if (response.status === 401) {
+                    setAccountUser(null);
+                    setAccountStatus("ready");
+                    return;
+                }
+
+                if (!response.ok) throw new Error("Account check failed.");
+
+                const data = (await response.json()) as {
+                    user?: AccountUser | null;
+                };
+                setAccountUser(data.user || null);
+                setAccountStatus("ready");
+            } catch (error) {
+                if (controller.signal.aborted) return;
+                setAccountStatus("error");
+            }
+        }
+
+        void loadAccount();
+        return () => controller.abort();
+    }, []);
 
     return (
         <div className="min-h-screen bg-cream font-sans text-sm text-ink">
@@ -52,15 +97,52 @@ export default function VillaPage() {
                 </nav>
 
                 <div className="hidden items-center gap-2 min-[1101px]:flex">
-                    <Link to="/login" className="rounded-[10px] border border-[#5d5147] px-4 py-3 text-[11px] font-bold text-[#e8dfd6] hover:text-white">Login</Link>
-                    <Link to="/register" className="rounded-[10px] bg-sage px-4 py-3 text-[11px] font-bold text-ink">Create Account</Link>
+                    {accountStatus === "loading" ? (
+                        <span
+                            role="status"
+                            aria-label="Checking your account"
+                            className="size-11 animate-pulse rounded-full bg-white/10"
+                        />
+                    ) : accountUser ? (
+                        <Link
+                            to="/dashboard"
+                            aria-label={`Open ${accountUser.name}'s dashboard`}
+                            title={accountUser.name}
+                            className="grid size-11 place-items-center rounded-full border border-paper/30 bg-paper text-brown transition hover:bg-white"
+                        >
+                            <svg
+                                aria-hidden="true"
+                                viewBox="0 0 24 24"
+                                className="size-[22px]"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.8"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            >
+                                <circle cx="12" cy="8" r="4" />
+                                <path d="M4 21a8 8 0 0 1 16 0" />
+                            </svg>
+                        </Link>
+                    ) : accountStatus === "ready" ? (
+                        <>
+                            <Link to="/login" className="rounded-[10px] border border-[#5d5147] px-4 py-3 text-[11px] font-bold text-[#e8dfd6] hover:text-white">Login</Link>
+                            <Link to="/register" className="rounded-[10px] bg-sage px-4 py-3 text-[11px] font-bold text-ink">Create Account</Link>
+                        </>
+                    ) : null}
                 </div>
                 <button type="button" aria-expanded={menuOpen} aria-controls="villa-mobile-menu" onClick={() => setMenuOpen(!menuOpen)} className="cursor-pointer rounded-md border border-white/30 px-3 py-2 min-[1101px]:hidden">{menuOpen ? "Close" : "Menu"}</button>
 
                 {menuOpen && <nav id="villa-mobile-menu" aria-label="Mobile villa navigation" className="absolute inset-x-0 top-full grid max-h-[calc(100svh-76px)] grid-cols-2 gap-2 overflow-y-auto border-t border-white/15 bg-[#33291f] p-4 min-[1101px]:hidden">
                     {navLinks.map(([label, path]) => <Link key={label} to={path} onClick={() => setMenuOpen(false)} className="rounded-lg border border-white/20 px-3 py-3 text-sm">{label}</Link>)}
-                    <Link to="/login" onClick={() => setMenuOpen(false)} className="rounded-lg border border-white/20 px-3 py-3 text-center font-bold text-white">Login</Link>
-                    <Link to="/register" onClick={() => setMenuOpen(false)} className="rounded-lg bg-sage px-3 py-3 text-center font-bold text-ink">Create Account</Link>
+                    {accountUser ? (
+                        <Link to="/dashboard" onClick={() => setMenuOpen(false)} className="col-span-2 rounded-lg bg-sage px-3 py-3 text-center font-bold text-ink">Dashboard</Link>
+                    ) : accountStatus === "ready" ? (
+                        <>
+                            <Link to="/login" onClick={() => setMenuOpen(false)} className="rounded-lg border border-white/20 px-3 py-3 text-center font-bold text-white">Login</Link>
+                            <Link to="/register" onClick={() => setMenuOpen(false)} className="rounded-lg bg-sage px-3 py-3 text-center font-bold text-ink">Create Account</Link>
+                        </>
+                    ) : null}
                 </nav>}
             </header>
 
@@ -115,15 +197,9 @@ export default function VillaPage() {
                 <section className="bg-cream px-6 py-[90px] text-center">
                     <h2 className={heading}>Ready to make it yours?</h2>
                     <p className="mx-auto mt-5 mb-7 max-w-[600px] leading-[1.75] text-muted">Tell us your preferred dates. We’ll review your request and keep you updated.</p>
-                    <Link to="/register" className={button}>Request a Reservation</Link>
+                    <Link to={accountUser ? "/make-reservation" : "/register"} className={button}>Request a Reservation</Link>
                 </section>
             </main>
-
-            <footer className="flex flex-wrap items-center justify-between gap-5 bg-[#2d251e] px-[max(4vw,24px)] py-10 text-white">
-                <div><span className="font-display text-xl">Carlos Paradise</span><p className="mt-1 text-xs text-[#bfb4aa]">Private Villa and Resort</p></div>
-                <Link to="/" className="text-sm underline underline-offset-4">Back to Home</Link>
-                <small className="text-[#bfb4aa]">© {new Date().getFullYear()} Carlos Paradise</small>
-            </footer>
         </div>
     );
 }

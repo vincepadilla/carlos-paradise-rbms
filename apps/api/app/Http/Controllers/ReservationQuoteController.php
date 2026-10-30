@@ -39,14 +39,14 @@ class ReservationQuoteController extends Controller
             'checkin' => [
                 'required',
                 'date_format:Y-m-d',
-                'after_or_equal:' . $earliest,
+                'after_or_equal:'.$earliest,
             ],
 
             'checkout' => [
                 'required',
                 'date_format:Y-m-d',
                 'after_or_equal:checkin',
-                'before_or_equal:' . $latest,
+                'before_or_equal:'.$latest,
             ],
 
             'checkin_time' => [
@@ -63,14 +63,14 @@ class ReservationQuoteController extends Controller
                 'required',
                 'integer',
                 'min:1',
-                'max:' . $settings['max_guests'],
+                'max:'.$settings['max_guests'],
             ],
 
             'children' => [
                 'required',
                 'integer',
                 'min:0',
-                'max:' . $settings['max_guests'],
+                'max:'.$settings['max_guests'],
             ],
 
             'pets' => 'required|integer|min:0|max:10',
@@ -83,12 +83,12 @@ class ReservationQuoteController extends Controller
         ]);
 
         $start = CarbonImmutable::parse(
-            $data['checkin'] . ' ' . $data['checkin_time'],
+            $data['checkin'].' '.$data['checkin_time'],
             'Asia/Manila'
         );
 
         $end = CarbonImmutable::parse(
-            $data['checkout'] . ' ' . $data['checkout_time'],
+            $data['checkout'].' '.$data['checkout_time'],
             'Asia/Manila'
         );
 
@@ -101,7 +101,7 @@ class ReservationQuoteController extends Controller
         }
 
         if (
-            !$end->gt($start) ||
+            ! $end->gt($start) ||
             $end->timestamp - $start->timestamp > 30 * 86400
         ) {
             throw ValidationException::withMessages([
@@ -127,8 +127,7 @@ class ReservationQuoteController extends Controller
             )
         ) {
             throw ValidationException::withMessages([
-                'checkin_time' =>
-                    'Overnight stays use 2 PM check-in and 11 AM check-out on a later date.',
+                'checkin_time' => 'Overnight stays use 2 PM check-in and 11 AM check-out on a later date.',
             ]);
         }
 
@@ -259,6 +258,39 @@ class ReservationQuoteController extends Controller
             })
             ->exists();
 
+        $queuePosition = null;
+
+        if ($temporaryConflict) {
+            $queuePosition = (clone $overlapping)
+                ->where(function ($query) {
+                    $query
+                        ->whereIn('status', [
+                            'pending',
+                            'queued',
+                            'payment_review',
+                        ])
+                        ->orWhere(function ($held) {
+                            $held
+                                ->whereIn('status', [
+                                    'held',
+                                    'awaiting_deposit',
+                                ])
+                                ->where(function ($deadline) {
+                                    $deadline
+                                        ->whereNull('deadline')
+                                        ->orWhere(
+                                            'deadline',
+                                            '>',
+                                            CarbonImmutable::now(
+                                                'Asia/Manila'
+                                            )->toIso8601String()
+                                        );
+                                });
+                        });
+                })
+                ->count() + 1;
+        }
+
         /*
          * Supports blocked dates once that table is added.
          * ends_on is exclusive.
@@ -297,11 +329,13 @@ class ReservationQuoteController extends Controller
                 'optional_fee' => round($optionalFee, 2),
                 'total' => $total,
                 'deposit' => (float) $settings['deposit'],
-                'security_deposit' =>
-                    (float) $settings['security_deposit'],
+                'security_deposit' => (float) $settings['security_deposit'],
             ],
 
             'availability' => $availability,
+            'queue_position' => $availability === 'queue'
+                ? $queuePosition
+                : null,
         ]);
     }
 }

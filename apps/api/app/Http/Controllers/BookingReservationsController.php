@@ -12,8 +12,7 @@ class BookingReservationsController extends Controller
 {
     public function __construct(
         private ReservationWorkflow $flow
-    ) {
-    }
+    ) {}
 
     /*
      * GET /api/reservations
@@ -29,7 +28,7 @@ class BookingReservationsController extends Controller
             $query = DB::table('reservations')
                 ->where('villa_id', 1);
 
-            if (!$this->flow->staff($request->user())) {
+            if (! $this->flow->staff($request->user())) {
                 $query->where('user_id', $request->user()->id);
             }
 
@@ -38,8 +37,7 @@ class BookingReservationsController extends Controller
                 ->limit(500)
                 ->get()
                 ->map(
-                    fn ($reservation) =>
-                        $this->flow->present($reservation)
+                    fn ($reservation) => $this->flow->present($reservation)
                 );
 
             return response()->json([
@@ -88,8 +86,7 @@ class BookingReservationsController extends Controller
             'inquiry_source' => 'required|string|max:100',
             'terms' => 'accepted',
             'queue_acknowledged' => 'sometimes|boolean',
-            'expected_total' =>
-                'sometimes|nullable|numeric|min:0|max:99999999',
+            'expected_total' => 'sometimes|nullable|numeric|min:0|max:99999999',
             'request_key' => 'sometimes|uuid',
         ]);
 
@@ -120,8 +117,7 @@ class BookingReservationsController extends Controller
 
                 if ($existing) {
                     return response()->json([
-                        'reservation' =>
-                            $this->flow->present($existing),
+                        'reservation' => $this->flow->present($existing),
                     ], 201);
                 }
             }
@@ -144,11 +140,10 @@ class BookingReservationsController extends Controller
 
             if (
                 $availability === 'queue' &&
-                !$request->boolean('queue_acknowledged')
+                ! $request->boolean('queue_acknowledged')
             ) {
                 throw ValidationException::withMessages([
-                    'dates' =>
-                        'Availability changed. Review the waiting notice and acknowledge it before submitting.',
+                    'dates' => 'Availability changed. Review the waiting notice and acknowledge it before submitting.',
                 ]);
             }
 
@@ -169,8 +164,7 @@ class BookingReservationsController extends Controller
 
                 if ($expectedCents !== $actualCents) {
                     throw ValidationException::withMessages([
-                        'expected_total' =>
-                            'Prices changed. Review the updated quote before submitting.',
+                        'expected_total' => 'Prices changed. Review the updated quote before submitting.',
                     ]);
                 }
             }
@@ -193,7 +187,7 @@ class BookingReservationsController extends Controller
 
             $status = $availability === 'queue'
                 ? 'queued'
-                : 'pending';
+                : 'awaiting_deposit';
 
             /*
              * Use the same submission timestamp for the reference
@@ -203,32 +197,25 @@ class BookingReservationsController extends Controller
 
             $reservationId = DB::table('reservations')
                 ->insertGetId([
-                    'booking_reference' =>
-                        $this->nextBookingReference($requestedAt),
+                    'booking_reference' => $this->nextBookingReference($requestedAt),
 
                     'user_id' => $request->user()->id,
                     'villa_id' => 1,
 
                     // Booking contacts do not change the user profile.
-                    'contact_name' =>
-                        trim($contact['contact_name']),
+                    'contact_name' => trim($contact['contact_name']),
 
-                    'contact_email' =>
-                        trim($contact['contact_email']),
+                    'contact_email' => trim($contact['contact_email']),
 
-                    'contact_phone' =>
-                        trim($contact['contact_phone']),
+                    'contact_phone' => trim($contact['contact_phone']),
 
-                    'inquiry_source' =>
-                        $contact['inquiry_source'],
+                    'inquiry_source' => $contact['inquiry_source'],
 
                     'type' => $request->input('type'),
 
-                    'check_in_date' =>
-                        $request->input('checkin'),
+                    'check_in_date' => $request->input('checkin'),
 
-                    'check_out_date' =>
-                        $request->input('checkout'),
+                    'check_out_date' => $request->input('checkout'),
 
                     'starts_at' => $start->toIso8601String(),
                     'ends_at' => $end->toIso8601String(),
@@ -237,14 +224,11 @@ class BookingReservationsController extends Controller
                     'children' => $request->integer('children'),
                     'pets' => $request->integer('pets'),
 
-                    'bonfire_qty' =>
-                        $request->integer('bonfire_qty'),
+                    'bonfire_qty' => $request->integer('bonfire_qty'),
 
-                    'charcoal_qty' =>
-                        $request->integer('charcoal_qty'),
+                    'charcoal_qty' => $request->integer('charcoal_qty'),
 
-                    'special_requests' =>
-                        $request->input('notes'),
+                    'special_requests' => $request->input('notes'),
 
                     'status' => $status,
 
@@ -254,8 +238,7 @@ class BookingReservationsController extends Controller
                     'currency' => 'PHP',
 
                     // Staff must agree the final day-tour price.
-                    'price_agreed' =>
-                        $request->input('type') === 'overnight',
+                    'price_agreed' => $request->input('type') === 'overnight',
 
                     'pricing_snapshot' => json_encode(
                         $quote,
@@ -263,23 +246,35 @@ class BookingReservationsController extends Controller
                     ),
 
                     'policy_snapshot' => json_encode([
-                        'accepted_at' =>
-                            $requestedAt->toIso8601String(),
+                        'accepted_at' => $requestedAt->toIso8601String(),
                         'settings' => $settings,
                     ], JSON_THROW_ON_ERROR),
 
-                    'requested_at' =>
-                        $requestedAt->toIso8601String(),
+                    'requested_at' => $requestedAt->toIso8601String(),
 
-                    'deposit_window_hours' =>
-                        $settings['opportunity_hours'],
+                    'deposit_window_hours' => $settings['opportunity_hours'],
 
-                    'request_key' =>
-                        $request->input('request_key'),
+                    'request_key' => $request->input('request_key'),
 
                     'created_at' => $this->flow->stamp(),
                     'updated_at' => $this->flow->stamp(),
                 ]);
+
+            if ($status === 'awaiting_deposit') {
+                $record = $this->flow->reservation(
+                    $reservationId,
+                    true
+                );
+
+                $deadline = $this->flow->createOpportunity($record);
+
+                DB::table('reservations')
+                    ->where('id', $reservationId)
+                    ->update([
+                        'deadline' => $deadline->toIso8601String(),
+                        'updated_at' => $this->flow->stamp(),
+                    ]);
+            }
 
             $this->flow->history(
                 $reservationId,
@@ -326,11 +321,11 @@ class BookingReservationsController extends Controller
                 $record->type === 'day_tour' &&
                 in_array(
                     $record->status,
-                    ['pending', 'queued'],
+                    ['pending', 'queued', 'awaiting_deposit'],
                     true
                 ),
                 422,
-                'Only pending or queued day tours can have their price agreed.'
+                'Only active unpaid day tours can have their price agreed.'
             );
 
             abort_if(
@@ -359,8 +354,7 @@ class BookingReservationsController extends Controller
                     ),
 
                     'processed_by' => $request->user()->id,
-                    'processed_at' =>
-                        $this->flow->now()->toIso8601String(),
+                    'processed_at' => $this->flow->now()->toIso8601String(),
 
                     'updated_at' => $this->flow->stamp(),
                 ]);
@@ -410,26 +404,18 @@ class BookingReservationsController extends Controller
                 'Agree the day-tour price or correct the booking amounts first.'
             );
 
-            $start = CarbonImmutable::parse(
-                $record->starts_at,
-                'Asia/Manila'
-            );
-
-            $deadline = $this->flow->now()->addHours(
-                $record->deposit_window_hours
-            );
-
-            if ($deadline->gte($start)) {
-                $deadline = $start->subMinute();
-            }
-
             abort_unless(
-                $deadline->gt($this->flow->now()),
+                $this->flow->queuePosition($record) === 1,
                 422,
-                'The stay is too close or has already started.'
+                'An earlier overlapping reservation is ahead in the queue.'
             );
 
             $this->flow->available($record);
+
+            $deadline = $this->flow->createOpportunity(
+                $record,
+                $request->user()->id
+            );
 
             $this->flow->state(
                 $record,
@@ -437,32 +423,196 @@ class BookingReservationsController extends Controller
                 $request->user()->id,
                 'Staff granted a deposit opportunity.',
                 [
-                    'deadline' =>
-                        $deadline->toIso8601String(),
+                    'deadline' => $deadline->toIso8601String(),
 
-                    'processed_by' =>
-                        $request->user()->id,
+                    'processed_by' => $request->user()->id,
 
-                    'processed_at' =>
-                        $this->flow->now()->toIso8601String(),
+                    'processed_at' => $this->flow->now()->toIso8601String(),
                 ]
             );
 
-            DB::table('reservation_opportunities')->insert([
-                'reservation_id' => $record->id,
-
-                'granted_at' =>
-                    $this->flow->now()->toIso8601String(),
-
-                'deposit_deadline' =>
-                    $deadline->toIso8601String(),
-
-                'status' => 'active',
-                'granted_by' => $request->user()->id,
-
-                'created_at' => $this->flow->stamp(),
-                'updated_at' => $this->flow->stamp(),
+            return response()->json([
+                'reservation' => $this->flow->present(
+                    $this->flow->reservation($record->id)
+                ),
             ]);
+        });
+    }
+
+    /*
+     * POST /api/reservations/{reservation}/extension
+     *
+     * A guest request never changes the active deposit deadline.
+     */
+    public function requestExtension(
+        Request $request,
+        int $reservation
+    ) {
+        $this->flow->active($request->user());
+
+        $data = $request->validate([
+            'reason' => 'required|string|min:3|max:2000',
+            'requested_date' => [
+                'required',
+                'date_format:Y-m-d',
+                'after:'.$this->flow->now()->toDateString(),
+            ],
+            'message' => 'nullable|string|max:2000',
+        ]);
+
+        return $this->flow->locked(function () use (
+            $request,
+            $reservation,
+            $data
+        ) {
+            $record = $this->flow->reservation($reservation, true);
+            $this->flow->own($request->user(), $record);
+
+            abort_unless(
+                $record->status === 'awaiting_deposit' &&
+                $record->deadline &&
+                CarbonImmutable::parse(
+                    $record->deadline,
+                    'Asia/Manila'
+                )->gt($this->flow->now()),
+                422,
+                'Only an active deposit opportunity can be extended.'
+            );
+
+            abort_if(
+                $record->extension_status === 'pending',
+                422,
+                'An extension request is already pending for this reservation.'
+            );
+
+            $requestedDate = CarbonImmutable::parse(
+                $data['requested_date'],
+                'Asia/Manila'
+            );
+
+            $stayStarts = CarbonImmutable::parse(
+                $record->starts_at,
+                'Asia/Manila'
+            );
+
+            if (
+                $requestedDate->endOfDay()->lte(
+                    CarbonImmutable::parse(
+                        $record->deadline,
+                        'Asia/Manila'
+                    )
+                )
+            ) {
+                throw ValidationException::withMessages([
+                    'requested_date' =>
+                        'The requested payment date must extend the current deadline.',
+                ]);
+            }
+
+            if ($requestedDate->endOfDay()->gte($stayStarts)) {
+                throw ValidationException::withMessages([
+                    'requested_date' =>
+                        'The requested payment date must be before check-in.',
+                ]);
+            }
+
+            DB::table('reservations')
+                ->where('id', $record->id)
+                ->update([
+                    'extension_date' =>
+                        $requestedDate->toIso8601String(),
+                    'extension_reason' => trim($data['reason']),
+                    'extension_message' => isset($data['message'])
+                        ? trim($data['message'])
+                        : null,
+                    'extension_status' => 'pending',
+                    'updated_at' => $this->flow->stamp(),
+                ]);
+
+            return response()->json([
+                'message' => 'Your deadline extension request was submitted.',
+                'reservation' => $this->flow->present(
+                    $this->flow->reservation($record->id)
+                ),
+            ], 201);
+        });
+    }
+
+    /*
+     * POST /api/reservations/{reservation}/extension/review
+     *
+     * Only approval changes the real reservation and opportunity deadline.
+     */
+    public function reviewExtension(
+        Request $request,
+        int $reservation
+    ) {
+        $this->flow->requireStaff($request->user());
+
+        $data = $request->validate([
+            'decision' => 'required|in:approved,rejected',
+        ]);
+
+        return $this->flow->locked(function () use (
+            $request,
+            $reservation,
+            $data
+        ) {
+            $record = $this->flow->reservation($reservation, true);
+
+            abort_unless(
+                $record->extension_status === 'pending' &&
+                $record->extension_date,
+                422,
+                'This reservation has no pending extension request.'
+            );
+
+            $updates = [
+                'extension_status' => $data['decision'],
+                'processed_by' => $request->user()->id,
+                'processed_at' => $this->flow->now()->toIso8601String(),
+                'updated_at' => $this->flow->stamp(),
+            ];
+
+            if ($data['decision'] === 'approved') {
+                abort_unless(
+                    $record->status === 'awaiting_deposit',
+                    422,
+                    'The deposit opportunity is no longer active.'
+                );
+
+                $deadline = CarbonImmutable::parse(
+                    $record->extension_date,
+                    'Asia/Manila'
+                )->endOfDay();
+
+                $stayStarts = CarbonImmutable::parse(
+                    $record->starts_at,
+                    'Asia/Manila'
+                );
+
+                abort_unless(
+                    $deadline->gt($this->flow->now()) &&
+                    $deadline->lt($stayStarts),
+                    422,
+                    'The requested payment date is no longer valid.'
+                );
+
+                $updates['deadline'] = $deadline->toIso8601String();
+
+                DB::table('reservation_opportunities')
+                    ->where('reservation_id', $record->id)
+                    ->where('status', 'active')
+                    ->update([
+                        'deposit_deadline' =>
+                            $deadline->toIso8601String(),
+                        'updated_at' => $this->flow->stamp(),
+                    ]);
+            }
+
+            DB::table('reservations')
+                ->where('id', $record->id)
+                ->update($updates);
 
             return response()->json([
                 'reservation' => $this->flow->present(
@@ -525,6 +675,8 @@ class BookingReservationsController extends Controller
                 'revoked'
             );
 
+            $this->flow->promoteQueuedLocked();
+
             return response()->json([
                 'reservation' => $this->flow->present(
                     $this->flow->reservation($record->id)
@@ -577,8 +729,7 @@ class BookingReservationsController extends Controller
 
         if ($next > 999) {
             throw ValidationException::withMessages([
-                'booking_reference' =>
-                    'The daily reservation reference limit has been reached. Contact the resort for assistance.',
+                'booking_reference' => 'The daily reservation reference limit has been reached. Contact the resort for assistance.',
             ]);
         }
 
