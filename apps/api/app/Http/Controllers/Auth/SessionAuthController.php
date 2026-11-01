@@ -8,6 +8,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\ValidationException;
 
 class SessionAuthController extends Controller
@@ -24,7 +25,20 @@ class SessionAuthController extends Controller
             'email' => ['required', 'email', 'max:254'],
             'password' => ['required', 'string'],
             'remember' => ['sometimes', 'boolean'],
+            'captcha_token' => ['required', 'string'],
         ]);
+
+        $captchaResponse = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => env('RECAPTCHA_SECRET_KEY'),
+            'response' => $validated['captcha_token'],
+            'remoteip' => $request->ip()
+        ]);
+
+        if (!$captchaResponse->json('success')) {
+            throw ValidationException::withMessages([
+                'captcha_token' => ['CAPTCHA verification failed. Please try again.'],
+            ]);
+        }
 
         $credentials = [
             'email' => $validated['email'],

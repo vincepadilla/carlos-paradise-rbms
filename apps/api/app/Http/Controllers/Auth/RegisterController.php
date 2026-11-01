@@ -8,13 +8,14 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\ValidationException;
 
 class RegisterController extends Controller
 {
     public function store(Request $request): JsonResponse
     {
-        // Store emails consistently.
         if (is_string($request->input('email'))) {
             $request->merge([
                 'email' => strtolower(trim($request->input('email'))),
@@ -26,6 +27,7 @@ class RegisterController extends Controller
             'email' => ['required', 'email', 'max:254', 'unique:users,email'],
             'phone' => ['required', 'string', 'max:30'],
             'terms' => ['accepted'],
+            'captcha_token' => ['required', 'string'],
             'password' => [
                 'required',
                 'string',
@@ -33,6 +35,18 @@ class RegisterController extends Controller
                 Password::min(10)->letters()->numbers(),
             ],
         ]);
+
+        $captchaResponse = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
+            'secret' => env('RECAPTCHA_SECRET_KEY'),
+            'response' => $validated['captcha_token'],
+            'remoteip' => $request->ip()
+        ]);
+
+        if (!$captchaResponse->json('success')) {
+            throw ValidationException::withMessages([
+                'captcha_token' => ['CAPTCHA verification failed. Please try again.'],
+            ]);
+        }
 
         $guestRole = Role::where('name', 'guest')->firstOrFail();
 
@@ -44,7 +58,6 @@ class RegisterController extends Controller
         $user->password = Hash::make($validated['password']);
         $user->is_active = true;
 
-        // The server assigns the role.
         $user->role()->associate($guestRole);
 
         $user->save();
