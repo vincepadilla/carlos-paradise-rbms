@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router";
+import ReCAPTCHA from "react-google-recaptcha";
 import AuthLayout from "../components/auth/AuthLayout";
 import GoogleAuthButton from "../components/auth/GoogleAuthButton";
 import {
@@ -16,7 +17,6 @@ import {
     type SignupValues,
 } from "../components/auth/AuthValidation";
 
-// VITE_API_URL must point to the Laravel origin, without /api.
 const apiBaseUrl = (
     import.meta.env.VITE_API_URL || "http://localhost:8000"
 ).replace(/\/+$/, "");
@@ -85,6 +85,7 @@ export default function SignupPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
     const submittingRef = useRef(false);
+    const recaptchaRef = useRef<ReCAPTCHA>(null);
     const passwordRequirementsMet = meetsPasswordRequirements(values.password);
 
     useEffect(() => {
@@ -105,9 +106,16 @@ export default function SignupPage() {
         setValues((current) => ({ ...current, [key]: value }));
         setErrors((current) => ({ ...current, [key]: undefined }));
     }
+
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (submittingRef.current) return;
+
+        const captchaToken = recaptchaRef.current?.getValue();
+        if (!captchaToken) {
+            setFormError("Please complete the CAPTCHA verification.");
+            return;
+        }
 
         const next = validateSignup(values);
         setErrors(next);
@@ -121,12 +129,15 @@ export default function SignupPage() {
         setIsSubmitting(true);
 
         try {
-            // Sanctum's cookie endpoint initializes CSRF for browser requests.
             const csrfResponse = await fetch(`${apiBaseUrl}/sanctum/csrf-cookie`, {
                 headers: { Accept: "application/json" },
                 credentials: "include",
             });
-            if (!csrfResponse.ok) throw new Error("CSRF initialization failed");
+            
+            if (!csrfResponse.ok) {
+                recaptchaRef.current?.reset();
+                throw new Error("CSRF initialization failed");
+            }
 
             const xsrfCookie = document.cookie.split("; ").find(
                 (cookie) => cookie.startsWith("XSRF-TOKEN="),
@@ -134,7 +145,11 @@ export default function SignupPage() {
             const xsrfToken = xsrfCookie
                 ? decodeURIComponent(xsrfCookie.substring("XSRF-TOKEN=".length))
                 : null;
-            if (!xsrfToken) throw new Error("CSRF cookie is unavailable");
+                
+            if (!xsrfToken) {
+                recaptchaRef.current?.reset();
+                throw new Error("CSRF cookie is unavailable");
+            }
 
             const response = await fetch(`${apiBaseUrl}/api/register`, {
                 method: "POST",
@@ -147,11 +162,11 @@ export default function SignupPage() {
                 body: JSON.stringify({
                     name: values.name.trim(),
                     email: values.email.trim().toLowerCase(),
-                    // The form calls this contact; Laravel expects phone.
                     phone: values.contact.trim(),
                     password: values.password,
                     password_confirmation: values.password_confirmation,
                     terms: values.terms,
+                    captcha_token: captchaToken,
                 }),
             });
 
@@ -162,6 +177,8 @@ export default function SignupPage() {
                     : null;
 
             if (!response.ok) {
+                recaptchaRef.current?.reset();
+                
                 if (response.status === 422 && data?.errors &&
                     typeof data.errors === "object") {
                     const validation = data.errors as Record<string, unknown>;
@@ -179,13 +196,19 @@ export default function SignupPage() {
                         const messages = validation[apiField];
                         if (Array.isArray(messages) &&
                             typeof messages[0] === "string") {
-                            fieldErrors[formField] = messages[0];
+                            fieldErrors[formField as keyof SignupErrors] = messages[0];
                         }
                     }
 
                     setErrors(fieldErrors);
-                    setFormError("Please check the highlighted fields.");
-                    focusFirstError("signup", fieldErrors);
+                    
+                    const captchaError = validation["captcha_token"];
+                    if (Array.isArray(captchaError) && typeof captchaError[0] === "string") {
+                        setFormError(captchaError[0]);
+                    } else {
+                        setFormError("Please check the highlighted fields.");
+                        focusFirstError("signup", fieldErrors);
+                    }
                 } else if (response.status === 419) {
                     setFormError(
                         "Your session has expired. Refresh the page and try again.",
@@ -195,7 +218,6 @@ export default function SignupPage() {
                         "Too many attempts. Please wait a minute and try again.",
                     );
                 } else {
-                    // Avoid displaying backend exception or SQL details.
                     setFormError(
                         "Registration could not be completed. Please try again later.",
                     );
@@ -220,6 +242,7 @@ export default function SignupPage() {
             }));
             setStep("success");
         } catch {
+            recaptchaRef.current?.reset();
             setFormError(
                 "Could not confirm registration. Check your connection. If it continues, check whether the account was created before trying again.",
             );
@@ -347,6 +370,14 @@ export default function SignupPage() {
                                     {errors.terms || "\u00a0"}
                                 </p>
                             </div>
+                            
+                            <div className="mb-5 flex justify-center">
+                                <ReCAPTCHA 
+                                    ref={recaptchaRef}
+                                    sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY} 
+                                />
+                            </div>
+
                             <AuthButton type="submit">
                                 {isSubmitting ? "Creating account…" : "Create Account →"}
                             </AuthButton>

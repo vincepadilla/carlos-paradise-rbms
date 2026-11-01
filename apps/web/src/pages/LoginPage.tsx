@@ -1,5 +1,6 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
+import ReCAPTCHA from "react-google-recaptcha";
 import AuthLayout from "../components/auth/AuthLayout";
 import GoogleAuthButton from "../components/auth/GoogleAuthButton";
 import {
@@ -35,6 +36,8 @@ export default function LoginPage() {
     const [formError, setFormError] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const submittingRef = useRef(false);
+    
+    const recaptchaRef = useRef<ReCAPTCHA>(null);
 
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
@@ -42,6 +45,13 @@ export default function LoginPage() {
 
         setNotice("");
         setFormError("");
+
+        const captchaToken = recaptchaRef.current?.getValue();
+        if (!captchaToken) {
+            setFormError("Please complete the CAPTCHA verification.");
+            return;
+        }
+
         const next = validateLogin(email, password);
         setErrors(next);
         if (Object.keys(next).length) {
@@ -59,6 +69,7 @@ export default function LoginPage() {
             });
             if (!csrfResponse.ok) {
                 setFormError("Could not initialize sign-in. Please try again later.");
+                recaptchaRef.current?.reset();
                 return;
             }
 
@@ -73,6 +84,7 @@ export default function LoginPage() {
                 setFormError(
                     "The sign-in cookie is unavailable. Use localhost for both apps and check your cookie settings.",
                 );
+                recaptchaRef.current?.reset();
                 return;
             }
 
@@ -88,16 +100,21 @@ export default function LoginPage() {
                     email: email.trim().toLowerCase(),
                     password,
                     remember,
+                    captcha_token: captchaToken,
                 }),
             });
 
             const data = await readJson(response);
 
             if (!response.ok) {
+                recaptchaRef.current?.reset();
+
                 if (response.status === 422 && data?.errors &&
                     typeof data.errors === "object") {
                     const validation = data.errors as Record<string, unknown>;
                     const fieldErrors: LoginErrors = {};
+                    
+                    // Handle strict fields (email, password)
                     for (const field of ["email", "password"] as const) {
                         const messages = validation[field];
                         if (Array.isArray(messages) &&
@@ -106,8 +123,15 @@ export default function LoginPage() {
                         }
                     }
                     setErrors(fieldErrors);
-                    setFormError("Unable to sign in. Check your details and try again.");
-                    focusFirstError("login", fieldErrors);
+                    
+                    // Handle CAPTCHA separately to satisfy TypeScript
+                    const captchaError = validation["captcha_token"];
+                    if (Array.isArray(captchaError) && typeof captchaError[0] === "string") {
+                        setFormError(captchaError[0]);
+                    } else {
+                        setFormError("Unable to sign in. Check your details and try again.");
+                        focusFirstError("login", fieldErrors);
+                    }
                 } else if (response.status === 419) {
                     setFormError("Your session expired. Refresh the page and try again.");
                 } else if (response.status === 429) {
@@ -123,7 +147,6 @@ export default function LoginPage() {
                 return;
             }
 
-            // Confirm that Laravel recognizes the session on a NEW request.
             const sessionResponse = await fetch(`${apiBaseUrl}/auth/user`, {
                 headers: { Accept: "application/json" },
                 credentials: "include",
@@ -139,13 +162,12 @@ export default function LoginPage() {
             }
 
             setPassword("");
-            // The landing page already exists. Change this to your guest page
-            // once its route is ready; backend permissions must still be enforced.
             navigate("/", { replace: true });
         } catch {
             setFormError(
                 "Could not confirm sign-in. Check your connection and that Laravel is running.",
             );
+            recaptchaRef.current?.reset();
         } finally {
             submittingRef.current = false;
             setIsSubmitting(false);
@@ -223,6 +245,14 @@ export default function LoginPage() {
                             Forgot password?
                         </button>
                     </div>
+
+                    <div className="mb-5 flex justify-center">
+                        <ReCAPTCHA 
+                            ref={recaptchaRef}
+                            sitekey={import.meta.env.VITE_RECAPTCHA_SITE_KEY} 
+                        />
+                    </div>
+
                     <AuthButton type="submit">
                         {isSubmitting ? "Signing in…" : "Sign In →"}
                     </AuthButton>
