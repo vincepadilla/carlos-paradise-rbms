@@ -23,6 +23,7 @@ export type SavedReservation = {
     id: number;
     reference: string;
     status: string;
+    queue_notice?: string | null;
     queue_position?: number | null;
     reservations_ahead?: number | null;
     type: "overnight" | "day_tour";

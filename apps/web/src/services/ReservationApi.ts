@@ -57,6 +57,34 @@ async function loadCsrf(signal?: AbortSignal): Promise<void> {
 export function resetReservationCsrf(): void {
     csrf = "";
 }
+export async function logoutReservationSession(
+    retryCsrf = true,
+): Promise<void> {
+    if (!csrf) await loadCsrf();
+
+    const response = await fetch(`${apiBaseUrl}/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+            Accept: "application/json",
+            "X-Requested-With": "XMLHttpRequest",
+            "X-CSRF-TOKEN": csrf,
+        },
+    });
+
+    if (response.status === 419 && retryCsrf) {
+        csrf = "";
+        await loadCsrf();
+        return logoutReservationSession(false);
+    }
+
+    if (!response.ok && response.status !== 401) {
+        throw new ReservationApiError("Logout failed.", response.status);
+    }
+
+    csrf = "";
+}
 export async function reservationApi<T>(
     path: string,
     method = "GET",

@@ -6,6 +6,7 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Database\Seeders\ReservationSetupSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
@@ -90,7 +91,109 @@ class ReservationQueueTest extends TestCase
         ]);
     }
 
-    public function test_verified_deposit_confirms_dates_and_closes_queue(): void
+    public function test_paid_queue_leader_enters_review_and_cancels_later_queue_positions(): void
+    {
+        $firstGuest = User::factory()->create();
+        $secondGuest = User::factory()->create();
+        $thirdGuest = User::factory()->create();
+        $payload = $this->reservationPayload();
+
+        $firstId = $this->actingAs($firstGuest)
+            ->postJson('/api/reservations', $payload)
+            ->json('reservation.id');
+
+        $secondId = $this->actingAs($secondGuest)
+            ->postJson('/api/reservations', [
+                ...$payload,
+                'queue_acknowledged' => true,
+                'request_key' => '22222222-2222-4222-8222-222222222222',
+            ])
+            ->assertJsonPath('reservation.queue_position', 2)
+            ->json('reservation.id');
+
+        $thirdId = $this->actingAs($thirdGuest)
+            ->postJson('/api/reservations', [
+                ...$payload,
+                'queue_acknowledged' => true,
+                'request_key' => '33333333-3333-4333-8333-333333333333',
+            ])
+            ->assertJsonPath('reservation.queue_position', 3)
+            ->json('reservation.id');
+
+        DB::table('payment_methods')->insert([
+            'name' => 'GCash',
+            'account_name' => 'Carlos Paradise',
+            'account_number' => '09170000000',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        config([
+            'reservations.receipt_root' => storage_path('framework/testing/reservation-receipts'),
+        ]);
+
+        $this->actingAs($firstGuest)
+            ->post('/api/reservations/'.$firstId.'/payments', [
+                'amount' => 5000,
+                'method' => 'GCash',
+                'reference' => 'QUEUE-FIRST-DEPOSIT',
+                'payment_date' => now()->toDateString(),
+                'receipt' => UploadedFile::fake()->create(
+                    'receipt.jpg',
+                    10,
+                    'image/jpeg'
+                ),
+            ], ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonPath('reservation.status', 'payment_review');
+
+        $this->assertDatabaseHas('reservations', [
+            'id' => $firstId,
+            'status' => 'payment_review',
+        ]);
+
+        foreach ([$secondId, $thirdId] as $cancelledId) {
+            $this->assertDatabaseHas('reservations', [
+                'id' => $cancelledId,
+                'status' => 'cancelled',
+            ]);
+
+            $this->assertDatabaseHas('reservation_status_history', [
+                'reservation_id' => $cancelledId,
+                'to_status' => 'cancelled',
+            ]);
+        }
+
+        $this->actingAs($secondGuest)
+            ->post('/api/reservations/'.$secondId.'/payments', [
+                'amount' => 5000,
+                'method' => 'GCash',
+                'reference' => 'QUEUE-SECOND-DEPOSIT',
+                'payment_date' => now()->toDateString(),
+                'receipt' => UploadedFile::fake()->create(
+                    'receipt.jpg',
+                    10,
+                    'image/jpeg'
+                ),
+            ], ['Accept' => 'application/json'])
+            ->assertUnprocessable();
+
+        $this->assertDatabaseMissing('payments', [
+            'reservation_id' => $secondId,
+        ]);
+
+        $this->actingAs($secondGuest)
+            ->getJson('/api/reservations')
+            ->assertOk()
+            ->assertJsonPath('reservations.0.status', 'cancelled')
+            ->assertJsonPath(
+                'reservations.0.queue_notice',
+                'Your reservation opportunity is no longer available because another guest submitted the required deposit for overlapping dates. Please book another available date if you still wish to make a reservation.'
+            );
+    }
+
+    public function test_admin_can_verify_a_deposit_under_review(): void
     {
         $firstGuest = User::factory()->create();
         $secondGuest = User::factory()->create();
@@ -160,7 +263,7 @@ class ReservationQueueTest extends TestCase
 
         $this->assertDatabaseHas('reservations', [
             'id' => $secondId,
-            'status' => 'rejected',
+            'status' => 'cancelled',
         ]);
 
         $this->actingAs($secondGuest)

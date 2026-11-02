@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { User } from "../api";
+import { logoutReservationSession } from "../services/ReservationApi";
 import { Icon, type IconName } from "./reservations/ReservationUI";
 
 export default function GuestHeader({
@@ -34,6 +35,47 @@ export default function GuestHeader({
     }
     const [notice, setNotice] = useState("");
     const [menu, setMenu] = useState(false);
+    const [accountMenu, setAccountMenu] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+    const [logoutError, setLogoutError] = useState("");
+    const accountRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        if (!accountMenu) return;
+
+        function closeAccountMenu(event: PointerEvent) {
+            if (
+                event.target instanceof Node &&
+                !accountRef.current?.contains(event.target)
+            ) {
+                setAccountMenu(false);
+            }
+        }
+
+        function closeWithEscape(event: KeyboardEvent) {
+            if (event.key === "Escape") setAccountMenu(false);
+        }
+
+        document.addEventListener("pointerdown", closeAccountMenu);
+        document.addEventListener("keydown", closeWithEscape);
+        return () => {
+            document.removeEventListener("pointerdown", closeAccountMenu);
+            document.removeEventListener("keydown", closeWithEscape);
+        };
+    }, [accountMenu]);
+
+    async function logout() {
+        if (loggingOut) return;
+        setLoggingOut(true);
+        setLogoutError("");
+
+        try {
+            await logoutReservationSession();
+            window.location.assign("/login");
+        } catch {
+            setLogoutError("Unable to log out. Please try again.");
+            setLoggingOut(false);
+        }
+    }
     const links: [string, IconName][] = [
         ["Dashboard", "home"],
         ["Make a Reservation", "calendar"],
@@ -84,19 +126,56 @@ export default function GuestHeader({
                         Main Site
                     </button>
                 </nav>
-                <div className="flex items-center justify-self-end gap-[9px] whitespace-nowrap [&>div]:hidden sm:[&>div]:flex [&>div]:flex-col [&>div]:text-[10px] [&_small]:text-[#776f65]">
-                    <span className="grid size-9 place-items-center rounded-full bg-[#e8eee5] text-[11px] font-extrabold text-[#4c3425]">
-                        {user.name
-                            .split(" ")
-                            .filter(Boolean)
-                            .slice(0, 2)
-                            .map((word) => word[0])
-                            .join("")}
-                    </span>
-                    <div>
-                        <b>{user.name}</b>
-                        <small>Guest</small>
-                    </div>
+                <div ref={accountRef} className="relative justify-self-end">
+                    <button
+                        type="button"
+                        className="flex items-center gap-[9px] whitespace-nowrap rounded-lg border-0 bg-transparent p-1 text-left text-[#4c3425] hover:bg-[#f6f1e7]"
+                        aria-label="Open guest account menu"
+                        aria-haspopup="menu"
+                        aria-expanded={accountMenu}
+                        onClick={() => {
+                            setAccountMenu((open) => !open);
+                            setLogoutError("");
+                        }}
+                    >
+                        <span className="grid size-9 place-items-center rounded-full bg-[#e8eee5] text-[11px] font-extrabold">
+                            {user.name
+                                .split(" ")
+                                .filter(Boolean)
+                                .slice(0, 2)
+                                .map((word) => word[0])
+                                .join("")}
+                        </span>
+                        <span className="hidden flex-col text-[10px] sm:flex">
+                            <b>{user.name}</b>
+                            <small className="text-[#776f65]">Guest</small>
+                        </span>
+                    </button>
+                    {accountMenu && (
+                        <div
+                            role="menu"
+                            className="absolute top-[calc(100%+10px)] right-0 z-50 w-52 rounded-lg border border-[#e3d9cb] bg-[#fffdf8] p-2 shadow-[0_12px_30px_rgba(63,47,33,0.16)]"
+                        >
+                            <button
+                                type="button"
+                                role="menuitem"
+                                disabled={loggingOut}
+                                onClick={() => void logout()}
+                                className="flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2.5 text-left text-xs font-semibold text-[#a44b45] hover:bg-[#f7e6e3] disabled:cursor-wait disabled:opacity-60"
+                            >
+                                <Icon name="arrow" size={15} />
+                                {loggingOut ? "Logging out..." : "Log out"}
+                            </button>
+                            {logoutError && (
+                                <p
+                                    role="alert"
+                                    className="m-0 px-3 pt-2 pb-1 text-[10px] leading-relaxed text-[#a44b45]"
+                                >
+                                    {logoutError}
+                                </p>
+                            )}
+                        </div>
+                    )}
                 </div>
                 <button
                     type="button"

@@ -9,6 +9,12 @@ use Illuminate\Validation\ValidationException;
 
 class ReservationWorkflow
 {
+    public const QUEUE_CLOSED_REASON =
+        'Reservation opportunity is no longer available because an earlier guest submitted the required deposit.';
+
+    public const QUEUE_CLOSED_NOTICE =
+        'Your reservation opportunity is no longer available because another guest submitted the required deposit for overlapping dates. Please book another available date if you still wish to make a reservation.';
+
     public function now(): CarbonImmutable
     {
         return CarbonImmutable::now('Asia/Manila');
@@ -443,25 +449,37 @@ class ReservationWorkflow
         }
     }
 
-    public function rejectQueuedOverlaps(object $confirmed): void
+    /*
+     * Once the active guest submits the required deposit, that guest alone
+     * proceeds to receipt review. Close every later overlapping queue entry
+     * in the same transaction so none can secure the same dates.
+     */
+    public function cancelQueuedOverlaps(object $paid): int
     {
         $queued = DB::table('reservations')
-            ->where('villa_id', $confirmed->villa_id)
-            ->where('id', '!=', $confirmed->id)
-            ->whereIn('status', ['pending', 'queued'])
-            ->where('starts_at', '<', $confirmed->ends_at)
-            ->where('ends_at', '>', $confirmed->starts_at)
+            ->where('villa_id', $paid->villa_id)
+            ->where('id', '!=', $paid->id)
+            ->where('status', 'queued')
+            ->where('starts_at', '<', $paid->ends_at)
+            ->where('ends_at', '>', $paid->starts_at)
             ->lockForUpdate()
             ->get();
 
         foreach ($queued as $reservation) {
             $this->state(
                 $reservation,
-                'rejected',
+                'cancelled',
                 null,
-                'An earlier reservation completed its required deposit.'
+                self::QUEUE_CLOSED_REASON
+            );
+
+            $this->closeOpportunity(
+                $reservation->id,
+                'revoked'
             );
         }
+
+        return $queued->count();
     }
 
     /*
@@ -488,6 +506,12 @@ class ReservationWorkflow
      */
     public function present(object $reservation): array
     {
+
+        $queueClosed = $reservation->status === 'cancelled' &&
+            DB::table('reservation_status_history')
+                ->where('reservation_id', $reservation->id)
+                ->where('reason', 'like', self::QUEUE_CLOSED_REASON.'%')
+                ->exists();
 
         $opportunity = DB::table('reservation_opportunities')
             ->where('reservation_id', $reservation->id)
@@ -556,6 +580,9 @@ class ReservationWorkflow
             'reference' => $reservation->booking_reference,
             'type' => $reservation->type,
             'status' => $reservation->status,
+            'queue_notice' => $queueClosed
+                ? self::QUEUE_CLOSED_NOTICE
+                : null,
             'queue_position' => $queuePosition,
             'reservations_ahead' => $queuePosition === null
                 ? null

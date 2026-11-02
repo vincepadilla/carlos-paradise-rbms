@@ -200,6 +200,8 @@ class BookingPaymentsController extends Controller
                     'Receipt submitted. Staff must verify the actual transfer.'
                 );
 
+                $this->flow->cancelQueuedOverlaps($record);
+
                 return response()->json([
                     'payment' => [
                         'id' => $paymentId,
@@ -364,7 +366,10 @@ class BookingPaymentsController extends Controller
                     'completed'
                 );
 
-                $this->flow->rejectQueuedOverlaps($reservation);
+                // Idempotent safety for receipts submitted before the
+                // queue was closed at submission time.
+                $this->flow->cancelQueuedOverlaps($reservation);
+
             } else {
                 /*
                  * Allow correction before a renewed deadline.

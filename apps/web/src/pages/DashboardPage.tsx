@@ -130,6 +130,7 @@ function availability(booking: Booking, now: number) {
         : "Pending Staff Review";
 }
 function message(booking: Booking, now: number) {
+    if (booking.queue_notice) return booking.queue_notice;
     if (
         booking.status === "awaiting_deposit" &&
         payment(booking) === "Deposit Verified"
@@ -230,6 +231,9 @@ export default function DashboardPage({
     const updates = [...(bookings || [])]
         .sort((a, b) => Number(b.id) - Number(a.id))
         .slice(0, 3);
+    const queueNotice = [...(bookings || [])]
+        .sort((a, b) => Number(b.id) - Number(a.id))
+        .find((booking) => booking.queue_notice);
     const firstName = user.name.trim().split(/\s+/)[0] || user.name;
     const primary =
         "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#4c3425] bg-[#4c3425] px-5 py-3 text-xs font-bold text-white shadow-[0_8px_18px_rgba(76,52,37,0.16)] hover:bg-[#6e4b35]";
@@ -298,6 +302,12 @@ export default function DashboardPage({
                         >
                             Try Again
                         </button>
+                    </div>
+                )}
+                {queueNotice?.queue_notice && (
+                    <div role='alert' className='rounded-lg border border-[#e8c8c3] bg-[#f7e6e3] p-5 text-xs text-[#a44b45]'>
+                        <b>Reservation opportunity no longer available. </b>
+                        {queueNotice.queue_notice}
                     </div>
                 )}
                 {bookings === null ? (
