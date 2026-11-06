@@ -134,6 +134,7 @@ export default function PaymentPage({
                 ? "Payment period ended"
                 : `${Math.floor(minutes / 60)}h ${minutes % 60}m remaining`;
     const payments = reservation.payments || [];
+    const latestPayment = [...payments].sort((a, b) => b.id - a.id)[0];
     const approved = payments
         .filter((payment) => payment.status === "approved")
         .reduce((sum, payment) => sum + Number(payment.amount), 0);
@@ -315,6 +316,10 @@ export default function PaymentPage({
 
     return (
         <div className="text-[#2d261f] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-[#b08a52]">
+            {latestPayment?.status === "rejected" && <div role="status" className="mx-auto mb-5 max-w-[1100px] rounded-lg border border-[#e7bbb6] bg-[#f7e6e3] p-4 text-xs text-[#a44b45]">
+                <b>Payment proof rejected.</b> {latestPayment.review_note || "Contact the resort for the review reason."}{" "}
+                {canPay ? "You can submit a new payment proof before the updated deadline. Previously submitted transfer references cannot be reused." : "Check your current reservation status and deposit deadline before resubmitting."}
+            </div>}
             {loadError && (
                 <div
                     role="alert"

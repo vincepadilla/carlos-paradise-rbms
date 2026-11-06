@@ -18,6 +18,7 @@ export type Payment = {
     payment_date?: string | null;
     submitted_at?: string | null;
     reviewed_at?: string | null;
+    reviewed_by?: number | null;
 };
 export type SavedReservation = {
     id: number;
@@ -36,6 +37,9 @@ export type SavedReservation = {
     contact_email: string;
     contact_phone: string;
     payments?: Payment[];
+    damage_total?: string;
+    amount_due?: string | null;
+    credit_balance?: string | null;
 };
 export type Quote = {
     base: number;

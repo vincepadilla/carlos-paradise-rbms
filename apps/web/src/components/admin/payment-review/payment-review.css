@@ -1,0 +1,74 @@
+/* Figma Verify workspace, deposit-detail, receipt and approval-summary rules adapted to a dedicated route. */
+.admin-payment-review {
+    --ink:var(--admin-ink); --brown:var(--admin-brown); --cream:var(--admin-cream); --paper:var(--admin-paper);
+    --line:var(--admin-line); --muted:var(--admin-muted); --sage:var(--admin-sage); --sage-pale:var(--admin-sage-pale); --gold:var(--admin-gold); min-width:0;
+}
+.admin-payment-review p { color:var(--muted); line-height:1.65; }
+.admin-payment-review .back-link { display:inline-block; color:var(--muted); text-decoration:none; margin-bottom:25px; }
+.admin-payment-review .back-link:hover { text-decoration:underline; }
+.admin-payment-review .page-head { display:flex; align-items:end; justify-content:space-between; gap:25px; margin-bottom:10px; }
+.admin-payment-review .page-head h1 { margin:0 0 7px; font-size:30px; line-height:1.04; font-weight:400; letter-spacing:-.035em; }
+.admin-payment-review .page-head p { margin:0; }
+.admin-payment-review .eyebrow { display:block; margin-bottom:12px; text-transform:uppercase; letter-spacing:.16em; font-size:11px; font-weight:800; color:var(--gold); }
+.admin-payment-review .payment-reservation-reference { margin:0 0 28px; font-size:12px; }
+.admin-payment-review .payment-review-layout { display:grid; grid-template-columns:minmax(0,1fr) 310px; gap:18px; align-items:start; }
+.admin-payment-review .payment-review-main, .admin-payment-review .payment-review-side { display:flex; flex-direction:column; gap:15px; min-width:0; }
+.admin-payment-review .panel { min-width:0; background:var(--paper); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+.admin-payment-review .panel-head { min-height:65px; padding:17px 20px; border-bottom:1px solid var(--line); display:flex; align-items:center; justify-content:space-between; gap:12px; }
+.admin-payment-review .panel-head h2 { font-size:16px; line-height:1.12; font-weight:400; margin:0 0 4px; letter-spacing:-.035em; }
+.admin-payment-review .panel-head p { margin:0; font-size:10px; line-height:1.4; }
+.admin-payment-review .badge { display:inline-flex; width:max-content; max-width:100%; padding:6px 10px; border-radius:99px; font-size:9px; font-weight:800; letter-spacing:.07em; text-transform:uppercase; background:#eeeae4; color:#6c665e; }
+.admin-payment-review .badge-green { background:var(--sage-pale); color:#3d684b; }
+.admin-payment-review .badge-amber { background:#f6ecd7; color:#8a5e20; }
+.admin-payment-review .badge-red { background:#f7e6e3; color:#a44b45; }
+.admin-payment-review .data-grid { padding:20px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
+.admin-payment-review .data-grid > div { min-width:0; display:flex; flex-direction:column; gap:6px; }
+.admin-payment-review .data-grid > div > span { font-size:10px; color:var(--muted); }
+.admin-payment-review .data-grid b { overflow-wrap:anywhere; white-space:pre-wrap; font-size:12px; }
+.admin-payment-review .detail-wide { grid-column:1/-1; }
+.admin-payment-review .btn { border:0; border-radius:10px; min-height:46px; padding:0 20px; display:inline-flex; align-items:center; justify-content:center; gap:10px; font-weight:700; text-decoration:none; background:var(--brown); color:white; }
+.admin-payment-review .btn.secondary { background:var(--paper); color:var(--brown); border:1px solid var(--line); }
+.admin-payment-review .btn.danger, .reservation-detail-dialog .btn.danger { background:#f7e6e3; color:#a44b45; }
+.admin-payment-review .btn:disabled { cursor:not-allowed; opacity:.45; }
+.admin-payment-review .button-row { display:flex; flex-wrap:wrap; gap:10px; }
+.admin-payment-review .receipt-preview { min-height:300px; margin:20px; padding:22px; border:1px solid var(--line); border-radius:12px; background:var(--cream); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; }
+.admin-payment-review .receipt-preview img { display:block; max-width:100%; width:auto; height:auto; max-height:600px; object-fit:contain; }
+.admin-payment-review .receipt-preview .btn { font-size:11px; }
+.admin-payment-review .pdf-receipt { padding:30px 0; }
+.admin-payment-review .payment-selection { padding:18px 20px 0; display:flex; flex-direction:column; gap:8px; font-size:10px; color:var(--muted); }
+.admin-payment-review .payment-selection select { width:100%; min-height:42px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:var(--cream); color:var(--ink); }
+.admin-payment-review .verification-summary { margin:0; }
+.admin-payment-review .verification-summary > div { padding:16px 20px; display:flex; justify-content:space-between; gap:12px; border-bottom:1px solid var(--line); }
+.admin-payment-review .verification-summary dt { color:var(--muted); font-size:11px; }
+.admin-payment-review .verification-summary dd { margin:0; font-weight:700; text-align:right; }
+.admin-payment-review .amount-match { background:var(--sage-pale); }
+.admin-payment-review .amount-mismatch { background:#f7e6e3; color:#a44b45; }
+.admin-payment-review .verification-warning { margin:16px; padding:12px; border:1px solid #e7bbb6; border-radius:8px; background:#f7e6e3; color:#a44b45; font-size:11px; }
+.admin-payment-review .payment-decision-actions { padding:20px; display:flex; flex-direction:column; gap:10px; }
+.admin-payment-review .payment-decision-actions p { margin:4px 0 0; font-size:10px; }
+.admin-payment-review .payment-history-list { padding:22px 24px 7px; display:flex; flex-direction:column; overflow-wrap:anywhere; }
+.admin-payment-review .payment-history-list > div { position:relative; padding:0 0 15px 22px; display:flex; }
+.admin-payment-review .payment-history-list > div:not(:last-child):before { content:""; position:absolute; left:5px; top:9px; bottom:-2px; width:1px; background:var(--line); }
+.admin-payment-review .payment-history-list i { position:absolute; left:1px; top:4px; width:9px; height:9px; border:2px solid var(--paper); border-radius:50%; background:var(--sage); box-shadow:0 0 0 1px var(--sage); }
+.admin-payment-review .payment-history-list span { display:flex; flex-direction:column; gap:4px; font-size:11px; }
+.admin-payment-review .payment-history-list small { color:var(--muted); font-size:9px; }
+.admin-payment-review .payment-empty { padding:20px; margin:0; }
+.admin-payment-review .payment-success { padding:14px 16px; background:var(--sage-pale); color:var(--sage); border:1px solid var(--sage); border-radius:8px; }
+.admin-payment-review .payment-error { padding:14px 16px; background:#f7e6e3; color:#a44b45; border-radius:8px; }
+.payment-rejection-reason { display:flex; flex-direction:column; gap:8px; font-size:12px; margin-bottom:18px; }
+.payment-rejection-reason textarea { width:100%; min-height:110px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--cream); color:var(--ink); resize:vertical; }
+.admin-reservation-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; border-bottom:1px solid var(--admin-line); padding-bottom:12px; }
+.admin-reservation-tabs a { padding:10px 15px; border-radius:8px; color:var(--admin-brown); text-decoration:none; font-weight:700; font-size:12px; }
+.admin-reservation-tabs a[aria-current=page] { background:var(--admin-brown); color:white; }
+.deposit-list-heading { margin:8px 0 16px; font-size:20px; }
+.deposit-list-heading small { margin-left:12px; color:var(--admin-muted); font:400 11px Manrope,sans-serif; }
+@media (max-width:1000px) {
+    .admin-payment-review .payment-review-layout { grid-template-columns:minmax(0,1fr); }
+    .admin-payment-review .page-head { align-items:flex-start; flex-direction:column; }
+}
+@media (max-width:600px) {
+    .admin-payment-review .data-grid { grid-template-columns:minmax(0,1fr); }
+    .admin-payment-review .panel-head { align-items:flex-start; flex-wrap:wrap; }
+    .admin-payment-review .receipt-preview { margin:14px; padding:14px; }
+    .admin-payment-review .page-head h1 { font-size:27px; }
+}

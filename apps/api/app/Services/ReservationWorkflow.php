@@ -144,6 +144,7 @@ class ReservationWorkflow
             ->update([
                 ...$extra,
                 'status' => $status,
+                'admin_revision' => DB::raw('admin_revision + 1'),
                 'updated_at' => $this->stamp(),
             ]);
 
@@ -163,7 +164,9 @@ class ReservationWorkflow
         ?string $from,
         string $to,
         ?int $actor,
-        string $reason
+        string $reason,
+        ?string $event = null,
+        ?array $changes = null
     ): void {
         /*
          * These mappings also support the history status
@@ -183,6 +186,8 @@ class ReservationWorkflow
                 : ($map[$from] ?? $from),
             'to_status' => $map[$to] ?? $to,
             'changed_by' => $actor,
+            'event' => $event,
+            'changes' => $changes === null ? null : json_encode($changes, JSON_THROW_ON_ERROR),
 
             'reason' => $reason.' [application status: '.$to.']',
 
@@ -532,10 +537,10 @@ class ReservationWorkflow
                 'm.name as method',
             ])
             ->map(function ($payment) {
-                $reviewNote = DB::table('payment_reviews')
+                $review = DB::table('payment_reviews')
                     ->where('payment_id', $payment->id)
                     ->orderByDesc('id')
-                    ->value('notes');
+                    ->first();
 
                 return [
                     'id' => $payment->id,
@@ -550,11 +555,18 @@ class ReservationWorkflow
                     ),
 
                     'status' => $payment->status,
-                    'review_note' => $reviewNote,
+                    'review_note' => $review?->notes,
+                    'payment_date' => $payment->payment_date,
+                    'submitted_at' => CarbonImmutable::parse($payment->submitted_at, 'Asia/Manila')->toIso8601String(),
+                    'reviewed_at' => $review ? CarbonImmutable::parse($review->reviewed_at, 'Asia/Manila')->toIso8601String() : null,
+                    'reviewed_by' => $review?->reviewed_by,
                 ];
             });
 
         $queuePosition = $this->queuePosition($reservation);
+        $paidCents = $payments->where('status', 'approved')->sum(fn ($payment) => ReservationPricing::cents($payment['amount']));
+        $damageCents = ReservationPricing::cents(DB::table('reservation_damages')->where('reservation_id', $reservation->id)->whereNull('deleted_at')->sum('amount'));
+        $balance = ReservationPricing::balance(ReservationPricing::cents($reservation->quoted_total), $damageCents, $paidCents, (bool) $reservation->price_agreed);
 
         return [
 
@@ -564,6 +576,9 @@ class ReservationWorkflow
                 'status' => $opportunity->status,
             ]
             : null,
+
+            'extension_access' => DB::table('reservation_extension_access')->where('reservation_id', $reservation->id)->first(['enabled', 'agreed_deadline', 'granted_at', 'revoked_at', 'consumed_at']),
+            'completed_at' => $reservation->completed_at,
 
             'extension_status' => $reservation->extension_status,
             'extension_reason' => $reservation->extension_reason,
@@ -631,6 +646,9 @@ class ReservationWorkflow
 
             'notes' => $reservation->special_requests,
             'payments' => $payments,
+            // Verified amounts live in the immutable payment history, not a second balance column.
+            'deposit_paid' => $balance['paid'],
+            'damage_total' => $balance['damage_total'], 'amount_due' => $balance['amount_due'], 'credit_balance' => $balance['credit_balance'],
         ];
     }
 }

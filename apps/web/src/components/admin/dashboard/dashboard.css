@@ -1,0 +1,90 @@
+/* Relevant AdminDashboard, PageHead, QueueRows, Badge and Button styles from
+   docs/src/app/(frontend)/styles.css, scoped to this screen. */
+.admin-dashboard { min-width: 0; }
+.admin-dashboard h1, .admin-dashboard h2 { letter-spacing: -.035em; }
+.admin-dashboard p { color: var(--admin-muted); line-height: 1.75; }
+.admin-dashboard .page-head { display: flex; justify-content: space-between; align-items: end; gap: 25px; margin-bottom: 28px; }
+.admin-dashboard .page-head h1 { margin: 0 0 7px; font-size: 30px; line-height: 1.04; font-weight: 400; }
+.admin-dashboard .page-head p { margin: 0; line-height: 1.5; }
+.admin-dashboard .eyebrow { display: block; margin-bottom: 12px; text-transform: uppercase; letter-spacing: .16em; font-size: 11px; font-weight: 800; color: var(--admin-gold); }
+.admin-dashboard .btn { flex: none; border: 0; border-radius: 10px; min-height: 46px; padding: 0 20px; display: inline-flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; text-align: center; text-decoration: none; transition: transform .2s; }
+.admin-dashboard .btn:hover { transform: translateY(-1px); }
+.admin-dashboard .btn-primary { color: white; background: var(--admin-brown); box-shadow: 0 8px 20px rgba(76,52,37,.18); }
+.admin-dashboard .panel { min-width: 0; overflow: hidden; background: var(--admin-paper); border: 1px solid var(--admin-line); border-radius: 12px; }
+.admin-dashboard .panel-head { min-height: 65px; padding: 17px 20px; border-bottom: 1px solid var(--admin-line); display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.admin-dashboard .panel-head h2 { margin: 0 0 4px; font-size: 16px; line-height: 1.12; font-weight: 400; }
+.admin-dashboard .panel-head p { margin: 0; font-size: 10px; line-height: 1.4; }
+.admin-dashboard .panel-head > a { flex: none; color: var(--admin-brown); font-weight: 700; display: flex; gap: 5px; align-items: center; text-decoration: none; }
+.admin-dashboard .panel-head > a:hover { text-decoration: underline; }
+.admin-dashboard .badge { display: inline-flex; align-items: center; width: max-content; max-width: 100%; border-radius: 99px; padding: 6px 10px; text-transform: uppercase; letter-spacing: .07em; font-size: 9px; line-height: 1.5; font-weight: 800; white-space: nowrap; }
+.admin-dashboard .badge-amber { background: #f6ecd7; color: #8a5e20; }
+.admin-dashboard .badge-green { background: var(--admin-sage-pale); color: #3d684b; }
+.admin-dashboard .badge-aqua { background: #e6efed; color: #527a76; }
+.admin-dashboard .badge-red { background: #f7e6e3; color: #a44b45; }
+.admin-dashboard .badge-neutral { background: #eeeae4; color: #6c665e; }
+.admin-dashboard .today-reservation { margin-bottom: 18px; }
+.admin-dashboard .today-reservation-content { padding: 24px; display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1.2fr) minmax(0,1.2fr) auto; gap: 24px; align-items: center; }
+.admin-dashboard .today-guest { min-width: 0; display: flex; align-items: center; gap: 12px; }
+.admin-dashboard .today-guest > div { min-width: 0; overflow-wrap: anywhere; }
+.admin-dashboard .today-guest .admin-avatar { width: 48px; height: 48px; font-size: 12px; color: var(--admin-sage); }
+.admin-dashboard .today-guest span:not(.admin-avatar), .admin-dashboard .today-guest small, .admin-dashboard .today-facts small, .admin-dashboard .today-stay small, .admin-dashboard .today-stay em { color: var(--admin-muted); font-size: 9px; font-style: normal; }
+.admin-dashboard .today-guest h3 { margin: 3px 0; font-size: 15px; }
+.admin-dashboard .today-stay { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr); align-items: center; gap: 10px; }
+.admin-dashboard .today-stay > span, .admin-dashboard .today-facts > span { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.admin-dashboard .today-stay svg { color: var(--admin-gold); }
+.admin-dashboard .today-facts { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; overflow-wrap: anywhere; }
+.admin-dashboard .dashboard-grid { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,.8fr); gap: 18px; margin-bottom: 18px; }
+.admin-dashboard .table-wrap { overflow: auto; }
+.admin-dashboard table { width: 100%; border-collapse: collapse; font-size: 11px; white-space: nowrap; }
+.admin-dashboard th { text-align: left; color: var(--admin-muted); font-size: 9px; text-transform: uppercase; letter-spacing: .06em; background: #faf8f4; }
+.admin-dashboard th, .admin-dashboard td { padding: 13px 15px; border-bottom: 1px solid var(--admin-line); }
+.admin-dashboard tbody tr:last-child td { border-bottom: 0; }
+.admin-dashboard tbody tr:hover { background: #fdfbf7; }
+.admin-dashboard .guest-cell { display: flex; align-items: center; gap: 8px; text-decoration: none; color: inherit; }
+.admin-dashboard .guest-cell:hover b { text-decoration: underline; }
+.admin-dashboard .guest-cell i { flex: none; width: 27px; height: 27px; border-radius: 50%; background: var(--admin-sage-pale); color: var(--admin-sage); display: grid; place-items: center; font-style: normal; font-size: 8px; }
+.admin-dashboard .activity { padding-bottom: 8px; }
+.admin-dashboard .activity-action { width: 100%; border-bottom: 1px solid var(--admin-line); background: transparent; display: flex; gap: 10px; padding: 12px 18px; text-align: left; color: var(--admin-ink); text-decoration: none; }
+.admin-dashboard .activity-action:hover { background: var(--admin-cream); }
+.admin-dashboard .activity-action > span { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--admin-gold); flex: none; }
+.admin-dashboard .activity-action > div { min-width: 0; font-size: 10px; line-height: 1.4; overflow-wrap: anywhere; }
+.admin-dashboard .activity-action small { display: block; color: var(--admin-muted); margin-top: 4px; }
+.admin-dashboard .upcoming-row { display: grid; grid-template-columns: 80px minmax(0,1.2fr) minmax(0,.8fr) minmax(0,.7fr); gap: 15px; align-items: center; padding: 13px 20px; text-decoration: none; color: var(--admin-ink); }
+.admin-dashboard .upcoming-row:hover { background: var(--admin-cream); }
+.admin-dashboard .upcoming-row > strong { display: flex; align-items: center; gap: 6px; font-size: 9px; color: var(--admin-muted); }
+.admin-dashboard .upcoming-row > strong i { font-style: normal; font-size: 22px; color: var(--admin-brown); }
+.admin-dashboard .upcoming-row > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
+.admin-dashboard .upcoming-row div > span { color: var(--admin-muted); font-size: 10px; }
+.admin-dashboard .dashboard-empty { min-height: 100px; padding: 24px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--admin-muted); font-size: 11px; text-align: center; }
+.admin-dashboard .dashboard-empty svg { flex: none; color: var(--admin-sage); }
+.admin-dashboard .dashboard-empty p { margin: 4px 0 0; }
+.admin-dashboard .dashboard-scope { margin: 18px 0 0; font-size: 10px; }
+.admin-dashboard > [role="status"], .admin-dashboard > [role="alert"] { padding: 24px; border: 1px solid var(--admin-line); border-radius: 12px; background: var(--admin-paper); }
+@media (max-width: 1250px) and (min-width: 761px) {
+    .admin-dashboard .today-reservation-content { grid-template-columns: minmax(0,1fr) minmax(0,1.2fr); }
+    .admin-dashboard .today-reservation-content > .btn { justify-self: end; }
+}
+@media (max-width: 1050px) {
+    .admin-dashboard .dashboard-grid { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 760px) {
+    .admin-dashboard .page-head { align-items: flex-start; flex-direction: column; margin-bottom: 20px; }
+    .admin-dashboard .page-head h1 { font-size: 27px; }
+    .admin-dashboard .panel-head { flex-wrap: wrap; }
+    .admin-dashboard .panel-head > a { font-size: 12px; }
+    .admin-dashboard .today-reservation-content { grid-template-columns: minmax(0,1fr); }
+    .admin-dashboard .today-stay, .admin-dashboard .today-facts { padding-top: 15px; border-top: 1px solid var(--admin-line); }
+    .admin-dashboard .today-reservation-content > .btn { width: 100%; }
+    .admin-dashboard .queue-preview table { table-layout: fixed; white-space: normal; font-size: 10px; }
+    .admin-dashboard .queue-preview th, .admin-dashboard .queue-preview td { padding: 12px 7px; overflow-wrap: anywhere; }
+    .admin-dashboard .queue-preview th { font-size: 8px; }
+    .admin-dashboard .queue-preview th:first-child { width: 13%; }
+    .admin-dashboard .queue-preview th:nth-child(2) { width: 25%; }
+    .admin-dashboard .queue-preview th:nth-child(3) { width: 28%; }
+    .admin-dashboard .queue-preview .guest-cell { flex-wrap: wrap; gap: 5px; }
+    .admin-dashboard .queue-preview .badge { padding: 5px 7px; font-size: 8px; white-space: normal; }
+    .admin-dashboard .upcoming-row { grid-template-columns: 60px minmax(0,1fr); }
+    .admin-dashboard .upcoming-row > .badge { grid-column: 2; white-space: normal; }
+    .admin-dashboard .upcoming-row > div:last-child { grid-column: 2; }
+    .admin-dashboard .dashboard-empty { align-items: flex-start; }
+}

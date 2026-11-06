@@ -131,6 +131,9 @@ function availability(booking: Booking, now: number) {
 }
 function message(booking: Booking, now: number) {
     if (booking.queue_notice) return booking.queue_notice;
+    const latestPayment = [...(booking.payments ?? [])].sort((a, b) => b.id - a.id)[0];
+    if (booking.status === "awaiting_deposit" && latestPayment?.status === "rejected")
+        return `Your payment proof was rejected. ${latestPayment.review_note || "Contact the resort for the reason."} Open your reservation to check the updated deadline and submit a new proof if the deposit opportunity is still active.`;
     if (
         booking.status === "awaiting_deposit" &&
         payment(booking) === "Deposit Verified"

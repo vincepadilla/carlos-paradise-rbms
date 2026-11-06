@@ -17,6 +17,7 @@ type Reservation = SavedReservation & {
     extension_date?: string | null;
     extension_reason?: string | null;
     extension_message?: string | null;
+    extension_access?: { enabled: boolean | number; agreed_deadline: string; consumed_at: string | null } | null;
 };
 type Tab = "active" | "pending" | "completed" | "cancelled";
 const tabs: { key: Tab; label: string }[] = [
@@ -247,11 +248,12 @@ function PaymentHistory({ reservation }: { reservation: Reservation }) {
                             ],
                             ["Verified payments", money(verified)],
                             ["Under review", money(pending)],
+                            ...(reservation.damage_total !== undefined ? [["Recorded damage charges", money(reservation.damage_total)]] : []),
                             [
                                 "Remaining balance",
                                 total === null
                                     ? "Pending agreement"
-                                    : money(Math.max(0, total - verified)),
+                                    : money(reservation.amount_due ?? Math.max(0, total - verified)),
                             ],
                         ].map(([label, value]) => (
                             <div key={label} className="min-w-0">
@@ -480,11 +482,13 @@ function ExtensionRequestDialog({
           }).format(new Date(reservation.deadline))
         : tomorrow;
     const earliestDate = deadlineDate > tomorrow ? deadlineDate : tomorrow;
-    const latestDate = new Date(
+    const lastStayDate = new Date(
         Date.parse(checkinDate + "T00:00:00Z") - 86400000,
     )
         .toISOString()
         .slice(0, 10);
+    const agreedDate = reservation.extension_access?.agreed_deadline?.slice(0, 10);
+    const latestDate = agreedDate && agreedDate < lastStayDate ? agreedDate : lastStayDate;
     const deadlineIsActive = Boolean(
         reservation.deadline &&
             new Date(reservation.deadline).getTime() > Date.now(),
@@ -492,6 +496,8 @@ function ExtensionRequestDialog({
     const blockingMessage =
         reservation.extension_status === "pending"
             ? "An extension request is already pending for this reservation."
+            : !reservation.extension_access?.enabled
+              ? "Contact the Admin for extension authorization before requesting another payment date."
             : reservation.status !== "awaiting_deposit"
               ? "A deposit opportunity must be active before you can request a deadline extension."
               : !deadlineIsActive
@@ -1049,11 +1055,12 @@ export default function MyReservationsPage({
                                                     Contact the Admin or Owner
                                                 </h3>
                                                 <p className="mt-1.5 mb-0 max-w-[720px] text-[10px] leading-relaxed text-[#73572e]">
-                                                    To request more time for your deposit payment,
+                                                    {reservation.extension_access?.enabled ? <>The Admin authorized a request up to {reservation.extension_access.agreed_deadline.slice(0, 10)}. Your actual deposit deadline changes only after approval.</> : <>To request more time for your deposit payment,
                                                     please contact the resort Admin or Owner first.
                                                     The deadline extension request option will remain
-                                                    hidden until staff makes it available.
+                                                    hidden until staff makes it available.</>}
                                                 </p>
+                                                {reservation.status === "awaiting_deposit" && Boolean(reservation.extension_access?.enabled) && <button type="button" className={`${secondary} mt-3`} onClick={() => setExtensionReservationId(reservation.id)}>Request Deadline Extension</button>}
                                             </section>
                                         )}
                                     {![

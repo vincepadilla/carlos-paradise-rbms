@@ -3,6 +3,8 @@ import { Link, useNavigate } from "react-router";
 import ReCAPTCHA from "react-google-recaptcha";
 import AuthLayout from "../components/auth/AuthLayout";
 import GoogleAuthButton from "../components/auth/GoogleAuthButton";
+import { apiBaseUrl } from "../services/ReservationApi";
+import { loginDestination, readAuthenticatedUser } from "../types/auth";
 import {
     AuthButton,
     AuthHeading,
@@ -14,10 +16,6 @@ import {
     validateLogin,
     type LoginErrors,
 } from "../components/auth/AuthValidation";
-
-const apiBaseUrl = (
-    import.meta.env.VITE_API_URL || "http://localhost:8000"
-).replace(/\/+$/, "");
 
 async function readJson(response: Response): Promise<Record<string, unknown> | null> {
     const payload: unknown = await response.json().catch(() => null);
@@ -153,8 +151,8 @@ export default function LoginPage() {
                 cache: "no-store",
             });
             const sessionData = await readJson(sessionResponse);
-            if (!sessionResponse.ok || !sessionData?.user ||
-                typeof sessionData.user !== "object") {
+            const sessionUser = readAuthenticatedUser(sessionData);
+            if (!sessionResponse.ok || !sessionUser) {
                 setFormError(
                     "Your login was accepted, but the session could not be confirmed. Check the session and cookie configuration.",
                 );
@@ -162,7 +160,7 @@ export default function LoginPage() {
             }
 
             setPassword("");
-            navigate("/", { replace: true });
+            navigate(loginDestination(sessionUser), { replace: true });
         } catch {
             setFormError(
                 "Could not confirm sign-in. Check your connection and that Laravel is running.",

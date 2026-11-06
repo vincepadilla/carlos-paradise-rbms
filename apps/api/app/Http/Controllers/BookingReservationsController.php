@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ReservationWorkflow;
+use App\Services\ReservationDetailData;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -60,12 +61,14 @@ class BookingReservationsController extends Controller
             $record
         );
 
-        return $this->flow->locked(function () use ($reservation) {
-            return response()->json([
-                'reservation' => $this->flow->present(
-                    $this->flow->reservation($reservation)
-                ),
-            ]);
+        return $this->flow->locked(function () use ($reservation, $request) {
+            $record = $this->flow->reservation($reservation);
+            $payload = ['reservation' => $this->flow->present($record)];
+            if ($this->flow->staff($request->user())) {
+                $payload['details'] = app(ReservationDetailData::class)->present($record);
+            }
+
+            return response()->json($payload);
         });
     }
 
@@ -319,6 +322,7 @@ class BookingReservationsController extends Controller
 
             abort_unless(
                 $record->type === 'day_tour' &&
+                CarbonImmutable::parse($record->ends_at)->gt($this->flow->now()) &&
                 in_array(
                     $record->status,
                     ['pending', 'queued', 'awaiting_deposit'],
@@ -516,6 +520,8 @@ class BookingReservationsController extends Controller
                 ]);
             }
 
+            app(\App\Services\ReservationExtensionAccess::class)->consume($record, $request->user()->id, $requestedDate);
+
             DB::table('reservations')
                 ->where('id', $record->id)
                 ->update([
@@ -526,6 +532,7 @@ class BookingReservationsController extends Controller
                         ? trim($data['message'])
                         : null,
                     'extension_status' => 'pending',
+                    'admin_revision' => DB::raw('admin_revision + 1'),
                     'updated_at' => $this->flow->stamp(),
                 ]);
 
@@ -569,6 +576,7 @@ class BookingReservationsController extends Controller
 
             $updates = [
                 'extension_status' => $data['decision'],
+                'admin_revision' => DB::raw('admin_revision + 1'),
                 'processed_by' => $request->user()->id,
                 'processed_at' => $this->flow->now()->toIso8601String(),
                 'updated_at' => $this->flow->stamp(),

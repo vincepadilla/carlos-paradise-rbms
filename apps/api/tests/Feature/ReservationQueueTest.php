@@ -195,6 +195,10 @@ class ReservationQueueTest extends TestCase
 
     public function test_admin_can_verify_a_deposit_under_review(): void
     {
+        $receiptRoot = storage_path('framework/testing/queue-review-'.\Illuminate\Support\Str::uuid());
+        config(['reservations.receipt_root' => $receiptRoot]);
+        $this->beforeApplicationDestroyed(fn () => \Illuminate\Support\Facades\File::deleteDirectory($receiptRoot));
+        app(\App\Services\ReservationWorkflow::class)->disk()->put('test-receipt.pdf', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF");
         $firstGuest = User::factory()->create();
         $secondGuest = User::factory()->create();
         $payload = $this->reservationPayload();

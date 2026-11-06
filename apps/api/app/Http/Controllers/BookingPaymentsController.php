@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\ReservationWorkflow;
+use App\Services\PaymentReceiptStorage;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,7 +12,8 @@ use Illuminate\Validation\Rule;
 class BookingPaymentsController extends Controller
 {
     public function __construct(
-        private ReservationWorkflow $flow
+        private ReservationWorkflow $flow,
+        private PaymentReceiptStorage $receipts
     ) {}
 
     /*
@@ -251,39 +253,26 @@ class BookingPaymentsController extends Controller
             )
         );
 
-        $path = $record->receipt_storage_path;
-
-        abort_unless(
-            $path &&
-            $this->flow->disk()->exists($path),
-            404,
-            'Receipt file not found.'
-        );
-
-        $extension = pathinfo(
-            $path,
-            PATHINFO_EXTENSION
-        );
-
-        return $this->flow->disk()->download(
-            $path,
-            'receipt-'.$record->id.'.'.$extension
-        );
+        return $this->receipts->serve($record);
     }
 
     /*
      * POST /api/payments/{payment}/review
      *
-     * Only an active admin or owner can review a receipt.
+     * HTTP routes require an active Admin. The existing staff CLI also reuses this workflow.
      */
     public function review(
         Request $request,
-        int $payment
+        int $payment,
+        ?int $expectedReservation = null
     ) {
         $this->flow->requireStaff(
             $request->user()
         );
 
+        if (is_string($request->input('note'))) {
+            $request->merge(['note' => trim($request->input('note'))]);
+        }
         $data = $request->validate([
             'decision' => [
                 'required',
@@ -296,7 +285,8 @@ class BookingPaymentsController extends Controller
         return $this->flow->locked(function () use (
             $request,
             $payment,
-            $data
+            $data,
+            $expectedReservation
         ) {
             $paymentRecord = DB::table('payments')
                 ->where('id', $payment)
@@ -308,6 +298,7 @@ class BookingPaymentsController extends Controller
                 404,
                 'Payment not found.'
             );
+            abort_if($expectedReservation !== null && (int) $paymentRecord->reservation_id !== $expectedReservation, 404, 'Payment not found for this reservation.');
 
             $reservation = $this->flow->reservation(
                 $paymentRecord->reservation_id,
@@ -325,6 +316,7 @@ class BookingPaymentsController extends Controller
              * Recheck availability before confirming.
              */
             if ($data['decision'] === 'approved') {
+                $this->validateApproval($paymentRecord, $reservation);
                 // Unpaid opportunities remain queued candidates. Only an
                 // already confirmed booking can prevent this confirmation.
                 $this->flow->available($reservation, false);
@@ -358,7 +350,7 @@ class BookingPaymentsController extends Controller
                     $reservation,
                     'confirmed',
                     $request->user()->id,
-                    $data['note']
+                    'Payment #'.$paymentRecord->id.' approved: '.$data['note']
                 );
 
                 $this->flow->closeOpportunity(
@@ -370,7 +362,7 @@ class BookingPaymentsController extends Controller
                 // queue was closed at submission time.
                 $this->flow->cancelQueuedOverlaps($reservation);
 
-            } else {
+            } elseif (! DB::table('payments')->where('reservation_id', $reservation->id)->where('status', 'submitted')->exists()) {
                 /*
                  * Allow correction before a renewed deadline.
                  * The deadline must remain before the stay.
@@ -396,7 +388,7 @@ class BookingPaymentsController extends Controller
                     $reservation,
                     $status,
                     $request->user()->id,
-                    $data['note'],
+                    'Payment #'.$paymentRecord->id.' rejected: '.$data['note'],
                     [
                         'deadline' => $deadline->toIso8601String(),
                     ]
@@ -408,11 +400,15 @@ class BookingPaymentsController extends Controller
                         'expired'
                     );
                 } else {
+                    $activeOpportunity = DB::table('reservation_opportunities')
+                        ->where('reservation_id', $reservation->id)
+                        ->where('status', 'active')
+                        ->exists();
+                    if (! $activeOpportunity) {
+                        $this->flow->createOpportunity($reservation, $request->user()->id);
+                    }
                     DB::table('reservation_opportunities')
-                        ->where(
-                            'id',
-                            $paymentRecord->opportunity_id
-                        )
+                        ->where('reservation_id', $reservation->id)
                         ->where('status', 'active')
                         ->update([
                             'deposit_deadline' => $deadline->toIso8601String(),
@@ -430,5 +426,18 @@ class BookingPaymentsController extends Controller
                 ),
             ]);
         });
+    }
+
+    private function validateApproval(object $payment, object $reservation): void
+    {
+        $submittedCents = (int) round((float) $payment->amount * 100);
+        $requiredCents = (int) round((float) $reservation->required_deposit * 100);
+        abort_unless($payment->payment_kind === 'deposit' && $payment->currency === 'PHP' && $requiredCents > 0 && $submittedCents === $requiredCents,
+            422, 'The submitted amount must match the required deposit. Reject the incorrect submission and request a corrected payment.');
+        abort_if(DB::table('payments')->where('reservation_id', $reservation->id)->where('status', 'approved')->exists(), 422, 'This reservation already has a verified deposit.');
+        abort_unless($reservation->price_agreed, 422, 'The reservation total must be agreed before confirming payment.');
+        abort_unless(CarbonImmutable::parse($reservation->ends_at)->gt($this->flow->now()), 422, 'An ended reservation cannot be confirmed.');
+        $receipt = $this->receipts->describe($payment);
+        abort_unless($receipt['available'] && in_array($receipt['mime'], PaymentReceiptStorage::PREVIEW_TYPES, true), 422, 'A valid uploaded receipt is required before approval.');
     }
 }

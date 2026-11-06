@@ -47,5 +47,5 @@ Route::prefix('api')->middleware('auth')->group(function () {
 
     Route::post('/payments/{payment}/review', [
         BookingPaymentsController::class, 'review',
-    ])->whereNumber('payment');
+    ])->whereNumber('payment')->middleware(\App\Http\Middleware\RequireAdmin::class);
 });
