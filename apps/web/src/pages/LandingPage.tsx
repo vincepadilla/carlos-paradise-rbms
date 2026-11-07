@@ -77,7 +77,6 @@ async function endSession(): Promise<void> {
 const navigation = [
     ["home", "Home"],
     ["about", "About"],
-    ["villa-gallery", "Villa"],
     ["amenities", "Amenities"],
     ["rates", "Rates"],
     ["policies", "Policies"],
@@ -87,70 +86,127 @@ const navigation = [
 
 const slides = [
     {
-        src: "/assets/villa-exterior.jpg",
-        alt: "Carlos Paradise private villa and pool at dusk",
-        label: "The villa at twilight",
+        src: "/assets/Receiving%20Area.jpg",
+        alt: "Receiving and living area at Carlos Paradise",
+        label: "Living Area",
     },
     {
         src: "/assets/villa-pool.jpg",
-        alt: "Private swimming pool and covered patio",
-        label: "Your private pool",
-    },
-    {
-        src: "/assets/villa-living.jpg",
-        alt: "Warm and comfortable villa living area",
-        label: "Space to slow down",
+        alt: "Private swimming pool at Carlos Paradise",
+        label: "Pool View",
     },
     {
         src: "/assets/villa-dining.jpg",
-        alt: "Spacious dining area for shared meals",
-        label: "Gather around the table",
+        alt: "Dining table prepared for a shared meal",
+        label: "Dining Table",
+    },
+    {
+        src: "/assets/Master%20Bedroom.jpg",
+        alt: "First-floor master bedroom",
+        label: "Master Bedroom",
+    },
+    {
+        src: "/assets/Common%20Room.jpg",
+        alt: "Second-floor common sleeping room",
+        label: "Common Room",
     },
     {
         src: "/assets/villa-lounge.jpg",
-        alt: "Entertainment lounge inside the private villa",
-        label: "Relax, play, reconnect",
+        alt: "Entertainment lounge at Carlos Paradise",
+        label: "Entertainment Lounge",
+    },
+    {
+        src: "/assets/villa-exterior.jpg",
+        alt: "Carlos Paradise villa and pool at dusk",
+        label: "Villa Exterior",
+    },
+    {
+        src: "/assets/villa-living.jpg",
+        alt: "Shared living space inside the villa",
+        label: "Shared Living Space",
     },
 ];
-
 const amenities = [
-    "Private swimming pool",
-    "Entertainment lounge",
-    "Equipped kitchen",
-    "On-site parking",
-    "Pet-friendly stay",
-    "Spacious dining area",
+    {
+        title: "Private Swimming Pool",
+        description: "Reserved exclusively for your group.",
+    },
+    {
+        title: "KTV and Billiards",
+        description: "Music and games for shared downtime.",
+    },
+    {
+        title: "Kitchen and Dining",
+        description: "Prepare and enjoy group meals together.",
+    },
+    {
+        title: "Bonfire Area",
+        description: "Wood bundle optional at ₱400.",
+    },
+    {
+        title: "Pet-Friendly",
+        description: "Pets are welcome and must wear diapers.",
+    },
+    {
+        title: "On-Site Parking",
+        description: "Driveway plus rear parking.",
+    },
 ];
-
 const rates = [
-    ["Monday–Thursday", "₱16,000"],
-    ["Friday–Saturday", "₱22,000"],
+    ["Mon–Thu", "₱16,000"],
+    ["Fri–Sat", "₱22,000"],
     ["Sunday", "₱18,000"],
-    ["Public holiday surcharge", "+₱2,000"],
+    ["Peak dates — Dec 24, 25, 31 and Jan 1", "₱22,000"],
+    ["Holiday surcharge — when applicable", "+₱2,000"],
 ];
 
+const reservationNotes = [
+    "20 chargeable guests are included in each standard price.",
+    "Each extra chargeable guest is ₱500, subject to approved maximum occupancy.",
+    "Children aged 7 and below are excluded from the pricing headcount.",
+    "A ₱5,000 reservation deposit is required.",
+    "A ₱3,000 refundable security deposit is paid at check-in.",
+    "The remaining balance is paid at check-in.",
+    "Check-in is at 2:00 PM; check-out is at 11:00 AM the next day.",
+];
 const policies: {
-    icon: IconName;
     title: string;
-    description: string;
+    rules: string[];
 }[] = [
-        {
-            icon: "clock",
-            title: "Arrival & departure",
-            description: "Check-in at 2:00 PM · Check-out at 11:00 AM",
-        },
-        {
-            icon: "people",
-            title: "Guest pricing",
-            description: "20 guests standard · additional guest rates apply",
-        },
-        {
-            icon: "sparkle",
-            title: "Pet-friendly",
-            description: "Pets are welcome and must wear diapers.",
-        },
-    ];
-
+    {
+        title: "Arrival & Payment",
+        rules: [
+            "Check-in is at 2:00 PM; check-out is at 11:00 AM the next day.",
+            "The remaining balance and the ₱3,000 refundable security deposit are paid at check-in.",
+            "The refundable security deposit is subject to post-stay inspection.",
+        ],
+    },
+    {
+        title: "Changes & Cancellations",
+        rules: [
+            "Cancellations made one month before check-in receive a 100% refund.",
+            "Cancellations made three weeks before check-in receive a 50% refund.",
+            "Cancellations made two weeks or less before check-in receive no refund.",
+            "Date changes should be requested three weeks ahead.",
+            "A ₱2,000 penalty may apply for date changes requested within two weeks of check-in.",
+        ],
+    },
+    {
+        title: "Guests & Accommodations",
+        rules: [
+            "The master bedroom includes two towels; all other guests should bring their own.",
+            "For events with more than 30 attendees, a ₱1,000 extra cleaning fee may apply, subject to booking approval.",
+        ],
+    },
+    {
+        title: "Pets & Optional Extras",
+        rules: [
+            "Pets must wear diapers.",
+            "A bonfire wood bundle is available for ₱400.",
+            "Charcoal is available for ₱30.",
+        ],
+    },
+];
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
     const icons: Record<IconName, ReactNode> = {
         arrow: <path d="M5 12h14m-6-6 6 6-6 6" />,
@@ -297,6 +353,7 @@ export default function LandingPage() {
     const navigateTo = useNavigate();
     const [menuOpen, setMenuOpen] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
+    const [galleryOpen, setGalleryOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState("home");
 
@@ -411,15 +468,39 @@ export default function LandingPage() {
         return () => window.removeEventListener("scroll", handleScroll);
     }, [handleScroll]);
 
-    // Auto-advance slideshow
+    // Auto-advance the gallery when it is not open in the lightbox.
     useEffect(() => {
+        if (galleryOpen) return;
+
         const timer = window.setInterval(() => {
             setCurrentSlide((slide) => (slide + 1) % slides.length);
         }, 6500);
 
         return () => window.clearInterval(timer);
-    }, []);
+    }, [galleryOpen]);
 
+    useEffect(() => {
+        if (!galleryOpen) return;
+
+        const previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+
+        function handleGalleryKeydown(event: KeyboardEvent) {
+            if (event.key === "Escape") setGalleryOpen(false);
+            if (event.key === "ArrowLeft") {
+                setCurrentSlide((slide) => (slide - 1 + slides.length) % slides.length);
+            }
+            if (event.key === "ArrowRight") {
+                setCurrentSlide((slide) => (slide + 1) % slides.length);
+            }
+        }
+
+        document.addEventListener("keydown", handleGalleryKeydown);
+        return () => {
+            document.body.style.overflow = previousOverflow;
+            document.removeEventListener("keydown", handleGalleryKeydown);
+        };
+    }, [galleryOpen]);
     function openSection(id: string) {
         setMenuOpen(false);
         scrollToSection(id);
@@ -435,18 +516,6 @@ export default function LandingPage() {
 
     function createAccount() {
         navigateTo("/register");
-    }
-
-    function viewVilla() {
-        navigateTo("/villa");
-    }
-
-    function viewAmenities() {
-        navigateTo("/villa#amenities");
-    }
-
-    function viewPolicies() {
-        navigateTo("/villa#policies");
     }
 
     return (
@@ -645,7 +714,7 @@ export default function LandingPage() {
                             <Button
                                 tone="hero"
                                 variant="secondary"
-                                onClick={() => openSection("villa-gallery")}
+                                onClick={() => openSection("about")}
                             >
                                 Explore the villa
                             </Button>
@@ -657,143 +726,255 @@ export default function LandingPage() {
                         </small>
                     </div>
 
-                    <div className="relative z-20 col-start-1 row-start-2 grid grid-cols-3 border-b border-line bg-paper px-[max(7vw,50px)] py-7 max-[819px]:grid-cols-1 max-[819px]:px-6 max-[819px]:py-[18px] [&>div]:flex [&>div]:gap-3.5 [&>div]:border-r [&>div]:border-line [&>div]:px-6 [&>div:last-child]:border-0 max-[819px]:[&>div]:border-r-0 max-[819px]:[&>div]:border-b max-[819px]:[&>div]:px-0 max-[819px]:[&>div]:py-2.5 [&_svg]:text-gold [&_span]:flex [&_span]:flex-col [&_span]:font-bold [&_small]:mt-[5px] [&_small]:font-normal [&_small]:text-muted">
-                        <div>
-                            <Icon name="home" />
+                    <div className="relative z-20 col-start-1 row-start-2 border-b border-line bg-paper">
+                        <div className="mx-auto grid min-h-[70px] max-w-[1720px] grid-cols-3 px-[max(4vw,32px)] max-[819px]:grid-cols-1 max-[819px]:px-6 max-[819px]:py-2">
+                            <div className="flex min-w-0 items-center gap-3 px-6 text-sm font-semibold leading-5 text-ink max-[819px]:min-h-[52px] max-[819px]:px-0 [&_svg]:shrink-0 [&_svg]:text-gold">
+                                <Icon name="home" size={18} />
+                                <span>One private villa — exclusive use</span>
+                            </div>
 
-                            <span>
-                                One private villa
-                                <small>Exclusive for your group</small>
-                            </span>
-                        </div>
+                            <div className="relative flex min-w-0 items-center gap-3 px-6 text-sm font-semibold leading-5 text-ink before:absolute before:top-1/2 before:left-0 before:h-7 before:w-px before:-translate-y-1/2 before:bg-line max-[819px]:min-h-[52px] max-[819px]:px-0 max-[819px]:before:top-0 max-[819px]:before:h-px max-[819px]:before:w-full max-[819px]:before:translate-y-0 [&_svg]:shrink-0 [&_svg]:text-gold">
+                                <Icon name="people" size={18} />
+                                <span>20 guests included — additional guests have an additional charge</span>
+                            </div>
 
-                        <div>
-                            <Icon name="people" />
-
-                            <span>
-                                Flexible group planning
-                                <small>Additional guest pricing available</small>
-                            </span>
-                        </div>
-
-                        <div>
-                            <Icon name="clock" />
-
-                            <span>
-                                2:00 PM arrival
-                                <small>11:00 AM departure</small>
-                            </span>
+                            <div className="relative flex min-w-0 items-center gap-3 px-6 text-sm font-semibold leading-5 text-ink before:absolute before:top-1/2 before:left-0 before:h-7 before:w-px before:-translate-y-1/2 before:bg-line max-[819px]:min-h-[52px] max-[819px]:px-0 max-[819px]:before:top-0 max-[819px]:before:h-px max-[819px]:before:w-full max-[819px]:before:translate-y-0 [&_svg]:shrink-0 [&_svg]:text-gold">
+                                <Icon name="clock" size={18} />
+                                <span>21-hour overnight stay — 2:00 PM to 11:00 AM</span>
+                            </div>
                         </div>
                     </div>
                 </section>
 
                 {/* ── Villa Gallery ── */}
+                {/* ── About & Villa Gallery ── */}
                 <section
                     className="scroll-mt-[76px] bg-[#eee9df] px-[max(7vw,28px)] py-[100px] max-[760px]:px-[18px] max-[760px]:py-[60px]"
-                    id="villa-gallery"
-                >
-                    <div className="mb-[34px] max-w-[680px] [&>h2]:mb-2.5 [&>p]:mb-0">
-                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
-                            Villa Gallery
-                        </span>
-
-                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
-                            One private escape, many ways to unwind.
-                        </h2>
-
-                        <p className="mb-[1em] text-muted leading-[1.75]">
-                            Take a closer look at the spaces your group can enjoy exclusively.
-                        </p>
-                    </div>
-
-                    <div className="relative mx-auto h-[min(68vw,720px)] min-h-[440px] max-w-[1280px] overflow-hidden bg-brown max-[760px]:h-[65vw] max-[760px]:min-h-[330px] [&>img]:h-full [&>img]:w-full [&>img]:object-cover [&>img]:animate-slide-reveal motion-reduce:[&>img]:animate-none">
-                        <img
-                            key={currentSlide}
-                            src={slides[currentSlide].src}
-                            alt={slides[currentSlide].alt}
-                            loading="lazy"
-                        />
-
-                        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-[#33291f] px-[22px] py-[18px] text-white max-[760px]:px-[15px] max-[760px]:py-[13px] [&>span]:font-display [&>span]:text-xl max-[760px]:[&>span]:text-base [&>b]:text-[11px] [&>b]:tracking-[.1em] [&>b]:text-[#d8c8b9]">
-                            <span>{slides[currentSlide].label}</span>
-
-                            <b>
-                                {currentSlide + 1} / {slides.length}
-                            </b>
-                        </div>
-                    </div>
-
-                    <div className="mx-auto mt-3.5 grid max-w-[1280px] grid-cols-[auto_1fr_auto] items-center gap-4 [&>button]:min-w-[120px] max-[760px]:grid-cols-2 max-[760px]:[&>button]:min-w-0">
-                        <Button
-                            variant="secondary"
-                            onClick={() => showSlide(currentSlide - 1)}
-                        >
-                            ← Previous
-                        </Button>
-
-                        <div
-                            className="flex min-w-0 justify-center gap-2 max-[760px]:col-span-2 max-[760px]:row-start-1 max-[760px]:justify-start max-[760px]:overflow-x-auto max-[760px]:p-0.5 [&_img]:size-full [&_img]:rounded-[3px] [&_img]:object-cover"
-                            aria-label="Choose a villa image"
-                        >
-                            {slides.map((slide, index) => (
-                                <button
-                                    key={slide.src}
-                                    type="button"
-                                    className={`h-[50px] w-[72px] shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-paper p-[3px] transition duration-200 hover:-translate-y-0.5 hover:border-gold hover:opacity-100 motion-reduce:transform-none max-[760px]:h-[42px] max-[760px]:w-[58px] ${currentSlide === index ? "-translate-y-0.5 border-gold opacity-100" : "border-transparent opacity-[.66]"}`}
-                                    aria-label={`Show image ${index + 1}`}
-                                    aria-pressed={currentSlide === index}
-                                    onClick={() => showSlide(index)}
-                                >
-                                    <img src={slide.src} alt="" loading="lazy" />
-                                </button>
-                            ))}
-                        </div>
-
-                        <Button
-                            variant="secondary"
-                            onClick={() => showSlide(currentSlide + 1)}
-                        >
-                            Next →
-                        </Button>
-                    </div>
-                </section>
-
-                {/* ── About ── */}
-                <section
-                    className="grid scroll-mt-[76px] grid-cols-[1.1fr_.9fr] items-end gap-[100px] bg-paper px-[max(9vw,40px)] py-[100px] [&_p]:text-base max-[819px]:grid-cols-1 max-[819px]:gap-[25px] max-[819px]:px-[22px] max-[819px]:py-[65px]"
                     id="about"
                 >
-                    <div>
-                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
-                            About Carlos Paradise
-                        </span>
+                    <div className="mx-auto max-w-[1280px]">
+                        <div className="grid gap-10 min-[960px]:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)] min-[960px]:gap-[clamp(64px,8vw,128px)]">
+                            <div>
+                                <span className="mb-4 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                                    About Carlos Paradise
+                                </span>
 
-                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
-                            Slow days. Warm nights.
-                            <br />
-                            Your people, together.
-                        </h2>
+                                <h2 className="max-w-[560px] font-display text-[clamp(2.25rem,4.2vw,4rem)] font-normal leading-[1.04] tracking-[-.04em] text-ink">
+                                    <span className="min-[1100px]:block">Slow days. Warm</span>{" "}
+                                    <span className="min-[1100px]:block">nights. Better</span>{" "}
+                                    <span className="min-[1100px]:block">memories together.</span>
+                                </h2>
+                            </div>
+
+                            <div className="min-[960px]:pt-9">
+                                <p className="m-0 max-w-[660px] text-base leading-[1.8] text-muted">
+                                    Carlos Paradise welcomes families, friends, and groups to their own
+                                    private getaway in Bustos, Bulacan. Spend time together by the pool,
+                                    prepare shared meals, sing the night away, or simply unwind. The
+                                    property is exclusively reserved for your group.
+                                </p>
+
+                                <div className="mt-8 flex flex-col gap-[18px]">
+                                    <div className="flex flex-wrap items-baseline gap-x-11 gap-y-[18px]">
+                                        <div className="inline-flex w-fit items-baseline gap-2">
+                                            <strong className="font-display text-[23px] font-normal leading-none text-brown">
+                                                2
+                                            </strong>
+                                            <span className="text-sm leading-5 text-muted">
+                                                floors
+                                            </span>
+                                        </div>
+
+                                        <div className="inline-flex w-fit items-baseline gap-2">
+                                            <strong className="font-display text-[23px] font-normal leading-none text-brown">
+                                                21
+                                            </strong>
+                                            <span className="text-sm leading-5 text-muted">
+                                                hours per overnight stay
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div className="inline-flex w-fit items-baseline gap-2">
+                                        <strong className="font-display text-[23px] font-normal leading-none text-brown">
+                                            30
+                                        </strong>
+                                        <span className="text-sm leading-5 text-muted">
+                                            sleeping spaces with beds and mattresses
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <p className="mt-5 mb-0 max-w-[590px] text-[13px] leading-5 text-muted">
+                                    Approved booking capacity remains subject to owner rules.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="mt-12">
+                            <div className="relative aspect-[16/9] max-h-[720px] min-h-[440px] overflow-hidden bg-brown max-[760px]:min-h-[300px]">
+                                <button
+                                    type="button"
+                                    className="group h-full w-full cursor-zoom-in border-0 bg-transparent p-0 text-left"
+                                    aria-label={"Open " + slides[currentSlide].label + " in fullscreen"}
+                                    onClick={() => setGalleryOpen(true)}
+                                >
+                                    <img
+                                        key={currentSlide}
+                                        src={slides[currentSlide].src}
+                                        alt={slides[currentSlide].alt}
+                                        loading="lazy"
+                                        className="h-full w-full object-cover animate-slide-reveal transition-transform duration-500 group-hover:scale-[1.01] motion-reduce:animate-none motion-reduce:transition-none"
+                                    />
+
+                                    <span className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-3 bg-[#33291f]/95 px-[22px] py-[18px] text-white max-[760px]:px-[15px] max-[760px]:py-[13px]">
+                                        <span className="font-display text-xl max-[760px]:text-base">
+                                            {slides[currentSlide].label}
+                                        </span>
+                                        <b className="text-[11px] tracking-[.1em] text-[#d8c8b9]">
+                                            {currentSlide + 1} / {slides.length}
+                                        </b>
+                                    </span>
+
+                                    <span className="absolute top-4 right-4 rounded-full border border-white/40 bg-[#33291f]/80 px-4 py-2 text-xs font-bold text-white shadow-lg transition group-hover:bg-[#33291f]">
+                                        View fullscreen
+                                    </span>
+                                </button>
+                            </div>
+
+                            <div className="mt-3.5 grid grid-cols-[auto_1fr_auto] items-center gap-4 [&>button]:min-w-[120px] max-[760px]:grid-cols-2 max-[760px]:[&>button]:min-w-0">
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => showSlide(currentSlide - 1)}
+                                >
+                                    ← Previous
+                                </Button>
+
+                                <div
+                                    className="flex min-w-0 justify-center gap-2 max-[760px]:col-span-2 max-[760px]:row-start-1 max-[760px]:justify-start max-[760px]:overflow-x-auto max-[760px]:p-0.5 [&_img]:size-full [&_img]:rounded-[3px] [&_img]:object-cover"
+                                    aria-label="Choose a villa image"
+                                >
+                                    {slides.map((slide, index) => (
+                                        <button
+                                            key={slide.src}
+                                            type="button"
+                                            className={"h-[50px] w-[72px] shrink-0 cursor-pointer overflow-hidden rounded-md border-2 bg-paper p-[3px] transition duration-200 hover:-translate-y-0.5 hover:border-gold hover:opacity-100 motion-reduce:transform-none max-[760px]:h-[42px] max-[760px]:w-[58px] " + (currentSlide === index ? "-translate-y-0.5 border-gold opacity-100" : "border-transparent opacity-[.66]")}
+                                            aria-label={"Show " + slide.label}
+                                            aria-pressed={currentSlide === index}
+                                            onClick={() => showSlide(index)}
+                                        >
+                                            <img src={slide.src} alt="" loading="lazy" />
+                                        </button>
+                                    ))}
+                                </div>
+
+                                <Button
+                                    variant="secondary"
+                                    onClick={() => showSlide(currentSlide + 1)}
+                                >
+                                    Next →
+                                </Button>
+                            </div>
+                        </div>
+
+                        <div className="mt-16 grid grid-cols-2 gap-8 max-[819px]:grid-cols-1">
+                            <article className="overflow-hidden border border-line bg-paper">
+                                <img
+                                    src="/assets/Master%20Bedroom.jpg"
+                                    alt="Master bedroom on the first floor"
+                                    loading="lazy"
+                                    className="aspect-[16/10] w-full object-cover"
+                                />
+                                <div className="p-6">
+                                    <p className="text-[11px] font-extrabold uppercase tracking-[.14em] text-gold">
+                                        First floor
+                                    </p>
+                                    <h3 className="mt-2 font-display text-2xl font-normal text-ink">
+                                        Master Bedroom
+                                    </h3>
+                                    <p className="mt-3 leading-[1.7] text-muted">
+                                        Queen bed, pull-out, and extra mattresses; approximately
+                                        3–5 guests.
+                                    </p>
+                                </div>
+                            </article>
+
+                            <article className="overflow-hidden border border-line bg-paper">
+                                <img
+                                    src="/assets/Common%20Room.jpg"
+                                    alt="Common room on the second floor"
+                                    loading="lazy"
+                                    className="aspect-[16/10] w-full object-cover"
+                                />
+                                <div className="p-6">
+                                    <p className="text-[11px] font-extrabold uppercase tracking-[.14em] text-gold">
+                                        Second floor
+                                    </p>
+                                    <h3 className="mt-2 font-display text-2xl font-normal text-ink">
+                                        Common Room
+                                    </h3>
+                                    <p className="mt-3 leading-[1.7] text-muted">
+                                        Bunk beds for 12 and seven extra double-size mattresses.
+                                    </p>
+                                </div>
+                            </article>
+                        </div>
                     </div>
 
-                    <div>
-                        <p className="mb-[1em] text-muted leading-[1.75]">
-                            A thoughtfully designed private villa where celebrations feel
-                            intimate and weekends feel longer. From the pool at twilight to
-                            relaxed meals around the table, every space is yours to enjoy.
-                        </p>
-
-                        <button
-                            type="button"
-                            className="flex cursor-pointer items-center gap-2 border-0 border-b border-brown bg-transparent pb-[7px] font-semibold text-ink transition-colors hover:text-gold"
-                            onClick={viewVilla}
+                    {galleryOpen && (
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-label="Villa photo gallery"
+                            className="fixed inset-0 z-[100] flex items-center justify-center bg-[#17120f]/95 p-4 sm:p-8"
+                            onMouseDown={(event) => {
+                                if (event.target === event.currentTarget) setGalleryOpen(false);
+                            }}
                         >
-                            Discover the private villa
-                            <Icon name="arrow" size={17} />
-                        </button>
-                    </div>
-                </section>
+                            <button
+                                type="button"
+                                autoFocus
+                                aria-label="Close fullscreen gallery"
+                                onClick={() => setGalleryOpen(false)}
+                                className="absolute top-4 right-4 z-10 grid size-11 cursor-pointer place-items-center rounded-full border border-white/30 bg-black/40 text-white transition hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-gold"
+                            >
+                                <Icon name="close" size={22} />
+                            </button>
 
-                {/* ── Amenities ── */}
+                            <button
+                                type="button"
+                                aria-label="Previous image"
+                                onClick={() => showSlide(currentSlide - 1)}
+                                className="absolute left-3 z-10 grid size-11 cursor-pointer place-items-center rounded-full border border-white/30 bg-black/40 text-xl text-white transition hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-gold sm:left-6"
+                            >
+                                ←
+                            </button>
+
+                            <figure className="m-0 flex max-h-full max-w-[1440px] flex-col items-center">
+                                <img
+                                    src={slides[currentSlide].src}
+                                    alt={slides[currentSlide].alt}
+                                    className="max-h-[calc(100vh-110px)] max-w-full object-contain"
+                                />
+                                <figcaption className="mt-3 text-center text-sm font-semibold text-white">
+                                    {slides[currentSlide].label}
+                                    <span className="ml-3 font-normal text-white/60">
+                                        {currentSlide + 1} / {slides.length}
+                                    </span>
+                                </figcaption>
+                            </figure>
+
+                            <button
+                                type="button"
+                                aria-label="Next image"
+                                onClick={() => showSlide(currentSlide + 1)}
+                                className="absolute right-3 z-10 grid size-11 cursor-pointer place-items-center rounded-full border border-white/30 bg-black/40 text-xl text-white transition hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-gold sm:right-6"
+                            >
+                                →
+                            </button>
+                        </div>
+                    )}
+                </section>
                 <section
                     className="grid scroll-mt-[76px] grid-cols-2 items-center gap-[7vw] border-t border-line bg-paper px-[max(8vw,35px)] py-[100px] [&>div]:max-w-[580px] [&>img]:h-[470px] [&>img]:w-full [&>img]:object-cover max-[819px]:grid-cols-1 max-[819px]:gap-[35px] max-[819px]:px-[22px] max-[819px]:py-[60px] max-[819px]:[&>img]:h-[330px]"
                     id="amenities"
@@ -804,24 +985,32 @@ export default function LandingPage() {
                         </span>
 
                         <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
-                            Everything for an effortless private stay.
+                            Everything for a relaxed private stay.
                         </h2>
 
                         <p className="mb-[1em] text-muted leading-[1.75]">
-                            Enjoy the whole villa exclusively with your group, with spaces
-                            designed for comfort, connection, and celebration.
+                            Enjoy practical comforts and shared spaces throughout your
+                            exclusive stay.
                         </p>
 
-                        <div className="mt-[25px] mb-[30px] grid grid-cols-2 border-t border-line max-[819px]:grid-cols-1 [&>span]:flex [&>span]:items-center [&>span]:gap-[9px] [&>span]:border-b [&>span]:border-line [&>span]:py-3.5 [&>span]:font-semibold [&_svg]:text-sage">
+                        <div className="mt-6 grid grid-cols-2 border-t border-line max-[520px]:grid-cols-1">
                             {amenities.map((amenity) => (
-                                <span key={amenity}>
-                                    <Icon name="check" />
-                                    {amenity}
-                                </span>
+                                <div
+                                    key={amenity.title}
+                                    className="flex items-start gap-3 border-b border-line py-4 pr-5 odd:mr-5 max-[520px]:mr-0 max-[520px]:pr-0 [&_svg]:shrink-0 [&_svg]:text-sage"
+                                >
+                                    <Icon name="check" size={18} />
+                                    <span>
+                                        <b className="block font-semibold text-ink">
+                                            {amenity.title}
+                                        </b>
+                                        <small className="mt-1 block text-[13px] leading-5 text-muted">
+                                            {amenity.description}
+                                        </small>
+                                    </span>
+                                </div>
                             ))}
                         </div>
-
-                        <Button onClick={viewAmenities}>Explore All Amenities</Button>
                     </div>
 
                     <img
@@ -832,7 +1021,7 @@ export default function LandingPage() {
                 </section>
 
                 {/* ── Rates & Reservation ── */}
-                <section className="grid grid-cols-2 gap-[9vw] border-y border-[#ded6ca] bg-[#eee9df] px-[max(9vw,40px)] py-[95px] max-[819px]:grid-cols-1 max-[819px]:gap-[35px] max-[819px]:px-[22px] max-[819px]:py-[60px]">
+                <section className="grid grid-cols-2 gap-[9vw] border-y border-[#ded6ca] bg-[#eee9df] px-[max(9vw,40px)] py-[95px] max-[819px]:grid-cols-1 max-[819px]:gap-[50px] max-[819px]:px-[22px] max-[819px]:py-[60px]">
                     <div className="scroll-mt-[90px]" id="rates">
                         <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
                             Rates
@@ -841,14 +1030,24 @@ export default function LandingPage() {
                             Simple, clear pricing.
                         </h2>
 
-                        <div className="mt-5 flex flex-col [&>span]:flex [&>span]:justify-between [&>span]:gap-5 [&>span]:border-b [&>span]:border-[#d7cfc3] [&>span]:py-[13px] [&_b]:shrink-0">
+                        <div className="mt-5 flex flex-col">
                             {rates.map(([label, price]) => (
-                                <span key={label}>
-                                    {label}
-                                    <b>{price}</b>
-                                </span>
+                                <div
+                                    key={label}
+                                    className="flex items-start justify-between gap-6 border-b border-[#d7cfc3] py-[13px]"
+                                >
+                                    <span className="leading-6 text-ink">{label}</span>
+                                    <b className="shrink-0 text-right leading-6 text-brown">
+                                        {price}
+                                    </b>
+                                </div>
                             ))}
                         </div>
+
+                        <p className="mt-4 mb-0 text-xs leading-5 text-muted">
+                            The holiday surcharge is never added to an already-applicable
+                            ₱22,000 peak rate.
+                        </p>
                     </div>
 
                     <div className="scroll-mt-[90px]">
@@ -857,56 +1056,82 @@ export default function LandingPage() {
                         </span>
 
                         <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
-                            A fair, guided process.
+                            A few things to know.
                         </h2>
 
-                        <p className="mb-[1em] text-muted leading-[1.75]">
-                            Submit your preferred check-in and check-out dates. We&apos;ll
-                            review availability and notify you when your reservation
-                            opportunity becomes active.
+                        <ul className="mt-5 mb-0 list-none p-0">
+                            {reservationNotes.map((note) => (
+                                <li
+                                    key={note}
+                                    className="flex gap-3 border-b border-[#d7cfc3] py-3 leading-6 text-muted [&_svg]:mt-1 [&_svg]:shrink-0 [&_svg]:text-sage"
+                                >
+                                    <Icon name="check" size={17} />
+                                    <span>{note}</span>
+                                </li>
+                            ))}
+                        </ul>
+
+                        <p className="mt-4 text-xs leading-5 text-muted">
+                            The booking backend is the source of truth for final amounts and
+                            approved occupancy.
                         </p>
 
-                        <button
-                            type="button"
-                            className="flex cursor-pointer items-center gap-2 border-0 border-b border-brown bg-transparent pb-[7px] font-semibold text-ink transition-colors hover:text-gold"
-                            onClick={viewVilla}
-                        >
-                            Review reservation details
-                            <Icon name="arrow" size={17} />
-                        </button>
+                        <MakeReservationButton className="mt-6 inline-flex items-center justify-center gap-3 rounded-xl bg-brown px-6 py-3 font-semibold text-white transition hover:bg-[#6e4b35] disabled:opacity-50">
+                            Reserve Your Dates <Icon name="arrow" size={17} />
+                        </MakeReservationButton>
                     </div>
                 </section>
-
-                {/* ── Policies ── */}
                 <section
-                    className="grid scroll-mt-[76px] grid-cols-[.7fr_1.3fr_auto] items-center gap-[50px] bg-sage-pale px-[max(9vw,40px)] py-[90px] max-[1050px]:grid-cols-1 max-[1050px]:gap-[25px] max-[760px]:px-[22px] max-[760px]:py-[60px]"
+                    className="scroll-mt-[76px] bg-sage-pale px-[max(9vw,40px)] py-[90px] max-[760px]:px-[22px] max-[760px]:py-[60px]"
                     id="policies"
                 >
-                    <div>
-                        <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
-                            Policies
-                        </span>
-                        <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
-                            Clear details before your stay.
-                        </h2>
-                    </div>
+                    <div className="mx-auto max-w-[1280px]">
+                        <div className="grid grid-cols-2 items-start gap-[clamp(56px,8vw,120px)] max-[819px]:grid-cols-1 max-[819px]:gap-5">
+                            <div>
+                                <span className="mb-3 block text-[11px] font-extrabold uppercase tracking-[.16em] text-gold">
+                                    House Rules & Policies
+                                </span>
+                                <h2 className="font-display text-[clamp(1.45rem,2.4vw,2.25rem)] font-normal leading-[1.12] tracking-[-.035em]">
+                                    Clear details before your stay.
+                                </h2>
+                            </div>
 
-                    <div className="grid grid-cols-3 gap-3 max-[760px]:grid-cols-1 [&>span]:flex [&>span]:min-h-[145px] [&>span]:flex-col [&>span]:gap-2 [&>span]:rounded-[10px] [&>span]:border [&>span]:border-line [&>span]:bg-paper [&>span]:p-5 max-[760px]:[&>span]:min-h-0 [&_svg]:text-sage [&_small]:leading-[1.5] [&_small]:text-muted">
-                        {policies.map((policy) => (
-                            <span key={policy.title}>
-                                <Icon name={policy.icon} />
-                                <b>{policy.title}</b>
-                                <small>{policy.description}</small>
-                            </span>
-                        ))}
-                    </div>
+                            <p className="m-0 max-w-[600px] leading-6 text-muted min-[820px]:pt-8">
+                                Everything important is in one place. Open a topic below to read
+                                the full policy without leaving the page.
+                            </p>
+                        </div>
 
-                    <Button variant="secondary" onClick={viewPolicies}>
-                        View Full Policies
-                    </Button>
+                        <div className="mt-10 grid grid-cols-2 items-start gap-4 max-[760px]:grid-cols-1">
+                            {policies.map((policy) => (
+                                <details
+                                    key={policy.title}
+                                    className="group rounded-[10px] border border-line bg-paper"
+                                >
+                                    <summary className="flex min-h-[81px] cursor-pointer list-none items-center justify-between gap-5 rounded-[10px] px-5 py-4 marker:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold [&::-webkit-details-marker]:hidden">
+                                        <span className="font-semibold text-ink">
+                                            {policy.title}
+                                        </span>
+                                        <span
+                                            aria-hidden="true"
+                                            className="shrink-0 text-xl leading-none text-gold transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none"
+                                        >
+                                            ›
+                                        </span>
+                                    </summary>
+
+                                    <ul className="mx-5 mt-0 mb-5 list-disc border-t border-line pt-4 pl-5 text-[13px] leading-6 text-muted marker:text-gold">
+                                        {policy.rules.map((rule) => (
+                                            <li key={rule} className="mb-2 last:mb-0">
+                                                {rule}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </details>
+                            ))}
+                        </div>
+                    </div>
                 </section>
-
-                {/* ── Contact & Location ── */}
                 <section className="grid scroll-mt-[76px] grid-cols-[1fr_1.15fr] border-b border-line bg-paper max-[819px]:grid-cols-1">
                     <div
                         className="grid scroll-mt-[76px] grid-cols-[190px_1fr] items-center gap-7 border-r border-line bg-paper px-[max(5vw,40px)] py-20 [&_h2]:mb-2 [&_h2]:text-[28px] [&_button]:mt-3 max-[1200px]:grid-cols-1 max-[819px]:border-r-0 max-[819px]:border-b max-[819px]:px-[22px] max-[819px]:py-7"
