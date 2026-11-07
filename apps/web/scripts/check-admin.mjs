@@ -62,7 +62,12 @@ function installFixtures() {
             payments: state.paymentReviewMode === "none" ? [] : [{ id: 1101, reference: "PAYMENT-QA-1101", method: "GCash", amount: state.paymentReviewMode === "mismatch" ? "4000.00" : "5000.00", status: "submitted", payment_date: new Date().toISOString().slice(0, 10), submitted_at: new Date().toISOString(), reviewed_at: null, reviewed_by: null, review_note: null }],
         }, state.reviewRecord ?? {});
     }
-    const guest = { id: 2, name: "Test Guest", email: "guest@example.test", phone: null, is_active: true, email_verified_at: null };
+    const guest = { id: 2, name: "Test Guest", email: "guest@example.test", phone: null, address: null, latest_booking_reference: "TEST-RESERVATION", is_active: true, email_verified_at: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString(), ...(state.guestRecord ?? {}) };
+    const guestReservation = { id: 1, booking_reference: "TEST-RESERVATION", status: "confirmed", contact_address: "Test address",
+        requested_at: new Date().toISOString(), starts_at: reservation.starts_at, ends_at: reservation.ends_at, adults: 2, children: 0,
+        required_deposit: "5000.00", payment_status: "Verified", payment_amount: "5000.00", payment_amount_kind: "verified" };
+    const guestPayment = { id: 1, reservation_id: 1, booking_reference: "TEST-RESERVATION", amount: "5000.00", status: "approved", payment_kind: "deposit", reference: "TEST-PAYMENT", payment_date: new Date().toISOString().slice(0, 10), submitted_at: new Date().toISOString(), method: "GCash" };
+    const guestActivity = { id: "account-created", kind: "account", event: "account_created", from_status: null, to_status: null, reason: null, occurred_at: new Date().toISOString(), reservation_id: null, booking_reference: null, actor_name: "Test Guest" };
     const day = 86_400_000;
     const at = offset => new Date(Date.now() + offset * day).toISOString();
     const records = state.dashboardMode === "empty" ? [] : state.dashboardMode === "populated" ? [
@@ -226,8 +231,17 @@ function installFixtures() {
             if (reservation.extension_status === "approved") reservation.deadline = reservation.extension_date + "T23:59:59+08:00";
             return json({ reservation });
         }
+        if (path === "/api/admin/guests/2" && options.method === "PATCH") {
+            if (state.guestUpdateError) return json({ message: "The given data was invalid.", errors: { email: ["The email has already been taken."] } }, 422);
+            if (state.guestUpdateDelay) await new Promise(resolve => setTimeout(resolve, state.guestUpdateDelay));
+            const body = JSON.parse(options.body);
+            Object.assign(guest, body, { updated_at: new Date().toISOString() });
+            state.guestRecord = guest;
+            sessionStorage.setItem("rbms-admin-test", JSON.stringify(state));
+            return json({ guest, reservation: guestReservation, reservations: [guestReservation], payments: [guestPayment], activity: [guestActivity] });
+        }
         if (path === "/api/admin/guests") return json({ data: [guest], current_page: 1, last_page: 1, total: 1 });
-        if (path === "/api/admin/guests/2") return json({ guest });
+        if (path === "/api/admin/guests/2") return json({ guest, reservation: guestReservation, reservations: [guestReservation], payments: [guestPayment], activity: [guestActivity] });
         if (path === "/api/admin/availability-blocks") return json({ data: [], current_page: 1, last_page: 1, total: 0 });
         return json({ message: "Test record not found" }, 404);
     };
@@ -405,7 +419,7 @@ try {
         ['#admin-content a[href="/admin/reservations/1"]', "/admin/reservations/1", "Reservation details"],
         ['.admin-sidebar a[href="/admin/calendar"]', "/admin/calendar", "Calendar"],
         ['.admin-sidebar a[href="/admin/guests"]', "/admin/guests", "Guests"],
-        ['#admin-content a[href="/admin/guests/2"]', "/admin/guests/2", "Guest details"],
+        ['#admin-content a[href="/admin/guests/2"]', "/admin/guests/2", "Guest Details"],
         ['.admin-sidebar a[href="/admin/reports"]', "/admin/reports", "Reports"],
         ['.admin-sidebar a[href="/admin/notifications"]', "/admin/notifications", "Notifications"],
         ['.admin-sidebar a[href="/admin/help"]', "/admin/help", "Help & Support"],
@@ -1059,9 +1073,47 @@ try {
     assert.ok(await evaluate("document.body.textContent.includes('11,890.00')"));
     passed('Customer payment summary includes persisted damages in the remaining balance without exposing unauthorized extension controls');
 
+    await visit('/admin/guests?search=Test&page=1', { role: 'admin' });
+    await heading('Guests');
+    await until(`Boolean(document.querySelector('#admin-content a[href="/admin/guests/2"]'))`);
+    assert.equal(await evaluate("document.querySelector('.admin-guest-search input').value"), 'Test');
+    await evaluate(`document.querySelector('#admin-content a[href="/admin/guests/2"]').click()`);
+    await heading('Guest Details');
+    await until("Boolean(document.querySelector('.admin-guest-profile-card'))");
+    await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent==='Edit Guest').click()");
+    assert.equal(await evaluate("document.querySelector('[name=name]').value"), 'Test Guest');
+    assert.equal(await evaluate("document.querySelector('[name=address]').value"), 'Test address');
+    await fillEditor('[name=name]', 'Discarded Guest Name');
+    await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent==='Cancel').click()");
+    assert.ok(await evaluate("document.querySelector('.admin-guest-profile-card').textContent.includes('Test Guest') && !document.querySelector('.admin-guest-profile-card').textContent.includes('Discarded Guest Name')"));
+    assert.equal(await evaluate("window.__adminQA.requests.filter(request=>request.path==='/api/admin/guests/2' && request.method==='PATCH').length"), 0);
+
+    await evaluate("window.__adminQA.state.guestUpdateError=true; [...document.querySelectorAll('button')].find(button=>button.textContent==='Edit Guest').click()");
+    await fillEditor('[name=email]', 'duplicate@example.test');
+    await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent==='Save Changes').click()");
+    await until("document.querySelector('#guest-email-error')?.textContent.includes('already been taken')");
+    assert.ok(await evaluate("Boolean(document.querySelector('[name=email][aria-invalid=true]'))"));
+
+    await evaluate("window.__adminQA.state.guestUpdateError=false; window.__adminQA.state.guestUpdateDelay=200");
+    await fillEditor('[name=name]', 'Updated Guest');
+    await fillEditor('[name=email]', 'updated@example.test');
+    await fillEditor('[name=phone]', '09171234567');
+    await fillEditor('[name=address]', 'Updated profile address');
+    await fillEditor('[name=account_status]', 'inactive');
+    await evaluate("(() => { const button=[...document.querySelectorAll('button')].find(item=>item.textContent==='Save Changes'); button.click(); button.click(); })()");
+    await until("[...document.querySelectorAll('button')].some(button=>button.textContent==='Edit Guest')");
+    assert.equal(await evaluate("window.__adminQA.requests.filter(request=>request.path==='/api/admin/guests/2' && request.method==='PATCH').length"), 2);
+    assert.ok(await evaluate("document.querySelector('.admin-guest-profile-card').textContent.includes('Updated Guest') && document.querySelector('.admin-guest-profile-card').textContent.includes('Updated profile address') && document.querySelector('.admin-guest-profile-card').textContent.includes('Inactive')"));
+    await evaluate("document.querySelector('.admin-guest-back').click()");
+    await heading('Guests');
+    assert.equal(await evaluate("location.search"), '?search=Test&page=1');
+    await until("document.querySelector('.admin-guests-table')?.textContent.includes('Updated Guest')");
+    passed('Guest editing prefills values, cancels safely, maps field errors, blocks duplicate saves, refreshes the list, and preserves search/page state');
+
     for (const [path, title] of [
         ["reservations", "Reservations"], ["reservations/1", "Reservation details"], ["queue", "Queue"],
-        ["calendar", "Calendar"], ["guests", "Guests"], ["guests/2", "Guest details"], ["reports", "Reports"],
+        ["calendar", "Calendar"], ["guests", "Guests"], ["guests/2", "Guest Details"],
+        ["guests/2/reservations", "Guest Reservations"], ["guests/2/payments", "Payment History"], ["guests/2/activity", "Guest Activity"], ["reports", "Reports"],
         ["notifications", "Notifications"], ["help", "Help & Support"], ["missing", "Page not found"],
     ]) {
         await visit(`/admin/${path}`);
@@ -1100,7 +1152,30 @@ try {
     await visit("/make-reservation", { role: "guest" });
     await until("document.body.textContent.includes('Who is requesting the stay?')");
     assert.equal(await evaluate("location.pathname"), "/make-reservation");
-    passed("Existing guest reservation form remains accessible");
+    assert.equal(await evaluate("document.querySelector('fieldset select').value"), "");
+    assert.equal(await evaluate("document.querySelector('fieldset select option:checked').textContent"), "Select");
+    await fillEditor('input[inputmode=tel]', '09171234567');
+    await fillEditor('fieldset select', 'Phone Call');
+    await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Continue')).click()");
+    await until("document.body.textContent.includes('Tell us about your group')");
+    assert.equal(await evaluate("document.querySelectorAll('input[type=number]').length"), 3);
+    await fillEditor('input[aria-label="Set Number of Adults"]', '17');
+    assert.equal(await evaluate(`document.querySelector('input[aria-label="Set Number of Adults"]').value`), "17");
+    passed("Guest reservation inquiry source starts at Select and guest counts accept custom numeric input");
+
+    await visit('/dashboard', { role:'guest', accountId:2, managementMode:'unpaid' });
+    await until("document.querySelector('h1')?.textContent.startsWith('Welcome,')");
+    await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.trim()==='My Reservations').click()");
+    await until("[...document.querySelectorAll('button')].some(button=>button.textContent.startsWith('Pay '))");
+    await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.startsWith('Pay ')).click()");
+    await until("[...document.querySelectorAll('button')].some(button=>button.textContent.includes('Reservation Deposit'))");
+    await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Reservation Deposit')).click()");
+    await until(`Boolean(document.querySelector('input[aria-label="Amount Paid"]'))`);
+    assert.equal(await evaluate(`document.querySelector('input[aria-label="Amount Paid"]').value`), "5000");
+    assert.equal(await evaluate(`document.querySelector('input[aria-label="Amount Paid"]').readOnly`), false);
+    await fillEditor('input[aria-label="Amount Paid"]', '4250.75');
+    assert.equal(await evaluate(`document.querySelector('input[aria-label="Amount Paid"]').value`), "4250.75");
+    passed("Deposit amount defaults to 5000 and remains editable");
 
     await visit("/admin/dashboard", { role: "admin", sessionError: true });
     await until("Boolean(document.querySelector('[role=alert]'))");

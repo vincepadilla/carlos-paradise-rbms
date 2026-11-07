@@ -10,6 +10,7 @@ import AdminQueuePage from "./AdminQueuePage";
 import AdminCalendarPage from "./AdminCalendarPage";
 import AdminGuestsPage from "./AdminGuestsPage";
 import AdminGuestDetailsPage from "./AdminGuestDetailsPage";
+import AdminGuestHistoryPage from "./AdminGuestHistoryPage";
 import AdminReportsPage from "./AdminReportsPage";
 import AdminNotificationsPage from "./AdminNotificationsPage";
 import AdminHelpPage from "./AdminHelpPage";
@@ -25,6 +26,9 @@ export default function AdminRoutes() {
         <Route path="calendar" element={<AdminCalendarPage />} />
         <Route path="guests" element={<AdminGuestsPage />} />
         <Route path="guests/:id" element={<AdminGuestDetailsPage />} />
+        <Route path="guests/:id/reservations" element={<AdminGuestHistoryPage view="reservations" />} />
+        <Route path="guests/:id/payments" element={<AdminGuestHistoryPage view="payments" />} />
+        <Route path="guests/:id/activity" element={<AdminGuestHistoryPage view="activity" />} />
         <Route path="reports" element={<AdminReportsPage />} />
         <Route path="notifications" element={<AdminNotificationsPage />} />
         <Route path="help" element={<AdminHelpPage />} />

@@ -119,6 +119,9 @@ export default function PaymentPage({
     const [loadError, setLoadError] = useState("");
     const [submitError, setSubmitError] = useState("");
     const [receiptName, setReceiptName] = useState("");
+    const [paymentAmount, setPaymentAmount] = useState(
+        () => String(Number(initialReservation.deposit) || 5000),
+    );
     const method = methods.find((account) => String(account.id) === methodId);
     const deadline = reservation.deadline
         ? new Date(reservation.deadline).getTime()
@@ -237,6 +240,11 @@ export default function PaymentPage({
         }
         const form = event.currentTarget;
         const data = new FormData(form);
+        const amount = Number(data.get("amount"));
+        if (!Number.isFinite(amount) || amount < 1 || amount > 99999999) {
+            setSubmitError("Enter a valid payment amount.");
+            return;
+        }
         const receipt = data.get("receipt");
         if (!(receipt instanceof File) || !receipt.size) {
             setSubmitError("Choose your payment receipt.");
@@ -252,7 +260,7 @@ export default function PaymentPage({
             setSubmitError("Choose a JPG, PNG or PDF receipt.");
             return;
         }
-        data.set("amount", reservation.deposit);
+        data.set("amount", amount.toFixed(2));
         data.set("method", method.name);
         busyRef.current = true;
         setBusy(true);
@@ -474,11 +482,20 @@ export default function PaymentPage({
                                             <input
                                                 aria-label="Amount Paid"
                                                 className={input}
-                                                value={money(reservation.deposit)}
-                                                readOnly
+                                                name="amount"
+                                                type="number"
+                                                min="1"
+                                                max="99999999"
+                                                step="0.01"
+                                                inputMode="decimal"
+                                                value={paymentAmount}
+                                                onChange={(event) =>
+                                                    setPaymentAmount(event.target.value)
+                                                }
+                                                required
                                             />
                                             <small className="text-[9px] leading-relaxed text-[#776f65]">
-                                                Transfer the exact deposit shown on your reservation.
+                                                Enter the amount shown on your payment receipt.
                                             </small>
                                         </Field>
                                         <Field label="Payment Reference Number">
@@ -525,7 +542,7 @@ export default function PaymentPage({
                                         />
                                         <SummaryRow
                                             label="Amount to transfer"
-                                            value={money(reservation.deposit)}
+                                            value={money(paymentAmount || 0)}
                                         />
                                         <SummaryRow label="Receipt status" value="Not submitted" />
                                     </div>

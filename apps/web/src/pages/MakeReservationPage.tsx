@@ -61,7 +61,7 @@ export default function MakeReservationPage({
         "",
     );
     const [email, setEmail] = useState(user.email);
-    const [inquirySource, setInquirySource] = useState("Facebook Messenger");
+    const [inquirySource, setInquirySource] = useState<InquirySource>("");
     const [reservationType, setReservationType] =
         useState<ReservationType>("Overnight Stay");
     const [checkin, setCheckin] = useState("");
@@ -244,6 +244,8 @@ export default function MakeReservationPage({
                 );
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
                 return setError("Please enter a valid email address.");
+            if (!inquirySource)
+                return setError("Please select an inquiry source.");
         }
         if (step === 2) {
             if (!checkin || checkin < inputDate(earliest))
@@ -627,6 +629,7 @@ export default function MakeReservationPage({
                                                     setInquirySource(event.target.value as InquirySource)
                                                 }
                                             >
+                                                <option value="" disabled>Select</option>
                                                 <option>Facebook Messenger</option>
                                                 <option>TikTok</option>
                                                 <option>Instagram</option>

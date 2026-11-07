@@ -76,7 +76,8 @@ class AdminIntegrationTest extends TestCase
             ->assertJsonMissingPath('data.0.remember_token')
             ->assertJsonMissingPath('data.0.google_id');
 
-        $this->getJson('/api/admin/guests/'.$guest->id)->assertOk()->assertJsonPath('guest.id', $guest->id);
+        $this->getJson('/api/admin/guests/'.$guest->id)
+            ->assertOk()->assertJsonPath('guest.id', $guest->id)->assertJsonPath('reservation', null);
         $this->getJson('/api/admin/guests/'.$admin->id)->assertNotFound();
         $this->getJson('/api/admin/guests/'.$owner->id)->assertNotFound();
         $this->getJson('/api/admin/guests/999999')->assertNotFound();
@@ -94,6 +95,137 @@ class AdminIntegrationTest extends TestCase
             ->assertJsonPath('current_page', 2)
             ->assertJsonPath('total', 26)
             ->assertJsonCount(1, 'data');
+    }
+
+    public function test_admin_can_search_guest_profiles_and_reservation_contacts_and_references(): void
+    {
+        $profileMatch = $this->userWithRole('guest');
+        $profileMatch->forceFill([
+            'name' => 'Searchable Profile',
+            'email' => 'profile-match@example.test',
+            'phone' => '09171112222',
+        ])->save();
+        $reservationMatch = $this->userWithRole('guest');
+        $reservationId = $this->createReservation($reservationMatch, 10);
+        DB::table('reservations')->where('id', $reservationId)->update([
+            'booking_reference' => 'BOOKING-FIND-ME',
+            'contact_name' => 'Archived Contact',
+            'contact_email' => 'archived@example.test',
+            'contact_phone' => '09998887777',
+        ]);
+        $withoutReservation = $this->userWithRole('guest');
+        $admin = $this->userWithRole('admin');
+
+        $this->actingAs($admin)->getJson('/api/admin/guests?search=searchable')
+            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $profileMatch->id);
+        $this->getJson('/api/admin/guests?search=09998887777')
+            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $reservationMatch->id);
+        $this->getJson('/api/admin/guests?search=archived%40example.test')
+            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $reservationMatch->id);
+        $this->getJson('/api/admin/guests?search=find-me')
+            ->assertOk()->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.latest_booking_reference', 'BOOKING-FIND-ME');
+        $this->getJson('/api/admin/guests/'.$reservationMatch->id)
+            ->assertOk()
+            ->assertJsonPath('reservation.booking_reference', 'BOOKING-FIND-ME')
+            ->assertJsonPath('reservation.status', 'confirmed');
+        $this->getJson('/api/admin/guests')
+            ->assertOk()->assertJsonFragment(['id' => $withoutReservation->id, 'latest_booking_reference' => null]);
+    }
+
+    public function test_guest_details_returns_ordered_reservation_history_with_verified_payment_totals(): void
+    {
+        $guest = $this->userWithRole('guest');
+        $older = $this->createReservation($guest, 10);
+        DB::table('reservations')->where('id', $older)->update(['booking_reference' => 'HISTORY-OLDER']);
+        $current = $this->createReservation($guest, 20);
+        DB::table('reservations')->where('id', $current)->update(['booking_reference' => 'HISTORY-CURRENT']);
+        DB::table('payments')->insert([
+            'reservation_id' => $current,
+            'opportunity_id' => null,
+            'payment_method_id' => DB::table('payment_methods')->value('id'),
+            'payment_kind' => 'deposit',
+            'amount' => 5000,
+            'currency' => 'PHP',
+            'reference_number' => 'HISTORY-PAYMENT',
+            'receipt_storage_path' => 'test/history-payment.jpg',
+            'payment_date' => now()->toDateString(),
+            'submitted_at' => now(),
+            'status' => 'approved',
+            'submitted_by' => $guest->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->userWithRole('admin'))
+            ->getJson('/api/admin/guests/'.$guest->id)
+            ->assertOk()
+            ->assertJsonCount(2, 'reservations')
+            ->assertJsonPath('reservation.booking_reference', 'HISTORY-CURRENT')
+            ->assertJsonPath('reservation.payment_status', 'Verified')
+            ->assertJsonPath('reservation.payment_amount', '5000.00')
+            ->assertJsonPath('reservations.1.booking_reference', 'HISTORY-OLDER')
+            ->assertJsonCount(1, 'payments')
+            ->assertJsonPath('payments.0.booking_reference', 'HISTORY-CURRENT')
+            ->assertJsonPath('payments.0.reference', 'HISTORY-PAYMENT')
+            ->assertJsonFragment(['event' => 'account_created', 'kind' => 'account']);
+    }
+
+    public function test_admin_can_update_a_guest_profile_and_email_uniqueness_excludes_that_guest(): void
+    {
+        $guest = $this->userWithRole('guest');
+        $otherGuest = $this->userWithRole('guest');
+        $admin = $this->userWithRole('admin');
+
+        $payload = [
+            'name' => 'Updated Guest',
+            'email' => $guest->email,
+            'phone' => '09171234567',
+            'address' => '123 Updated Street, Laguna',
+            'is_active' => false,
+        ];
+
+        $this->actingAs($admin)->patchJson('/api/admin/guests/'.$guest->id, $payload)
+            ->assertOk()
+            ->assertHeader('Cache-Control', 'no-store, private')
+            ->assertJsonPath('guest.name', 'Updated Guest')
+            ->assertJsonPath('guest.address', '123 Updated Street, Laguna')
+            ->assertJsonPath('guest.is_active', false);
+
+        $this->assertDatabaseHas('users', [
+            'id' => $guest->id,
+            'name' => 'Updated Guest',
+            'phone' => '09171234567',
+            'address' => '123 Updated Street, Laguna',
+            'is_active' => false,
+        ]);
+
+        $this->patchJson('/api/admin/guests/'.$guest->id, [...$payload, 'email' => $otherGuest->email])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('email');
+        $this->patchJson('/api/admin/guests/'.$guest->id, [...$payload, 'email' => 'changed@example.test'])
+            ->assertOk()
+            ->assertJsonPath('guest.email', 'changed@example.test');
+    }
+
+    public function test_only_active_admins_and_owners_can_update_guest_profiles(): void
+    {
+        $guest = $this->userWithRole('guest');
+        $payload = [
+            'name' => 'Staff Updated Guest',
+            'email' => $guest->email,
+            'phone' => null,
+            'address' => null,
+            'is_active' => true,
+        ];
+
+        $this->patchJson('/api/admin/guests/'.$guest->id, $payload)->assertUnauthorized();
+        $this->actingAs($this->userWithRole('guest'))
+            ->patchJson('/api/admin/guests/'.$guest->id, $payload)->assertForbidden();
+        $this->actingAs($this->userWithRole('owner'))
+            ->patchJson('/api/admin/guests/'.$guest->id, $payload)
+            ->assertOk()
+            ->assertJsonPath('guest.name', 'Staff Updated Guest');
     }
 
     public function test_admin_calendar_only_exposes_unreleased_blocks(): void

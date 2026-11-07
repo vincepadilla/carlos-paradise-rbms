@@ -3,12 +3,15 @@ export const apiBaseUrl = (
 ).replace(/\/+$/, "");
 export class ReservationApiError extends Error {
     status: number;
+    errors?: Record<string, string[]>;
     constructor(
         message: string,
         status: number,
+        errors?: Record<string, string[]>,
     ) {
         super(message);
         this.status = status;
+        this.errors = errors;
     }
 }
 
@@ -24,6 +27,7 @@ async function readJson<T>(response: Response): Promise<T> {
                         .join(" ")
                     : data?.message || `Request failed (${response.status}).`,
             response.status,
+            data?.errors as Record<string, string[]> | undefined,
         );
     }
     if (!data)

@@ -116,6 +116,38 @@ class AdminPaymentReviewTest extends TestCase
         $this->actingAs($guest)->getJson('/api/reservations/'.$id)->assertOk()->assertJsonCount(2, 'reservation.payments')->assertJsonPath('reservation.payments.1.status', 'rejected');
     }
 
+    public function test_customer_entered_payment_amount_is_preserved_for_staff_review(): void
+    {
+        [$id, $payment, $guest] = $this->fixture();
+        $admin = $this->account('admin');
+        $this->actingAs($admin)->postJson($this->review($id, $payment), [
+            'decision' => 'rejected',
+            'note' => 'Submit the actual transferred amount.',
+        ])->assertOk();
+
+        $payload = [
+            'amount' => 4250.75,
+            'method' => 'GCash',
+            'reference' => 'CUSTOM-AMOUNT-425075',
+            'payment_date' => now('Asia/Manila')->toDateString(),
+            'receipt' => UploadedFile::fake()->createWithContent('custom-amount.png', base64_decode(self::PNG)),
+        ];
+        $newPayment = $this->actingAs($guest)
+            ->post('/api/reservations/'.$id.'/payments', $payload, ['Accept' => 'application/json'])
+            ->assertCreated()
+            ->assertJsonPath('reservation.status', 'payment_review')
+            ->json('payment.id');
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $newPayment,
+            'amount' => 4250.75,
+            'status' => 'submitted',
+        ]);
+        $this->actingAs($admin)
+            ->postJson($this->review($id, $newPayment), $this->decision())
+            ->assertUnprocessable();
+    }
+
     public function test_duplicate_and_contradictory_decisions_cannot_create_another_review(): void
     {
         [$id, $payment] = $this->fixture();

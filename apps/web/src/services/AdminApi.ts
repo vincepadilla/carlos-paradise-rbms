@@ -1,5 +1,5 @@
 import { reservationApi, ReservationApiError } from "./ReservationApi";
-import type { AdminGuest, AdminReservation, AvailabilityBlock, Paginated } from "../types/admin";
+import type { AdminGuest, AdminGuestDetails, AdminGuestUpdate, AdminReservation, AvailabilityBlock, Paginated } from "../types/admin";
 import type { CalendarData } from "../types/calendar";
 import type { ReservationDetailResponse, ReservationEdit } from "../types/reservationDetails";
 import type { PaymentReviewData, PendingPaymentReview } from "../types/paymentReview";
@@ -49,10 +49,12 @@ export const AdminApi = {
         reservationApi(`/reservations/${id}/terms`, "PATCH", { total }),
     reviewExtension: (id: number, decision: "approved" | "rejected") =>
         reservationApi(`/reservations/${id}/extension/review`, "POST", { decision }),
-    guests: (page: number, signal: AbortSignal) =>
-        reservationApi<Paginated<AdminGuest>>(`/admin/guests?page=${page}`, "GET", undefined, signal),
+    guests: (page: number, search: string, signal: AbortSignal) =>
+        reservationApi<Paginated<AdminGuest>>(`/admin/guests?${new URLSearchParams({ page: String(page), ...(search ? { search } : {}) })}`, "GET", undefined, signal),
     guest: (id: string, signal: AbortSignal) =>
-        readRecord<{ guest: AdminGuest }>(`/admin/guests/${encodeURIComponent(id)}`, "Guest not found.", signal),
+        readRecord<AdminGuestDetails>(`/admin/guests/${encodeURIComponent(id)}`, "Guest not found.", signal),
+    updateGuest: (id: number, data: AdminGuestUpdate) =>
+        reservationApi<AdminGuestDetails>("/admin/guests/" + id, "PATCH", data),
     blocks: (page: number, signal: AbortSignal) =>
         reservationApi<Paginated<AvailabilityBlock>>(`/admin/availability-blocks?page=${page}`, "GET", undefined, signal),
 };

@@ -2,11 +2,12 @@
 
 use App\Http\Controllers\Admin\AdminAvailabilityBlocksController;
 use App\Http\Controllers\Admin\AdminCalendarController;
+use App\Http\Controllers\Admin\AdminExtensionAccessController;
 use App\Http\Controllers\Admin\AdminGuestsController;
 use App\Http\Controllers\Admin\AdminPaymentReviewController;
-use App\Http\Middleware\RequireAdmin;
 use App\Http\Controllers\Admin\AdminReservationManagementController;
-use App\Http\Controllers\Admin\AdminExtensionAccessController;
+use App\Http\Middleware\RequireAdmin;
+use App\Http\Middleware\RequireAdminOrOwner;
 use Illuminate\Support\Facades\Route;
 
 // These routes use the same web session and CSRF stack as reservations.
@@ -26,4 +27,10 @@ Route::prefix('api/admin')->middleware(['auth:web', RequireAdmin::class])->group
     Route::post('/availability-blocks', [AdminAvailabilityBlocksController::class, 'store'])->middleware('throttle:20,1');
     Route::patch('/availability-blocks/{block}', [AdminAvailabilityBlocksController::class, 'update'])->whereNumber('block')->middleware('throttle:20,1');
     Route::post('/availability-blocks/{block}/release', [AdminAvailabilityBlocksController::class, 'release'])->whereNumber('block')->middleware('throttle:20,1');
+});
+
+Route::prefix('api/admin')->middleware(['auth:web', RequireAdminOrOwner::class])->group(function () {
+    Route::patch('/guests/{guest}', [AdminGuestsController::class, 'update'])
+        ->whereNumber('guest')
+        ->middleware('throttle:30,1');
 });

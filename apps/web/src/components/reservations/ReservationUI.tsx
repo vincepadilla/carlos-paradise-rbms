@@ -171,23 +171,37 @@ export function GuestCounter({
     value: number;
     onChange: (value: number) => void;
 }) {
+    const minimum = label.includes("Adults") ? 1 : 0;
     return (
         <div className="flex min-h-[68px] items-center justify-between gap-[18px] border-b border-[#e3d9cb] px-4 py-3 last:border-0 [&>div:first-child]:flex [&>div:first-child]:flex-col [&>div:first-child]:gap-1 [&_small]:text-[9px] [&_small]:text-[#776f65]">
             <div>
                 <b>{label}</b>
                 {helper && <small>{helper}</small>}
             </div>
-            <div className="grid shrink-0 grid-cols-[32px_38px_32px] items-center text-center [&>button]:size-8 [&>button]:rounded-full [&>button]:border [&>button]:border-[#e3d9cb] [&>button]:bg-[#fffdf8] [&>button]:text-lg [&>button]:leading-none [&>button]:text-[#4c3425] [&>button:hover]:bg-[#f6f1e7]">
+            <div className="grid shrink-0 grid-cols-[32px_58px_32px] items-center gap-1 text-center [&>button]:size-8 [&>button]:rounded-full [&>button]:border [&>button]:border-[#e3d9cb] [&>button]:bg-[#fffdf8] [&>button]:text-lg [&>button]:leading-none [&>button]:text-[#4c3425] [&>button:hover]:bg-[#f6f1e7]">
                 <button
                     type="button"
                     aria-label={`Decrease ${label}`}
                     onClick={() =>
-                        onChange(Math.max(label.includes("Adults") ? 1 : 0, value - 1))
+                        onChange(Math.max(minimum, value - 1))
                     }
                 >
                     −
                 </button>
-                <strong>{value}</strong>
+                <input
+                    type="number"
+                    min={minimum}
+                    step="1"
+                    inputMode="numeric"
+                    aria-label={`Set ${label}`}
+                    value={value}
+                    onChange={(event) => {
+                        const next = event.currentTarget.valueAsNumber;
+                        if (Number.isFinite(next))
+                            onChange(Math.max(minimum, Math.floor(next)));
+                    }}
+                    className="h-9 w-full rounded-md border border-[#e3d9cb] bg-white px-1 text-center text-sm font-semibold text-[#2d261f] outline-none focus:border-[#b08a52] focus:ring-2 focus:ring-[#b08a52]/15"
+                />
                 <button
                     type="button"
                     aria-label={`Increase ${label}`}

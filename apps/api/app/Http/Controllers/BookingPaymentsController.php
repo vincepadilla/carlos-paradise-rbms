@@ -32,7 +32,7 @@ class BookingPaymentsController extends Controller
         );
 
         $data = $request->validate([
-            'amount' => 'required|numeric|min:1|max:99999999',
+            'amount' => ['required', 'numeric', 'decimal:0,2', 'min:1', 'max:99999999'],
 
             'method' => [
                 'required',
@@ -85,20 +85,17 @@ class BookingPaymentsController extends Controller
                 );
 
                 /*
-                 * Require the exact deposit calculated by Laravel.
+                 * Preserve the amount the guest says was transferred. Staff
+                 * still compare it with the required deposit during review.
                  */
                 $submittedCents = (int) round(
                     (float) $data['amount'] * 100
                 );
-
-                $requiredCents = (int) round(
-                    (float) $record->required_deposit * 100
-                );
-
-                abort_unless(
-                    $submittedCents === $requiredCents,
-                    422,
-                    'Submit the exact deposit shown on your reservation.'
+                $submittedAmount = number_format(
+                    $submittedCents / 100,
+                    2,
+                    '.',
+                    ''
                 );
 
                 /*
@@ -177,8 +174,7 @@ class BookingPaymentsController extends Controller
 
                         'payment_kind' => 'deposit',
 
-                        // Use the stored server-calculated amount.
-                        'amount' => $record->required_deposit,
+                        'amount' => $submittedAmount,
                         'currency' => 'PHP',
 
                         'reference_number' => $reference,

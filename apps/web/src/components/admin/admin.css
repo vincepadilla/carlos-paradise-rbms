@@ -1,6 +1,6 @@
 /* Adapted from the reference Portal rules; scoped to the production Admin shell. */
 .admin-shell {
-    --admin-ink: #2d261f; --admin-brown: #4a3226; --admin-cream: #fbf3e6;
+    --admin-ink: #2d261f; --admin-brown: #4a3226; --admin-cream: #f3f1ed;
     --admin-paper: #fffdf8; --admin-line: #e5ded2; --admin-muted: #776f65;
     --admin-sage: #607466; --admin-sage-pale: #e9efe8; --admin-gold: #b08a52;
     --admin-sidebar: #33291f; --admin-nav-soft: #40342d;
@@ -37,7 +37,7 @@
 .admin-profile { display: flex; flex-direction: column; max-width: 220px; overflow-wrap: anywhere; }
 .admin-profile b { font-weight: 700; }
 .admin-profile small { color: var(--admin-muted); }
-.admin-content { min-width: 0; max-width: 1440px; margin: auto; padding: 34px; }
+.admin-content { min-width: 0; max-width: 1440px; margin: auto; padding: 40px; }
 .admin-menu-toggle, .admin-menu-backdrop, .admin-mobile-bottom { display: none; }
 .admin-button { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: .5rem 1rem; border: 1px solid var(--color-line); border-radius: .5rem; background: var(--color-paper); color: var(--color-brown); cursor: pointer; }
 .admin-button:disabled { opacity: .6; cursor: wait; }
@@ -47,6 +47,124 @@
 .admin-table caption { text-align: left; padding-bottom: 1rem; color: var(--color-muted); }
 .admin-table th, .admin-table td { padding: .8rem; border-bottom: 1px solid var(--color-line); vertical-align: top; }
 .admin-table a { color: var(--color-brown); text-decoration: underline; }
+.admin-guests-header h1 { margin: 0; color: var(--admin-ink); font-size: 36px; line-height: 1.2; font-weight: 400; letter-spacing: -.025em; }
+.admin-guests-header p { margin: 9px 0 0; color: var(--admin-muted); font-size: 14px; }
+.admin-guests-card { margin-top: 28px; padding: 16px; border: 1px solid var(--admin-line); border-radius: 14px; background: var(--admin-paper); }
+.admin-guest-search { width: min(360px, 100%); height: 40px; padding: 0 12px; border: 1px solid #d9d2c8; border-radius: 8px; background: #fffefa; color: var(--admin-muted); display: flex; align-items: center; gap: 8px; }
+.admin-guest-search:focus-within { border-color: var(--admin-gold); box-shadow: 0 0 0 2px rgba(176,138,82,.15); }
+.admin-guest-search input { min-width: 0; width: 100%; height: 100%; border: 0; outline: 0; background: transparent; color: var(--admin-ink); font: inherit; font-size: 14px; }
+.admin-guest-search input::placeholder { color: #978f85; opacity: 1; }
+.admin-guests-table-scroll { margin-top: 12px; }
+.admin-guests-table { min-width: 720px; table-layout: fixed; }
+.admin-guests-table th { height: 40px; padding: 8px 18px; color: var(--admin-muted); font-size: 11px; font-weight: 700; letter-spacing: .1em; line-height: 1.3; text-transform: uppercase; vertical-align: middle; }
+.admin-guests-table th:first-child { width: 38%; }
+.admin-guests-table th:nth-child(2) { width: 25%; }
+.admin-guests-table td { padding: 10px 18px; vertical-align: middle; color: var(--admin-ink); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+.admin-guests-table tbody tr { height: 62px; cursor: pointer; transition: background-color .15s ease; }
+.admin-guests-table tbody tr:hover { background: #f7f3ed; }
+.admin-guests-table tbody tr:focus-visible { position: relative; z-index: 1; outline: 2px solid var(--admin-gold); outline-offset: -2px; }
+.admin-guests-table td:first-child a { color: inherit; display: flex; flex-direction: column; gap: 3px; text-decoration: none; }
+.admin-guest-name { font-size: 14px; font-weight: 600; }
+.admin-guest-reference { color: var(--admin-muted); font-size: 11px; line-height: 1.3; font-weight: 400; }
+.admin-guests-empty { margin: 28px 0 10px; color: var(--admin-muted); }
+.admin-guest-details-page { margin: -16px; font-family: "Manrope", sans-serif; }
+.admin-guest-back { display: inline-flex; margin-bottom: 20px; color: var(--admin-muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+.admin-guest-back:hover { color: var(--admin-brown); text-decoration: underline; }
+.admin-guest-details-heading { margin-bottom: 26px; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; }
+.admin-guest-details-heading h1 { margin: 0; color: var(--admin-ink); font-size: 36px; line-height: 1.2; font-weight: 400; letter-spacing: -.025em; }
+.admin-guest-details-heading p { margin: 8px 0 0; color: var(--admin-muted); line-height: 1.6; }
+.admin-edit-guest { flex: none; min-height: 44px; padding: 0 20px; border: 1px solid var(--admin-brown); border-radius: 9px; background: var(--admin-brown); color: white; font: inherit; font-weight: 700; cursor: pointer; transition: background .15s, transform .15s; }
+.admin-edit-guest:hover:not(:disabled) { background: #38241b; transform: translateY(-1px); }
+.admin-edit-guest:disabled { cursor: wait; opacity: .65; }
+.admin-guest-edit-actions { flex: none; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.admin-edit-cancel { min-height: 44px; padding: 0 18px; border: 1px solid #d5cdc2; border-radius: 9px; background: transparent; color: var(--admin-brown); font: inherit; font-weight: 700; cursor: pointer; }
+.admin-edit-cancel:hover:not(:disabled) { background: #ebe7e0; }
+.admin-edit-cancel:disabled { cursor: wait; opacity: .6; }
+.admin-guest-profile-card, .admin-guest-state { width: 100%; border: 1px solid var(--admin-line); border-radius: 12px; background: var(--admin-paper); }
+.admin-guest-state { min-height: 150px; padding: 28px; color: var(--admin-muted); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 14px; }
+.admin-guest-state p { margin: 0; }
+.admin-guest-profile-header { min-height: 138px; padding: 28px 30px; border-bottom: 1px solid var(--admin-line); display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.admin-guest-identity { min-width: 0; display: flex; align-items: center; gap: 18px; }
+.admin-guest-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; background: var(--admin-sage-pale); color: var(--admin-sage); display: grid; place-items: center; font-size: 20px; font-weight: 800; letter-spacing: .03em; }
+.admin-guest-identity h2 { margin: 0 0 7px; color: var(--admin-ink); font-size: 21px; line-height: 1.25; font-weight: 700; overflow-wrap: anywhere; }
+.admin-guest-identity p { margin: 2px 0 0; color: var(--admin-muted); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.admin-guest-profile-card .badge { flex: none; display: inline-flex; width: max-content; max-width: 100%; padding: 6px 10px; border-radius: 99px; font-size: 9px; line-height: 1.5; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.admin-guest-profile-card .badge-amber { background: #f6ecd7; color: #8a5e20; }
+.admin-guest-profile-card .badge-green { background: var(--admin-sage-pale); color: #3d684b; }
+.admin-guest-profile-card .badge-aqua { background: #e6efed; color: #527a76; }
+.admin-guest-profile-card .badge-red { background: #f7e6e3; color: #a44b45; }
+.admin-guest-profile-card .badge-neutral { background: #eeeae4; color: #6c665e; }
+.admin-guest-profile-fields { padding: 30px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; }
+.admin-guest-profile-fields dl { min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 24px; }
+.admin-guest-profile-fields dl > div { min-width: 0; }
+.admin-guest-profile-fields dt { margin-bottom: 7px; color: var(--admin-muted); font-size: 10px; font-weight: 600; letter-spacing: .04em; }
+.admin-guest-profile-fields dd { margin: 0; color: var(--admin-ink); font-size: 14px; font-weight: 600; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-guest-edit-form { position: relative; padding: 30px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; }
+.admin-guest-edit-column { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.admin-guest-edit-field { min-width: 0; display: flex; flex-direction: column; gap: 7px; color: var(--admin-muted); font-size: 11px; font-weight: 700; }
+.admin-guest-edit-field input, .admin-guest-edit-field select { width: 100%; height: 46px; padding: 0 13px; border: 1px solid #d5cdc2; border-radius: 8px; background: #fffefa; color: var(--admin-ink); font: inherit; font-size: 14px; font-weight: 500; }
+.admin-guest-edit-field input:hover, .admin-guest-edit-field select:hover { border-color: #bcb1a3; }
+.admin-guest-edit-field input:focus, .admin-guest-edit-field select:focus { border-color: var(--admin-gold); outline: 2px solid color-mix(in srgb, var(--admin-gold) 25%, transparent); outline-offset: 1px; }
+.admin-guest-edit-field input[aria-invalid="true"], .admin-guest-edit-field select[aria-invalid="true"] { border-color: #a84f49; }
+.admin-guest-edit-field small { color: #9b403b; font-size: 11px; line-height: 1.45; font-weight: 600; }
+.admin-guest-save-error { grid-column: 1 / -1; margin: -24px 0 0; color: #9b403b; font-size: 12px; line-height: 1.5; }
+.admin-reservation-history-card { width: 100%; margin-top: 18px; border: 1px solid var(--admin-line); border-radius: 12px; background: var(--admin-paper); }
+.admin-reservation-history-header { min-height: 98px; padding: 24px; border-bottom: 1px solid var(--admin-line); display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+.admin-reservation-history-copy { min-width: 0; }
+.admin-reservation-history-copy h2 { margin: 0; color: var(--admin-ink); font-size: 18px; line-height: 1.3; font-weight: 700; }
+.admin-reservation-history-copy p { margin: 5px 0 0; color: var(--admin-muted); font-size: 12px; line-height: 1.5; }
+.admin-reservation-history-select { display: block; margin-top: 14px; }
+.admin-reservation-history-select select { width: min(360px, 100%); min-height: 38px; padding: 7px 34px 7px 10px; border: 1px solid var(--admin-line); border-radius: 7px; background: #fffefa; color: var(--admin-ink); font: inherit; font-size: 11px; }
+.admin-reservation-history-card .badge { flex: none; display: inline-flex; width: max-content; max-width: 100%; padding: 6px 10px; border-radius: 99px; font-size: 9px; line-height: 1.5; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.admin-reservation-history-card .badge-amber { background: #f6ecd7; color: #8a5e20; }
+.admin-reservation-history-card .badge-green { background: var(--admin-sage-pale); color: #3d684b; }
+.admin-reservation-history-card .badge-aqua { background: #e6efed; color: #527a76; }
+.admin-reservation-history-card .badge-red { background: #f7e6e3; color: #a44b45; }
+.admin-reservation-history-card .badge-neutral { background: #eeeae4; color: #6c665e; }
+.admin-reservation-history-fields { padding: 24px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; }
+.admin-reservation-history-fields dl { min-width: 0; margin: 0; display: flex; flex-direction: column; gap: 24px; }
+.admin-reservation-history-fields dl > div { min-width: 0; }
+.admin-reservation-history-fields dt { margin-bottom: 7px; color: var(--admin-muted); font-size: 10px; font-weight: 600; letter-spacing: .04em; }
+.admin-reservation-history-fields dd { margin: 0; color: var(--admin-ink); font-size: 14px; font-weight: 600; line-height: 1.6; overflow-wrap: anywhere; }
+.admin-reservation-history-fields dd small { display: block; margin-top: 3px; color: var(--admin-muted); font-size: 10px; font-weight: 500; }
+.admin-reservation-history-empty { min-height: 136px; padding: 24px; color: var(--admin-muted); display: flex; flex-direction: column; justify-content: center; }
+.admin-reservation-history-empty strong { color: var(--admin-ink); font-size: 14px; }
+.admin-reservation-history-empty p { margin: 6px 0 0; line-height: 1.6; }
+.admin-guest-action-cards { margin-top: 14px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.admin-guest-action-card { min-width: 0; min-height: 140px; padding: 20px; border: 1px solid var(--admin-line); border-radius: 12px; background: var(--admin-paper); color: var(--admin-ink); display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 8px; text-decoration: none; transition: border-color .15s, background-color .15s, transform .15s; }
+.admin-guest-action-card svg { color: var(--admin-brown); }
+.admin-guest-action-card strong { margin-top: 3px; font-size: 14px; }
+.admin-guest-action-card span { color: var(--admin-muted); font-size: 11px; line-height: 1.5; }
+.admin-guest-action-card:hover { border-color: #cfc4b5; background: #faf7f1; transform: translateY(-1px); }
+.admin-guest-action-card:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 3px; }
+.admin-guest-history-page { margin: -16px; }
+.admin-guest-history-heading { margin-bottom: 24px; }
+.admin-guest-history-heading h1 { margin: 0; color: var(--admin-ink); font-size: 34px; line-height: 1.2; font-weight: 400; letter-spacing: -.025em; }
+.admin-guest-history-heading p { margin: 8px 0 0; color: var(--admin-muted); line-height: 1.6; }
+.admin-guest-history-shell { border: 1px solid var(--admin-line); border-radius: 12px; background: var(--admin-paper); overflow: hidden; }
+.admin-guest-history-guest { min-height: 68px; padding: 16px 20px; border-bottom: 1px solid var(--admin-line); display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.admin-guest-history-guest strong { font-size: 14px; }
+.admin-guest-history-guest span { color: var(--admin-muted); font-size: 11px; overflow-wrap: anywhere; }
+.admin-guest-history-table { min-width: 780px; }
+.admin-guest-history-table th { color: var(--admin-muted); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; }
+.admin-guest-history-table th, .admin-guest-history-table td { padding: 14px 18px; vertical-align: middle; }
+.admin-guest-history-table a { font-weight: 700; }
+.admin-guest-history-table .badge { display: inline-flex; width: max-content; padding: 6px 10px; border-radius: 99px; font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; text-decoration: none; }
+.admin-guest-history-table .badge-amber { background: #f6ecd7; color: #8a5e20; }
+.admin-guest-history-table .badge-green { background: var(--admin-sage-pale); color: #3d684b; }
+.admin-guest-history-table .badge-aqua { background: #e6efed; color: #527a76; }
+.admin-guest-history-table .badge-red { background: #f7e6e3; color: #a44b45; }
+.admin-guest-history-table .badge-neutral { background: #eeeae4; color: #6c665e; }
+.admin-guest-history-empty { min-height: 180px; padding: 28px 24px; color: var(--admin-muted); display: flex; flex-direction: column; justify-content: center; }
+.admin-guest-history-empty strong { color: var(--admin-ink); }
+.admin-guest-history-empty p { margin: 7px 0 0; line-height: 1.6; }
+.admin-guest-activity-list { margin: 0; padding: 8px 24px; list-style: none; }
+.admin-guest-activity-list li { padding: 17px 0; border-bottom: 1px solid var(--admin-line); display: grid; grid-template-columns: 12px minmax(0, 1fr); gap: 13px; }
+.admin-guest-activity-list li:last-child { border-bottom: 0; }
+.admin-guest-activity-icon { width: 9px; height: 9px; margin-top: 5px; border: 2px solid var(--admin-sage); border-radius: 50%; background: var(--admin-paper); }
+.admin-guest-activity-list strong { font-size: 13px; }
+.admin-guest-activity-list p { margin: 4px 0 0; color: var(--admin-muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.admin-guest-activity-list small { display: block; margin-top: 6px; color: var(--admin-muted); font-size: 9px; }
 .admin-reservation-table { min-width: 960px; }
 .admin-reservation-table .admin-reservation-actions { width: 1%; white-space: nowrap; vertical-align: middle; }
 .admin-reservation-table .admin-reservation-review { min-width: 148px; min-height: 42px; padding: 10px 16px; border-color: var(--admin-brown); border-radius: 8px; background: var(--admin-brown); color: white; font-size: 12px; font-weight: 700; text-decoration: none; white-space: nowrap; cursor: pointer; transition: background-color .15s; }
@@ -73,6 +191,31 @@
     .admin-menu-toggle { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border: 0; background: none; color: var(--admin-brown); cursor: pointer; }
     .admin-profile { max-width: 160px; }
     .admin-content { padding: 22px 15px; }
+    .admin-guests-card { padding: 16px 0 14px; }
+    .admin-guest-search { width: auto; margin: 0 16px; }
+    .admin-guests-table-scroll { margin-top: 12px; }
+    .admin-guests-empty, .admin-guests-card nav { margin-left: 16px; margin-right: 16px; }
+    .admin-guest-details-page { margin: 0; }
+    .admin-guest-details-heading { align-items: flex-start; flex-wrap: wrap; }
+    .admin-guest-details-heading h1 { font-size: 31px; }
+    .admin-guest-edit-actions { width: 100%; }
+    .admin-edit-guest, .admin-edit-cancel { flex: 1 1 140px; }
+    .admin-guest-profile-header { min-height: 0; padding: 22px 20px; align-items: flex-start; flex-wrap: wrap; }
+    .admin-guest-identity { width: 100%; align-items: flex-start; }
+    .admin-guest-avatar { width: 54px; height: 54px; font-size: 17px; }
+    .admin-guest-profile-fields { padding: 24px 20px; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .admin-guest-edit-form { padding: 24px 20px; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .admin-guest-save-error { margin-top: 0; }
+    .admin-reservation-history-header { min-height: 0; padding: 20px; flex-wrap: wrap; }
+    .admin-reservation-history-copy { width: 100%; }
+    .admin-reservation-history-card .badge { order: 2; }
+    .admin-reservation-history-fields { padding: 24px 20px; grid-template-columns: minmax(0, 1fr); gap: 24px; }
+    .admin-reservation-history-empty { padding: 24px 20px; }
+    .admin-guest-action-cards { grid-template-columns: minmax(0, 1fr); }
+    .admin-guest-action-card { min-height: 124px; }
+    .admin-guest-history-page { margin: 0; }
+    .admin-guest-history-heading h1 { font-size: 30px; }
+    .admin-guest-activity-list { padding: 7px 20px; }
     .admin-mobile-bottom { position: fixed; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); left: 0; right: 0; bottom: 0; height: 68px; background: var(--admin-paper); border-top: 1px solid var(--admin-line); z-index: 46; }
     .admin-mobile-bottom .admin-nav-link { border: 0; background: none; color: var(--admin-muted); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 8px; text-decoration: none; }
     .admin-mobile-bottom .admin-nav-active { color: var(--admin-brown); font-weight: 800; }
