@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\SessionAuthController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\GuestProfileController;
+use App\Http\Controllers\Auth\GoogleCalendarController;
 
 Route::get('/', function () {
     return view('welcome');
@@ -76,3 +77,17 @@ Route::middleware('auth')->prefix('api')->group(function () {
     Route::patch('profile', [GuestProfileController::class, 'update'])
         ->middleware('throttle:20,1');
 });
+
+Route::middleware(['auth:web', 'throttle:10,1'])
+    ->prefix('auth/google-calendar')
+    ->group(function () {
+        Route::get('/redirect', [
+            GoogleCalendarController::class,
+            'redirect',
+        ])->name('google-calendar.redirect');
+
+        Route::get('/callback', [
+            GoogleCalendarController::class,
+            'callback',
+        ])->name('google-calendar.callback');
+    });

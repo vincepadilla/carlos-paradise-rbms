@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminAvailabilityBlocksController;
 use App\Http\Controllers\Admin\AdminCalendarController;
 use App\Http\Controllers\Admin\AdminExtensionAccessController;
 use App\Http\Controllers\Admin\AdminGuestsController;
+use App\Http\Controllers\Admin\AdminOcularVisitsController;
 use App\Http\Controllers\Admin\AdminPaymentReviewController;
 use App\Http\Controllers\Admin\AdminReservationManagementController;
 use App\Http\Middleware\RequireAdmin;
@@ -12,6 +13,7 @@ use Illuminate\Support\Facades\Route;
 
 // These routes use the same web session and CSRF stack as reservations.
 Route::prefix('api/admin')->middleware(['auth:web', RequireAdmin::class])->group(function () {
+    Route::get('/reservations', [AdminReservationManagementController::class, 'index']);
     Route::patch('/reservations/{reservation}', [AdminReservationManagementController::class, 'update'])->whereNumber('reservation')->middleware('throttle:30,1');
     Route::post('/reservations/{reservation}/complete', [AdminReservationManagementController::class, 'complete'])->whereNumber('reservation')->middleware('throttle:30,1');
     Route::post('/reservations/{reservation}/extension-access', [AdminExtensionAccessController::class, 'store'])->whereNumber('reservation')->middleware('throttle:30,1');
@@ -30,6 +32,11 @@ Route::prefix('api/admin')->middleware(['auth:web', RequireAdmin::class])->group
 });
 
 Route::prefix('api/admin')->middleware(['auth:web', RequireAdminOrOwner::class])->group(function () {
+    Route::post('/ocular-visits', [AdminOcularVisitsController::class, 'store'])->middleware('throttle:20,1');
+    Route::get('/ocular-visits/{ocularVisit}', [AdminOcularVisitsController::class, 'show'])->whereNumber('ocularVisit');
+    Route::patch('/ocular-visits/{ocularVisit}', [AdminOcularVisitsController::class, 'update'])->whereNumber('ocularVisit')->middleware('throttle:20,1');
+    Route::post('/ocular-visits/{ocularVisit}/approve', [AdminOcularVisitsController::class, 'approve'])->whereNumber('ocularVisit')->middleware('throttle:20,1');
+    Route::post('/ocular-visits/{ocularVisit}/cancel', [AdminOcularVisitsController::class, 'cancel'])->whereNumber('ocularVisit')->middleware('throttle:20,1');
     Route::patch('/guests/{guest}', [AdminGuestsController::class, 'update'])
         ->whereNumber('guest')
         ->middleware('throttle:30,1');

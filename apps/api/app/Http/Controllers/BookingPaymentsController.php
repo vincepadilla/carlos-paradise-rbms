@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\ReservationWorkflow;
+use App\Services\OfficialPaymentReceipt;
 use App\Services\PaymentReceiptStorage;
+use App\Services\ReservationWorkflow;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +14,8 @@ class BookingPaymentsController extends Controller
 {
     public function __construct(
         private ReservationWorkflow $flow,
-        private PaymentReceiptStorage $receipts
+        private PaymentReceiptStorage $receipts,
+        private OfficialPaymentReceipt $officialReceipts
     ) {}
 
     /*
@@ -226,7 +228,8 @@ class BookingPaymentsController extends Controller
     /*
      * GET /api/payments/{payment}/receipt
      *
-     * Only the booking owner or staff can download it.
+     * Only the booking owner or staff can download the server-generated
+     * official receipt, and only after staff approve the payment.
      */
     public function receipt(
         Request $request,
@@ -249,7 +252,7 @@ class BookingPaymentsController extends Controller
             )
         );
 
-        return $this->receipts->serve($record);
+        return $this->officialReceipts->download($record);
     }
 
     /*

@@ -25,6 +25,35 @@ class AdminReservationManagementTest extends TestCase
         $this->seed(ReservationSetupSeeder::class);
     }
 
+    public function test_admin_listing_searches_filters_and_paginates_real_reservations(): void
+    {
+        [$first] = $this->reservation(['contact_name' => 'Matching Guest', 'type' => 'overnight']);
+        [$second] = $this->reservation(['contact_name' => 'Matching Guest', 'type' => 'overnight']);
+        $this->reservation(['contact_name' => 'Different Guest', 'type' => 'day_tour']);
+
+        $response = $this->actingAs($this->account('admin'))
+            ->getJson('/api/admin/reservations?search=Matching&status=confirmed&type=overnight&per_page=1&page=2')
+            ->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('current_page', 2)
+            ->assertJsonPath('last_page', 2)
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $first);
+
+        $this->assertContains('confirmed', $response->json('filters.statuses'));
+        $this->assertContains('overnight', $response->json('filters.types'));
+        $this->getJson('/api/admin/reservations?search='.DB::table('reservations')->where('id', $second)->value('booking_reference'))
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.id', $second);
+    }
+
+    public function test_reservation_listing_is_admin_only(): void
+    {
+        $this->getJson('/api/admin/reservations')->assertUnauthorized();
+        $this->actingAs($this->account('guest'))->getJson('/api/admin/reservations')->assertForbidden();
+    }
+
     public function test_admin_edits_booking_snapshot_and_schedule_without_changing_customer_or_verified_payments(): void
     {
         [$id, $guest] = $this->reservation(); $admin = $this->account('admin');

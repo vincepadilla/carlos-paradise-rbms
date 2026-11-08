@@ -58,6 +58,21 @@ test("Empty or invalid records do not create prototype events", () => {
     assert.deepEqual(calendarEvents({ reservations: [], blocks: [] }), []);
     assert.deepEqual(calendarEvents({ reservations: [record({ starts_at: "invalid" })], blocks: [] }), []);
 });
+test('Ocular visits become single-day calendar events', () => {
+    const events = calendarEvents({ reservations: [], blocks: [], ocular_visits: [{
+        id: 8, guest_name: 'Maria Santos', contact_details: '09171234567', visit_date: '2026-11-20',
+        start_time: '10:00:00', end_time: '11:30:00', status: 'approved', inquiry_source: null, notes: null, created_by: 1,
+    }] });
+    assert.equal(events.length, 1);
+    assert.equal(events[0].kind, 'ocular');
+    assert.equal(events[0].ocularVisit.id, 8);
+    assert.equal(events[0].id, 'ocular-8');
+    assert.equal(events[0].category, 'ocular');
+    assert.equal(events[0].label, 'Approved');
+    assert.equal(events[0].startsOn, '2026-11-20');
+    assert.equal(events[0].endsOn, '2026-11-21');
+});
+
 test("Optional notes round-trip through the existing reason field", () => {
     const text = blockReason(" Maintenance ", " Staff access only\nBring keys ");
     assert.deepEqual(blockDescription(text), { reason: "Maintenance", notes: "Staff access only\nBring keys" });

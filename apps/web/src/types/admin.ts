@@ -95,3 +95,10 @@ export type Paginated<T> = {
     last_page: number;
     total: number;
 };
+
+export type AdminReservationList = Paginated<AdminReservation> & {
+    filters: {
+        statuses: string[];
+        types: string[];
+    };
+};

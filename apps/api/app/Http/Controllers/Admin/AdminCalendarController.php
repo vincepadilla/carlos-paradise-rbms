@@ -36,7 +36,14 @@ class AdminCalendarController extends Controller
                 ->where('starts_on', '<', $data['end'])->where('ends_on', '>', $data['start'])
                 ->orderBy('starts_on')->orderBy('id')->get(['id', 'starts_on', 'ends_on', 'reason']);
 
-            return response()->json(['reservations' => $reservations, 'blocks' => $blocks]);
+            $ocularVisits = DB::table('ocular_visits as ocular')
+                ->join('users as creator', 'creator.id', '=', 'ocular.created_by')
+                ->where('ocular.villa_id', 1)->where('ocular.status', '!=', 'cancelled')
+                ->where('ocular.visit_date', '>=', $data['start'])->where('ocular.visit_date', '<', $data['end'])
+                ->orderBy('ocular.visit_date')->orderBy('ocular.start_time')->orderBy('ocular.id')
+                ->get(AdminOcularVisitsController::columns());
+
+            return response()->json(['reservations' => $reservations, 'blocks' => $blocks, 'ocular_visits' => $ocularVisits]);
         });
     }
 }

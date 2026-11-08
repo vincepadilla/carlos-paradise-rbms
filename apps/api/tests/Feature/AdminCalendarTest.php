@@ -30,10 +30,12 @@ class AdminCalendarTest extends TestCase
     {
         $this->getJson('/api/admin/calendar?start=2027-01-01&end=2027-02-01')->assertUnauthorized();
         $this->postJson('/api/admin/availability-blocks', [])->assertUnauthorized();
+        $this->postJson('/api/admin/ocular-visits', [])->assertUnauthorized();
         foreach (['guest', 'owner'] as $role) {
             $this->actingAs($this->account($role));
             $this->getJson('/api/admin/calendar?start=2027-01-01&end=2027-02-01')->assertForbidden();
             $this->postJson('/api/admin/availability-blocks', [])->assertForbidden();
+            $this->postJson('/api/admin/ocular-visits', [])->assertStatus($role === 'owner' ? 422 : 403);
             $this->patchJson('/api/admin/availability-blocks/1', ['reason' => 'Forged'])->assertForbidden();
             $this->postJson('/api/admin/availability-blocks/1/release')->assertForbidden();
         }
@@ -120,6 +122,50 @@ class AdminCalendarTest extends TestCase
         $this->postJson('/api/admin/availability-blocks', ['date' => now('Asia/Manila')->subDay()->toDateString(), 'reason' => 'Maintenance'])->assertUnprocessable();
         $this->postJson('/api/admin/availability-blocks', ['date' => now('Asia/Manila')->toDateString(), 'reason' => '   '])->assertUnprocessable();
         $this->assertDatabaseCount('availability_blocks', 0);
+    }
+
+    public function test_ocular_visit_detail_approval_reschedule_and_cancellation_workflow(): void
+    {
+        $owner = $this->account('owner');
+        $admin = $this->account('admin');
+        $day = now('Asia/Manila')->addDays(20)->toDateString();
+        $nextDay = now('Asia/Manila')->addDays(21)->toDateString();
+        $payload = ['guest_name' => 'Maria Santos', 'contact_details' => '09171234567',
+            'visit_date' => $day, 'start_time' => '10:00', 'end_time' => '11:30',
+            'status' => 'pending_review', 'inquiry_source' => 'Facebook Messenger', 'notes' => 'Bring two guests.'];
+
+        $created = $this->actingAs($owner)->postJson('/api/admin/ocular-visits', $payload)
+            ->assertCreated()->assertJsonPath('ocular_visit.creator_name', $owner->name)
+            ->assertJsonPath('ocular_visit.revision', 1)->json('ocular_visit');
+        $id = $created['id'];
+
+        $this->getJson('/api/admin/ocular-visits/'.$id)->assertOk()->assertJsonPath('ocular_visit.id', $id);
+        $this->postJson('/api/admin/ocular-visits/'.$id.'/approve', ['revision' => 1])
+            ->assertOk()->assertJsonPath('ocular_visit.status', 'approved')->assertJsonPath('ocular_visit.revision', 2);
+        $this->patchJson('/api/admin/ocular-visits/'.$id, [...$payload, 'visit_date' => $nextDay, 'revision' => 1])->assertConflict();
+
+        $this->patchJson('/api/admin/ocular-visits/'.$id, [...$payload, 'guest_name' => 'Maria Updated',
+            'visit_date' => $nextDay, 'start_time' => '13:00', 'end_time' => '14:00', 'revision' => 2])
+            ->assertOk()->assertJsonPath('ocular_visit.status', 'approved')->assertJsonPath('ocular_visit.revision', 3);
+        $this->assertDatabaseHas('ocular_visits', ['id' => $id, 'guest_name' => 'Maria Updated', 'status' => 'approved', 'revision' => 3]);
+
+        $this->actingAs($admin)->getJson('/api/admin/calendar?start='.$day.'&end='.now('Asia/Manila')->addDays(22)->toDateString())
+            ->assertOk()->assertJsonPath('ocular_visits.0.visit_date', $nextDay);
+        $this->postJson('/api/admin/ocular-visits/'.$id.'/cancel', ['revision' => 3])
+            ->assertOk()->assertJsonPath('ocular_visit.status', 'cancelled')->assertJsonPath('ocular_visit.revision', 4);
+        $this->getJson('/api/admin/calendar?start='.$day.'&end='.now('Asia/Manila')->addDays(22)->toDateString())
+            ->assertOk()->assertJsonCount(0, 'ocular_visits');
+        $this->assertDatabaseHas('ocular_visits', ['id' => $id, 'status' => 'cancelled']);
+        $this->postJson('/api/admin/ocular-visits/'.$id.'/cancel', ['revision' => 4])->assertUnprocessable();
+    }
+
+    public function test_ocular_visit_rejects_invalid_times_and_past_dates(): void
+    {
+        $this->actingAs($this->account('admin'));
+        $this->postJson('/api/admin/ocular-visits', ['guest_name' => 'Guest', 'contact_details' => 'Phone',
+            'visit_date' => now('Asia/Manila')->subDay()->toDateString(), 'start_time' => '11:00',
+            'end_time' => '10:00', 'status' => 'unknown'])->assertUnprocessable();
+        $this->assertDatabaseCount('ocular_visits', 0);
     }
 
     private function account(string $role): User

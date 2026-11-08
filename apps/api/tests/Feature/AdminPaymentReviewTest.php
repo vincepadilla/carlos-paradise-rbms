@@ -18,6 +18,7 @@ class AdminPaymentReviewTest extends TestCase
     use RefreshDatabase;
 
     private string $receiptRoot;
+
     private const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
 
     protected function beforeRefreshingDatabase(): void
@@ -37,7 +38,9 @@ class AdminPaymentReviewTest extends TestCase
 
     protected function tearDown(): void
     {
-        if (isset($this->receiptRoot) && str_starts_with($this->receiptRoot, storage_path('framework/testing/payment-review-'))) File::deleteDirectory($this->receiptRoot);
+        if (isset($this->receiptRoot) && str_starts_with($this->receiptRoot, storage_path('framework/testing/payment-review-'))) {
+            File::deleteDirectory($this->receiptRoot);
+        }
         parent::tearDown();
     }
 
@@ -54,7 +57,8 @@ class AdminPaymentReviewTest extends TestCase
             $this->postJson($this->review($id, $payment), $this->decision())->assertForbidden();
             $this->postJson('/api/payments/'.$payment.'/review', $this->decision('rejected'))->assertForbidden();
         }
-        $admin = $this->account('admin'); $admin->forceFill(['is_active' => false])->save();
+        $admin = $this->account('admin');
+        $admin->forceFill(['is_active' => false])->save();
         $this->actingAs($admin)->postJson($this->review($id, $payment), $this->decision())->assertForbidden();
         $this->assertDatabaseHas('payments', ['id' => $payment, 'status' => 'submitted']);
         $this->assertDatabaseCount('payment_reviews', 0);
@@ -75,7 +79,8 @@ class AdminPaymentReviewTest extends TestCase
         $this->get($this->receipt($id, $payment))->assertOk()->assertHeader('Content-Type', 'image/png')
             ->assertHeader('X-Content-Type-Options', 'nosniff')->assertHeader('Cache-Control', 'no-store, private');
         $this->actingAs($this->account('guest'))->getJson('/api/payments/'.$payment.'/receipt')->assertForbidden();
-        $this->actingAs($guest)->get('/api/payments/'.$payment.'/receipt')->assertOk()->assertDownload('receipt-'.$payment.'.png');
+        $this->actingAs($guest)->getJson('/api/payments/'.$payment.'/receipt')->assertUnprocessable()
+            ->assertJsonPath('message', 'The official receipt is available after payment approval.');
     }
 
     public function test_approval_persists_payment_review_and_confirmation_and_all_read_models_agree(): void
@@ -95,6 +100,14 @@ class AdminPaymentReviewTest extends TestCase
         $this->getJson('/api/reservations')->assertOk()->assertJsonPath('reservations.0.payments.0.status', 'approved');
         $this->getJson('/api/admin/payment-reviews')->assertOk()->assertJsonPath('total', 0)->assertJsonCount(0, 'data');
         $this->actingAs($guest)->getJson('/api/reservations/'.$id)->assertOk()->assertJsonPath('reservation.status', 'confirmed')->assertJsonPath('reservation.deposit_paid', '5000.00');
+        $official = $this->get('/api/payments/'.$payment.'/receipt');
+        $receiptNumber = 'CPR-'.now('Asia/Manila')->format('Y').'-'.str_pad((string) $payment, 6, '0', STR_PAD_LEFT);
+        $official->assertOk()->assertHeader('Content-Type', 'application/pdf')
+            ->assertHeader('Content-Disposition', 'attachment; filename="official-receipt-'.$receiptNumber.'.pdf"')
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+        $this->assertStringStartsWith('%PDF-1.4', $official->getContent());
+        $this->assertStringContainsString('OFFICIAL PAYMENT RECEIPT', $official->getContent());
+        $this->assertStringNotContainsString(base64_decode(self::PNG), $official->getContent());
         $this->assertDatabaseCount('payments', 1);
         $this->assertTrue(app(ReservationWorkflow::class)->disk()->exists('proof-'.$payment.'.png'));
     }
@@ -168,7 +181,8 @@ class AdminPaymentReviewTest extends TestCase
         }
         [$id, $payment] = $this->fixture(['price_agreed' => false]);
         $this->postJson($this->review($id, $payment), $this->decision())->assertUnprocessable();
-        [$id, $payment] = $this->fixture(); app(ReservationWorkflow::class)->disk()->delete('proof-'.$payment.'.png');
+        [$id, $payment] = $this->fixture();
+        app(ReservationWorkflow::class)->disk()->delete('proof-'.$payment.'.png');
         $this->getJson($this->page($id))->assertJsonPath('receipts.'.$payment.'.available', false);
         $this->getJson($this->receipt($id, $payment))->assertNotFound();
         $this->postJson($this->review($id, $payment), $this->decision())->assertUnprocessable();
@@ -194,7 +208,9 @@ class AdminPaymentReviewTest extends TestCase
     {
         [$id, $payment] = $this->fixture();
         $this->actingAs($this->account('admin'));
-        foreach (['', '   ', 'ab', str_repeat('x', 1001), ['bad']] as $note) $this->postJson($this->review($id, $payment), ['decision' => 'rejected', 'note' => $note])->assertUnprocessable();
+        foreach (['', '   ', 'ab', str_repeat('x', 1001), ['bad']] as $note) {
+            $this->postJson($this->review($id, $payment), ['decision' => 'rejected', 'note' => $note])->assertUnprocessable();
+        }
         DB::table('reservations')->where('id', $id)->update(['status' => 'cancelled']);
         $this->postJson($this->review($id, $payment), $this->decision())->assertUnprocessable();
         DB::table('reservations')->where('id', $id)->update(['status' => 'payment_review']);
@@ -225,23 +241,90 @@ class AdminPaymentReviewTest extends TestCase
     {
         [$id, $payment] = $this->fixture();
         $record = (array) DB::table('reservations')->where('id', $id)->first();
-        unset($record['id']); $record['status'] = 'completed';
+        unset($record['id']);
+        $record['status'] = 'completed';
         $rows = [];
-        for ($i = 0; $i < 501; $i++) $rows[] = [...$record, 'booking_reference' => 'NEWER-'.$i];
-        foreach (array_chunk($rows, 50) as $chunk) DB::table('reservations')->insert($chunk);
+        for ($i = 0; $i < 501; $i++) {
+            $rows[] = [...$record, 'booking_reference' => 'NEWER-'.$i];
+        }
+        foreach (array_chunk($rows, 50) as $chunk) {
+            DB::table('reservations')->insert($chunk);
+        }
         $this->actingAs($this->account('admin'))->getJson('/api/admin/payment-reviews?per_page=2')->assertOk()
             ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation.id', $id)->assertJsonPath('data.0.payment.id', $payment);
         $this->getJson('/api/admin/payment-reviews?per_page=0')->assertUnprocessable();
         $this->getJson('/api/admin/payment-reviews?page=-1')->assertUnprocessable();
         $this->getJson('/api/admin/payment-reviews?per_page=51')->assertUnprocessable();
-        for ($i = 0; $i < 2; $i++) $this->fixture();
+        for ($i = 0; $i < 2; $i++) {
+            $this->fixture();
+        }
         $this->getJson('/api/admin/payment-reviews?per_page=2&page=2')->assertOk()->assertJsonPath('total', 3)->assertJsonPath('last_page', 2)
             ->assertJsonCount(1, 'data')->assertJsonPath('data.0.payment.id', $payment);
     }
 
+    public function test_all_records_scope_searches_filters_aggregates_and_includes_unpaid_reservations(): void
+    {
+        [$id, $payment] = $this->fixture(['contact_name' => 'Searchable Deposit Guest']);
+        $second = (array) DB::table('payments')->where('id', $payment)->first();
+        unset($second['id']);
+        $second['amount'] = 1250;
+        $second['reference_number'] = 'FILTER-PAYMENT-REFERENCE';
+        $second['status'] = 'rejected';
+        $second['submitted_at'] = now()->addMinute();
+        $second['receipt_storage_path'] = 'filter-proof.png';
+        $second['created_at'] = now();
+        $second['updated_at'] = now();
+        $secondPayment = DB::table('payments')->insertGetId($second);
+
+        $unpaid = (array) DB::table('reservations')->where('id', $id)->first();
+        unset($unpaid['id']);
+        $unpaid['booking_reference'] = 'UNPAID-DEPOSIT-RECORD';
+        $unpaid['contact_name'] = 'No Payment Guest';
+        $unpaid['status'] = 'awaiting_deposit';
+        $unpaid['created_at'] = now();
+        $unpaid['updated_at'] = now();
+        $unpaidId = DB::table('reservations')->insertGetId($unpaid);
+
+        $this->actingAs($this->account('admin'));
+        $this->getJson('/api/admin/payment-reviews?scope=all')->assertOk()
+            ->assertJsonPath('total', 2)
+            ->assertJsonPath('filters.statuses.0.value', 'verified')
+            ->assertJsonFragment(['reservation_id' => $unpaidId, 'status' => 'not_paid', 'total_submitted' => null])
+            ->assertJsonFragment([
+                'reservation_id' => $id,
+                'total_submitted' => '6250.00',
+                'status' => 'awaiting_review',
+                'latest_payment_id' => $secondPayment,
+            ]);
+        $this->getJson('/api/admin/payment-reviews?scope=all&search=FILTER-PAYMENT-REFERENCE')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_id', $id);
+        $this->getJson('/api/admin/payment-reviews?scope=all&search='.$id)->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_id', $id);
+        $this->getJson('/api/admin/payment-reviews?scope=all&search=No%20Payment%20Guest')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_id', $unpaidId);
+        $this->getJson('/api/admin/payment-reviews?scope=all&status=not_paid')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_id', $unpaidId);
+        $this->getJson('/api/admin/payment-reviews?scope=all&status=awaiting_review&method=GCash')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_id', $id);
+        $this->getJson('/api/admin/payment-reviews?scope=all&per_page=1&page=2')->assertOk()
+            ->assertJsonPath('total', 2)->assertJsonPath('current_page', 2)->assertJsonCount(1, 'data');
+
+        DB::table('payments')->where('id', $payment)->update(['status' => 'approved']);
+        $this->getJson('/api/admin/payment-reviews?scope=all&status=verified')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_id', $id);
+        DB::table('payments')->where('id', $payment)->update(['status' => 'rejected']);
+        $this->getJson('/api/admin/payment-reviews?scope=all&status=rejected')->assertOk()
+            ->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_id', $id);
+
+        $this->getJson('/api/admin/payment-reviews?scope=unsupported')->assertUnprocessable();
+        $this->getJson('/api/admin/payment-reviews?scope=all&status=confirmed')->assertUnprocessable();
+    }
+
     private function fixture(array $reservation = [], array $payment = []): array
     {
-        $guest = $this->account('guest'); $start = now('Asia/Manila')->addDays(10)->setTime(14, 0); $end = $start->copy()->addDay()->setTime(11, 0);
+        $guest = $this->account('guest');
+        $start = now('Asia/Manila')->addDays(10)->setTime(14, 0);
+        $end = $start->copy()->addDay()->setTime(11, 0);
         $id = DB::table('reservations')->insertGetId(array_merge([
             'booking_reference' => 'PAY-'.Str::uuid(), 'user_id' => $guest->id, 'villa_id' => 1, 'type' => 'overnight', 'check_in_date' => $start->toDateString(), 'check_out_date' => $end->toDateString(),
             'starts_at' => $start->toIso8601String(), 'ends_at' => $end->toIso8601String(), 'contact_name' => $guest->name, 'contact_email' => $guest->email, 'contact_phone' => '09171234567',
@@ -259,10 +342,33 @@ class AdminPaymentReviewTest extends TestCase
         return [$id, $paymentId, $guest];
     }
 
-    private function account(string $role): User { return User::factory()->create(['role_id' => Role::where('name', $role)->sole()->id])->fresh(); }
-    private function page(int $id): string { return '/api/admin/reservations/'.$id.'/payment-review'; }
-    private function review(int $id, int $payment): string { return '/api/admin/reservations/'.$id.'/payments/'.$payment.'/review'; }
-    private function receipt(int $id, int $payment): string { return '/api/admin/reservations/'.$id.'/payments/'.$payment.'/receipt'; }
-    private function decision(string $decision = 'approved'): array { return ['decision' => $decision, 'note' => 'Transfer verified.']; }
-    private function calendar(): string { return '/api/admin/calendar?start='.now('Asia/Manila')->toDateString().'&end='.now('Asia/Manila')->addDays(30)->toDateString(); }
+    private function account(string $role): User
+    {
+        return User::factory()->create(['role_id' => Role::where('name', $role)->sole()->id])->fresh();
+    }
+
+    private function page(int $id): string
+    {
+        return '/api/admin/reservations/'.$id.'/payment-review';
+    }
+
+    private function review(int $id, int $payment): string
+    {
+        return '/api/admin/reservations/'.$id.'/payments/'.$payment.'/review';
+    }
+
+    private function receipt(int $id, int $payment): string
+    {
+        return '/api/admin/reservations/'.$id.'/payments/'.$payment.'/receipt';
+    }
+
+    private function decision(string $decision = 'approved'): array
+    {
+        return ['decision' => $decision, 'note' => 'Transfer verified.'];
+    }
+
+    private function calendar(): string
+    {
+        return '/api/admin/calendar?start='.now('Asia/Manila')->toDateString().'&end='.now('Asia/Manila')->addDays(30)->toDateString();
+    }
 }

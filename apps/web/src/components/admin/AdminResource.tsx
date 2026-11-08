@@ -7,10 +7,11 @@ type ResourceState<T> =
     | { status: "success"; data: T }
     | { status: "error"; message: string };
 
-export default function AdminResource<T>({ load, children, showRefresh = true }: {
+export default function AdminResource<T>({ load, children, showRefresh = true, keepPreviousData = false }: {
     load: (signal: AbortSignal) => Promise<T>;
     children: (data: T) => ReactNode;
     showRefresh?: boolean;
+    keepPreviousData?: boolean;
 }) {
     const [state, setState] = useState<ResourceState<T>>({ status: "loading" });
     const [attempt, setAttempt] = useState(0);
@@ -18,7 +19,7 @@ export default function AdminResource<T>({ load, children, showRefresh = true }:
 
     useEffect(() => {
         const controller = new AbortController();
-        setState({ status: "loading" });
+        setState(current => keepPreviousData && current.status === "success" ? current : { status: "loading" });
         void load(controller.signal).then(data => {
             if (!controller.signal.aborted) setState({ status: "success", data });
         }).catch((cause: unknown) => {
@@ -30,7 +31,7 @@ export default function AdminResource<T>({ load, children, showRefresh = true }:
             setState({ status: "error", message: cause instanceof Error ? cause.message : "Unable to load this information." });
         });
         return () => controller.abort();
-    }, [load, attempt, revalidate]);
+    }, [load, attempt, keepPreviousData, revalidate]);
 
     if (state.status === "loading") return <p role="status">Loading…</p>;
     if (state.status === "error") return <div role="alert">

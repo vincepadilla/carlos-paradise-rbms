@@ -29,6 +29,8 @@ export default function PaymentReview({ initialData }: { initialData: PaymentRev
     const payments = [...(r.payments ?? [])].sort((a, b) => b.id - a.id);
     const selectedId = params.get("payment");
     const p = selectedId ? payments.find(payment => String(payment.id) === selectedId) : payments.find(payment => payment.status === "submitted") ?? payments[0];
+    const totalSubmitted = payments.reduce((total, payment) => total + Number(payment.amount), 0);
+    const verifiedTotal = payments.filter(payment => payment.status === "approved").reduce((total, payment) => total + Number(payment.amount), 0);
     const difference = p ? paymentDifference(r.deposit, p.amount) : null;
     const reviewable = Boolean(p && isReviewablePayment(r, p) && !refreshRequired);
     const canApprove = reviewable && difference === 0 && receiptReady && r.total !== null;
@@ -85,7 +87,8 @@ export default function PaymentReview({ initialData }: { initialData: PaymentRev
                     <small>{payment.submitted_at ? dateTime(payment.submitted_at) : "Submission time not recorded"}{payment.reviewed_at && ` · Reviewed ${dateTime(payment.reviewed_at)}`}</small>{payment.review_note && <span>{payment.review_note}</span>}</span></div>) : <p>No payment history.</p>}
             </div></DetailPanel>
         </div><aside className="payment-review-side"><DetailPanel title="Payment Verification" badge={<span className={`badge ${p?.status === "approved" ? "badge-green" : "badge-neutral"}`}>{p ? paymentReviewLabel(p.status) : "No submission"}</span>}>
-            <dl className="verification-summary"><div><dt>Required Deposit</dt><dd>{money(r.deposit)}</dd></div><div><dt>Submitted Amount</dt><dd>{p ? money(p.amount) : "Unavailable"}</dd></div>
+            <dl className="verification-summary"><div><dt>Required Deposit</dt><dd>{money(r.deposit)}</dd></div><div><dt>Total Submitted</dt><dd>{money(totalSubmitted)}</dd></div>
+                <div><dt>Verified Total</dt><dd>{money(verifiedTotal)}</dd></div><div><dt>Selected Submission</dt><dd>{p ? money(p.amount) : "Unavailable"}</dd></div>
                 <div className={difference !== 0 ? "amount-mismatch" : "amount-match"}><dt>Difference</dt><dd>{difference === null ? "Unavailable" : money(difference)}</dd></div></dl>
             {p && p.status === "submitted" && difference !== 0 && <p className="verification-warning" role="alert">The submitted amount does not match the required deposit. Approval is blocked. Reject this submission and request the correct amount.</p>}
             {r.total === null && <p className="verification-warning">Agree the reservation total before approving a deposit.</p>}

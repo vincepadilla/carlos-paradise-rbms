@@ -6,11 +6,51 @@ use App\Http\Controllers\BookingReservationsController;
 use App\Http\Controllers\Controller;
 use App\Services\ReservationManagement;
 use App\Services\ReservationPricing;
+use App\Services\ReservationWorkflow;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class AdminReservationManagementController extends Controller
 {
+    public function index(Request $request, ReservationWorkflow $flow)
+    {
+        $data = $request->validate([
+            'page' => 'sometimes|integer|min:1',
+            'per_page' => 'sometimes|integer|min:1|max:100',
+            'search' => 'sometimes|nullable|string|max:255',
+            'status' => 'sometimes|nullable|string|max:30',
+            'type' => 'sometimes|nullable|string|max:20',
+        ]);
+
+        $search = trim($data['search'] ?? '');
+
+        return $flow->locked(function () use ($data, $search, $flow) {
+            $base = DB::table('reservations')->where('villa_id', 1);
+            $statuses = (clone $base)->whereNotNull('status')->distinct()->orderBy('status')->pluck('status')->values();
+            $types = (clone $base)->whereNotNull('type')->distinct()->orderBy('type')->pluck('type')->values();
+
+            $query = clone $base;
+            if ($search !== '') {
+                $pattern = '%'.$search.'%';
+                $query->where(function ($searchQuery) use ($pattern) {
+                    $searchQuery->whereLike('contact_name', $pattern, caseSensitive: false)
+                        ->orWhereLike('booking_reference', $pattern, caseSensitive: false);
+                });
+            }
+            if (! empty($data['status'])) $query->where('status', $data['status']);
+            if (! empty($data['type'])) $query->where('type', $data['type']);
+
+            $reservations = $query->orderByDesc('id')->paginate($data['per_page'] ?? 10);
+            $reservations->setCollection($reservations->getCollection()->map(fn ($reservation) => $flow->present($reservation)));
+
+            return response()->json([
+                ...$reservations->toArray(),
+                'filters' => ['statuses' => $statuses, 'types' => $types],
+            ]);
+        });
+    }
+
     public function update(Request $request, int $reservation, ReservationManagement $management, BookingReservationsController $read)
     {
         $money = ['required', 'numeric', 'decimal:0,2', 'min:0', 'max:99999999'];

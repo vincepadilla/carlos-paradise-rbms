@@ -119,6 +119,26 @@
 .admin-calendar .calendar-message { min-height: 140px; padding: 24px; }
 .admin-calendar .calendar-footnote, .admin-calendar .calendar-notice { font-size: 11px; margin: 14px 0; }
 .admin-calendar .calendar-refresh { border: 0; padding: 0; background: none; text-decoration: underline; color: var(--brown); font-size: 11px; cursor: pointer; }
+.admin-calendar .ocular-management-modal { width: min(470px,calc(100% - 32px)); max-height: min(88dvh,760px); overflow-y: auto; padding: 26px; }
+.admin-calendar .ocular-management-content { min-height: 120px; }
+.admin-calendar .ocular-management-modal > h2 { margin-bottom: 18px; }
+.admin-calendar .ocular-identity { margin-bottom: 18px; text-align: center; }
+.admin-calendar .ocular-identity .badge { margin: 0 auto 10px; }
+.admin-calendar .ocular-identity h3 { margin: 0 0 6px; color: var(--ink); font-size: 22px; font-weight: 500; }
+.admin-calendar .ocular-identity p { margin: 0; font-size: 11px; line-height: 1.5; }
+.admin-calendar .ocular-detail-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 10px; }
+.admin-calendar .ocular-detail-card, .admin-calendar .ocular-notes { padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--cream); overflow-wrap: anywhere; }
+.admin-calendar .ocular-detail-card { min-height: 72px; display: flex; flex-direction: column; gap: 6px; }
+.admin-calendar .ocular-detail-card span, .admin-calendar .ocular-notes > span { color: var(--muted); font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; }
+.admin-calendar .ocular-detail-card b { color: var(--ink); font-size: 11px; line-height: 1.45; }
+.admin-calendar .ocular-notes { margin-top: 10px; }
+.admin-calendar .ocular-notes p { margin: 7px 0 0; color: var(--ink); font-size: 11px; line-height: 1.55; }
+.admin-calendar .ocular-actions { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.admin-calendar .ocular-actions .btn { min-height: 42px; padding: 0 14px; }
+.admin-calendar .ocular-confirmation { text-align: center; }
+.admin-calendar .ocular-confirmation > p { color: var(--ink); }
+.admin-calendar .form-success { padding: 11px; border: 1px solid #b9d6c0; border-radius: 8px; background: var(--sage-pale); color: #356044; font-size: 12px; }
+
 @media (max-width: 1350px) {
     .admin-calendar .google-preview-grid { grid-template-columns: minmax(0,1fr); }
     .admin-calendar .google-preview-column-head { min-height: 0; flex-wrap: wrap; }
@@ -127,6 +147,9 @@
     .admin-calendar .page-head { align-items: flex-start; flex-direction: column; }
 }
 @media (max-width: 760px) {
+    .admin-calendar .ocular-detail-grid { grid-template-columns: minmax(0,1fr); }
+    .admin-calendar .ocular-actions { flex-direction: column; }
+    .admin-calendar .ocular-actions .btn { width: 100%; }
     .admin-calendar .page-head { margin-bottom: 20px; }
     .admin-calendar .page-head h1 { font-size: 27px; }
     .admin-calendar .calendar-head { flex-wrap: wrap; gap: 10px; }

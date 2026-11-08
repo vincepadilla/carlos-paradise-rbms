@@ -74,7 +74,14 @@ export function calendarEvents(data: CalendarData, now = Date.now()): CalendarEv
         events.push({ id: `block-${block.id}`, kind: "block", block, category: "blocked", label: "Blocked",
             title: `Blocked · ${blockDescription(block.reason).reason}`, startsOn: block.starts_on, endsOn: block.ends_on, timeLabel: "All day" });
     }
-    return events;
+    for (const visit of data.ocular_visits ?? []) {
+        if (!visit.visit_date || visit.end_time <= visit.start_time) continue;
+        const status = ({ pending_review: 'Pending Review', approved: 'Approved', cancelled: 'Cancelled' })[visit.status];
+        const timeLabel = `${visit.start_time.slice(0, 5)} to ${visit.end_time.slice(0, 5)}`;
+        events.push({ id: `ocular-${visit.id}`, kind: 'ocular', ocularVisit: visit, category: 'ocular', label: status,
+            title: `Ocular Visit - ${visit.guest_name} - ${timeLabel}`, startsOn: visit.visit_date, endsOn: addDays(visit.visit_date, 1), timeLabel });
+    }
+    return events.sort((left, right) => left.startsOn.localeCompare(right.startsOn) || left.timeLabel.localeCompare(right.timeLabel));
 }
 export const eventsOnDate = (events: CalendarEvent[], day: string) => events.filter(event => event.startsOn <= day && event.endsOn > day);
 export const eventHref = (event: CalendarEvent) => event.kind === "reservation"

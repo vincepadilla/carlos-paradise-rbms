@@ -328,12 +328,18 @@ function PaymentHistory({ reservation }: { reservation: Reservation }) {
                                         </p>
                                     </div>
                                 )}
-                                <a
-                                    className="mt-4 inline-flex min-h-11 items-center text-xs font-semibold text-[#4c3425] underline"
-                                    href={`${apiBaseUrl}/api/payments/${payment.id}/receipt`}
-                                >
-                                    Download receipt
-                                </a>
+                                {payment.status === "approved" ? (
+                                    <a
+                                        className="mt-4 inline-flex min-h-11 items-center text-xs font-semibold text-[#4c3425] underline"
+                                        href={`${apiBaseUrl}/api/payments/${payment.id}/receipt`}
+                                    >
+                                        Download official receipt
+                                    </a>
+                                ) : (
+                                    <p className="mt-4 mb-0 text-[10px] text-[#776f65]">
+                                        Official receipt available after approval.
+                                    </p>
+                                )}
                             </article>
                         ))}
                     </div>

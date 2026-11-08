@@ -140,7 +140,41 @@ function installFixtures() {
             details.revision++; state.managedReservation=reservation;state.managedDetails=details;sessionStorage.setItem('rbms-admin-test',JSON.stringify(state));
             return json({reservation,details});
         }
+        if (path === "/api/admin/reservations" && options.method === "GET") {
+            const search=(url.searchParams.get('search')??'').toLowerCase(), status=url.searchParams.get('status')??'', type=url.searchParams.get('type')??'';
+            const filtered=records.filter(record=>(!search||record.reference.toLowerCase().includes(search)||record.contact_name.toLowerCase().includes(search))&&(!status||record.status===status)&&(!type||record.type===type));
+            const page=Number(url.searchParams.get('page')||1), size=10, data=filtered.slice((page-1)*size,page*size);
+            return json({data,total:filtered.length,current_page:page,last_page:Math.max(1,Math.ceil(filtered.length/size)),from:data.length?(page-1)*size+1:null,to:data.length?(page-1)*size+data.length:null,
+                filters:{statuses:[...new Set(records.map(record=>record.status))],types:[...new Set(records.map(record=>record.type))]}});
+        }
         if (path === "/api/admin/payment-reviews") {
+            if (url.searchParams.get('scope') === 'all') {
+                const label = reservation => {
+                    const payments = reservation.payments ?? [];
+                    if (payments.some(payment => payment.status === 'submitted')) return 'awaiting_review';
+                    if (payments.some(payment => payment.status === 'approved')) return 'verified';
+                    if (payments.some(payment => payment.status === 'rejected')) return 'rejected';
+                    return 'not_paid';
+                };
+                const search = (url.searchParams.get('search') ?? '').toLowerCase();
+                const status = url.searchParams.get('status') ?? '';
+                const method = url.searchParams.get('method') ?? '';
+                const summaries = records.map(record => {
+                    const payments = [...(record.payments ?? [])].sort((a,b) => b.id-a.id);
+                    const latest = payments[0];
+                    return {
+                        reservation_id:record.id, reservation_reference:record.reference, guest_name:record.contact_name,
+                        starts_at:record.starts_at, ends_at:record.ends_at, payment_method:latest?.method ?? null,
+                        total_submitted:payments.length ? payments.reduce((sum,payment) => sum+Number(payment.amount),0).toFixed(2) : null,
+                        submitted_at:latest ? latest.submitted_at ?? new Date().toISOString() : null, status:label(record), latest_payment_id:latest?.id ?? null,
+                        _payments:payments,
+                    };
+                }).filter(record => (!search || record.reservation_reference.toLowerCase().includes(search) || record.guest_name.toLowerCase().includes(search) || record._payments.some(payment => payment.reference.toLowerCase().includes(search)))
+                    && (!status || record.status === status) && (!method || record._payments.some(payment => payment.method === method)));
+                const page = Number(url.searchParams.get('page') || 1), size = 10, data = summaries.slice((page-1)*size,page*size).map(({_payments,...record}) => record);
+                return json({data,total:summaries.length,current_page:page,last_page:Math.max(1,Math.ceil(summaries.length/size)),from:data.length?(page-1)*size+1:null,to:data.length?(page-1)*size+data.length:null,
+                    filters:{statuses:[{value:'verified',label:'Verified'},{value:'not_paid',label:'Not Yet Paid'},{value:'awaiting_review',label:'Awaiting Review'},{value:'rejected',label:'Rejected'}],methods:['GCash','Bank']}});
+            }
             const pending = records.flatMap(reservation => (reservation.payments ?? []).filter(payment => reservation.status === 'payment_review' && payment.status === 'submitted').map(payment => ({ reservation, payment }))).sort((a,b) => b.payment.id-a.payment.id);
             const page = Number(url.searchParams.get('page') || 1), size = Number(url.searchParams.get('per_page') || 25);
             return json({ data:pending.slice((page-1)*size, page*size), total:pending.length, current_page:page, last_page:Math.max(1,Math.ceil(pending.length/size)) });
@@ -416,7 +450,7 @@ try {
     }
     for (const [selector, path, title] of [
         ['.admin-sidebar a[href="/admin/reservations"]', "/admin/reservations", "Reservations"],
-        ['#admin-content a[href="/admin/reservations/1"]', "/admin/reservations/1", "Reservation details"],
+        ['#admin-content .admin-reservation-table tbody tr', "/admin/reservations/1", "Reservation details"],
         ['.admin-sidebar a[href="/admin/calendar"]', "/admin/calendar", "Calendar"],
         ['.admin-sidebar a[href="/admin/guests"]', "/admin/guests", "Guests"],
         ['#admin-content a[href="/admin/guests/2"]', "/admin/guests/2", "Guest Details"],
@@ -424,7 +458,7 @@ try {
         ['.admin-sidebar a[href="/admin/notifications"]', "/admin/notifications", "Notifications"],
         ['.admin-sidebar a[href="/admin/help"]', "/admin/help", "Help & Support"],
         ['.admin-sidebar a[href="/admin/dashboard"]', "/admin/dashboard", "Admin Dashboard"],
-        ['#admin-content a[href="/admin/queue"]', "/admin/queue", "Queue"],
+        ['#admin-content a[href="/admin/queue"]', "/admin/reservations", "Reservations"],
     ]) {
         await until(`Boolean(document.querySelector(${JSON.stringify(selector)}))`);
         await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
@@ -438,8 +472,8 @@ try {
     await heading("Admin Dashboard");
     await assertPersistentShell();
     await evaluate("history.forward()");
-    await until("location.pathname === '/admin/queue'");
-    await heading("Queue");
+    await until("location.pathname === '/admin/reservations' && location.search.includes('tab=queue-management')");
+    await heading("Reservations");
     await assertPersistentShell();
     passed("Browser back/forward preserves the Admin shell without session checks");
 
@@ -939,18 +973,24 @@ try {
     for (const width of [1850, 375]) {
         await cdp("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: width === 375 });
         await visit("/admin/reservations?tab=deposit-review", { role: "admin", dashboardMode: "populated" }); await heading("Reservations");
-        await until("Boolean(document.querySelector('.admin-reservation-review'))");
-        assert.deepEqual(await evaluate("[...document.querySelectorAll('.admin-table th')].map(th => th.textContent)"), ["Reservation", "Guest", "Payment Reference", "Submitted Amount", "Action"]);
-        assert.equal(await evaluate("document.querySelectorAll('.admin-reservation-review').length"), 2);
-        assert.ok(await evaluate("[...document.querySelectorAll('.admin-table tbody tr')].every(row => row.cells.length === 5 && row.cells[4].querySelector('.admin-button.admin-reservation-review'))"));
-        assert.ok(await evaluate("[...document.querySelectorAll('.admin-reservation-review')].every(a => { const s=getComputedStyle(a); return a.textContent === 'Review Payment' && s.backgroundColor === 'rgb(74, 50, 38)' && s.color === 'rgb(255, 255, 255)' && s.borderRadius === '8px' && s.padding === '10px 16px' && s.fontWeight === '700' && s.whiteSpace === 'nowrap' && s.textDecorationLine === 'none'; })"));
-        await evaluate("document.querySelector('.admin-reservation-review').focus(); document.querySelector('.admin-reservation-review').scrollIntoView({block:'center',inline:'nearest'})");
-        assert.ok(await evaluate("(() => { const r=document.querySelector('.admin-reservation-review').getBoundingClientRect(); return document.documentElement.scrollWidth <= innerWidth && r.left >= 0 && r.right <= innerWidth && r.width >= 148 && r.height >= 42; })()"));
-        await snapshot(`deposit-review-table-actions-${width}`);
-        await evaluate("document.querySelector('.admin-reservation-review').click()"); await heading("Deposit Verification");
+        await until("Boolean(document.querySelector('.admin-deposit-table tbody'))");
+        assert.deepEqual(await evaluate("[...document.querySelectorAll('.admin-deposit-table th')].map(th => th.textContent)"), ["Reservation ID", "Guest", "Stay Dates", "Payment Method", "Total Submitted", "Submitted At", "Status"]);
+        assert.equal(await evaluate("document.querySelectorAll('.admin-deposit-table tbody tr').length"), 6);
+        assert.ok(await evaluate("[...document.querySelectorAll('.admin-deposit-table tbody tr')].every(row => row.cells.length === 7 && !row.querySelector('a') && row.tabIndex === 0 && getComputedStyle(row).cursor === 'pointer')"));
+        assert.ok(await evaluate("document.querySelector('.deposit-records-header').textContent.includes('All Deposit Payment Records') && document.querySelector('.deposit-records-footer').textContent.includes('1–6 of 6')"));
+        await evaluate("document.querySelector('.admin-deposit-table tbody tr').focus(); document.querySelector('.admin-deposit-table tbody tr').scrollIntoView({block:'center',inline:'nearest'})");
+        assert.ok(await evaluate("document.documentElement.scrollWidth <= innerWidth"));
+        await snapshot(`deposit-review-records-${width}`);
+        await evaluate("[...document.querySelectorAll('.admin-deposit-table tbody tr')].find(row => row.textContent.includes('TEST-REVIEW-21')).click()"); await heading("Deposit Verification");
         assert.equal(await evaluate("location.pathname + location.search"), "/admin/reservations/21/payment-review?payment=902");
     }
-    passed("Deposit Review preserves pending filtering and five columns, reuses the brown action button, scrolls on mobile and opens the selected payment");
+    await visit("/admin/reservations?tab=deposit-review", { role: "admin", dashboardMode: "populated" }); await until("Boolean(document.querySelector('.admin-deposit-table tbody'))");
+    await fillEditor('.deposit-review-search input', 'Nico');
+    await until("document.querySelectorAll('.admin-deposit-table tbody tr').length === 1");
+    assert.ok(await evaluate("location.search.includes('search=Nico') && document.querySelector('.deposit-records-footer').textContent.includes('1–1 of 1')"));
+    await evaluate("document.querySelector('.admin-deposit-table tbody tr').dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))"); await heading("Deposit Verification");
+    assert.equal(await evaluate("location.pathname + location.search"), "/admin/reservations/21/payment-review?payment=902");
+    passed("Deposit Review shows all reservation payment records, filters by search, remains responsive, and opens rows by pointer or keyboard");
 
     }
     runtimeErrors.length = 0;

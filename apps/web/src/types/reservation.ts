@@ -37,6 +37,7 @@ export type SavedReservation = {
     contact_email: string;
     contact_phone: string;
     payments?: Payment[];
+    deposit_paid?: string;
     damage_total?: string;
     amount_due?: string | null;
     credit_balance?: string | null;
