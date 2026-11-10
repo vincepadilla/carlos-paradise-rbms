@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import type { ReservationDetailResponse } from "../../../types/reservationDetails";
 import { canAgreeTotal } from "../../../utils/reservationDetails";
 import useReservationEditor, { type ReservationAction } from "../../../hooks/useReservationEditor";
@@ -24,6 +24,9 @@ const actions: Record<ReservationAction, { title: string; copy: string; confirm:
 };
 
 export default function ReservationDetails({ initialData }: { initialData: ReservationDetailResponse }) {
+    const location = useLocation();
+    const requestedReturn = new URLSearchParams(location.search).get("returnTo");
+    const returnTo = requestedReturn?.startsWith("/admin/reports?") ? requestedReturn : "/admin/reservations";
     const editor = useReservationEditor(initialData);
     const { data, draft, setDraft, editing, busy, confirmation, error, refreshRequired } = editor;
     const r = data.reservation, d = data.details;
@@ -34,7 +37,7 @@ export default function ReservationDetails({ initialData }: { initialData: Reser
     function confirm(action: ReservationAction) { editor.setError(null); editor.setConfirmation(action); }
     const informationProps = { reservation: r, details: d, draft, editing: fullEdit, setDraft };
     return <div className="admin-reservation-detail">
-        <Link className="back-link" to="/admin/reservations">← Back to Reservations</Link>
+        <Link className="back-link" to={returnTo}>← Back to {returnTo.startsWith("/admin/reports") ? "Reports" : "Reservations"}</Link>
         <AdminPageHeader eyebrow="Carlos Paradise Reservation" title="Reservation Details" copy={`Reservation ID · ${r.reference}`} action={
             <div className="button-row">{editing ? <><button className="btn" onClick={editor.confirmSave} disabled={busy || refreshRequired}>{busy ? "Saving…" : "Save Changes"}</button><button className="btn secondary" disabled={busy} onClick={editor.cancel}>Cancel</button></> : <>
                 <div className="print-summary-control"><select aria-label="Print summary type" disabled={busy || refreshRequired} value={printType} onChange={event => setPrintType(event.target.value as typeof printType)}><option value="checkin">Check-in Summary</option><option value="checkout">Check-out Summary</option></select><button className="btn secondary" disabled={busy || refreshRequired} onClick={() => window.print()}>Print Summary</button></div>

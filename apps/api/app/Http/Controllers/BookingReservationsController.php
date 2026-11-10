@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AdminNotificationService;
 use App\Services\ReservationWorkflow;
 use App\Services\ReservationDetailData;
 use Carbon\CarbonImmutable;
@@ -12,7 +13,8 @@ use Illuminate\Validation\ValidationException;
 class BookingReservationsController extends Controller
 {
     public function __construct(
-        private ReservationWorkflow $flow
+        private ReservationWorkflow $flow,
+        private AdminNotificationService $notifications,
     ) {}
 
     /*
@@ -85,12 +87,14 @@ class BookingReservationsController extends Controller
         $contact = $request->validate([
             'contact_name' => 'required|string|max:255',
             'contact_email' => 'required|email|max:255',
-            'contact_phone' => 'required|string|max:30',
+            'contact_phone' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'inquiry_source' => 'required|string|max:100',
             'terms' => 'accepted',
             'queue_acknowledged' => 'sometimes|boolean',
             'expected_total' => 'sometimes|nullable|numeric|min:0|max:99999999',
             'request_key' => 'sometimes|uuid',
+        ], [
+            'contact_phone.regex' => 'The contact number must contain exactly 11 digits and begin with 09.',
         ]);
 
         return $this->flow->locked(function ($villa) use (
@@ -285,6 +289,10 @@ class BookingReservationsController extends Controller
                 $status,
                 $request->user()->id,
                 'Guest submitted a reservation request.'
+            );
+
+            $this->notifications->reservationCreated(
+                $this->flow->reservation($reservationId)
             );
 
             return response()->json([
@@ -711,29 +719,56 @@ class BookingReservationsController extends Controller
         $date = $requestedAt->setTimezone('Asia/Manila');
         $prefix = 'CP-'.$date->format('mdy').'-';
 
-        /*
-         * PostgreSQL transaction lock:
-         * simultaneous submissions for this date allocate
-         * their references one at a time.
-         *
-         * The lock lasts until the reservation transaction ends.
-         */
-        DB::select(
-            'SELECT pg_advisory_xact_lock(?, ?)',
-            [112933, (int) $date->format('Ymd')]
-        );
+        $driver = DB::connection()->getDriverName();
 
-        $result = DB::table('reservations')
-            ->whereRaw(
-                'booking_reference ~ ?',
-                ['^'.$prefix.'[0-9]{3}$']
-            )
-            ->selectRaw(
-                'COALESCE(MAX(CAST(RIGHT(booking_reference, 3) AS INTEGER)), 0) AS last_sequence'
-            )
-            ->first();
+        if ($driver === 'pgsql') {
+            /*
+             * PostgreSQL transaction lock:
+             * simultaneous submissions for this date allocate
+             * their references one at a time.
+             *
+             * The lock lasts until the reservation transaction ends.
+             */
+            DB::select(
+                'SELECT pg_advisory_xact_lock(?, ?)',
+                [112933, (int) $date->format('Ymd')]
+            );
 
-        $next = (int) ($result->last_sequence ?? 0) + 1;
+            $result = DB::table('reservations')
+                ->whereRaw(
+                    'booking_reference ~ ?',
+                    ['^'.$prefix.'[0-9]{3}$']
+                )
+                ->selectRaw(
+                    'COALESCE(MAX(CAST(RIGHT(booking_reference, 3) AS INTEGER)), 0) AS last_sequence'
+                )
+                ->first();
+
+            $lastSequence = (int) ($result->last_sequence ?? 0);
+        } elseif ($driver === 'sqlite') {
+            /*
+             * PHPUnit uses in-memory SQLite. It has no PostgreSQL advisory
+             * locks or regex operator, so parse matching references while
+             * retaining the surrounding reservation transaction.
+             */
+            $pattern = '/^'.preg_quote($prefix, '/').'([0-9]{3})$/D';
+            $lastSequence = DB::table('reservations')
+                ->where('booking_reference', 'like', $prefix.'%')
+                ->pluck('booking_reference')
+                ->reduce(function (int $highest, string $reference) use ($pattern): int {
+                    if (preg_match($pattern, $reference, $matches) !== 1) {
+                        return $highest;
+                    }
+
+                    return max($highest, (int) $matches[1]);
+                }, 0);
+        } else {
+            throw new \LogicException(
+                "Booking reference allocation is not configured for the [{$driver}] database driver."
+            );
+        }
+
+        $next = $lastSequence + 1;
 
         if ($next > 999) {
             throw ValidationException::withMessages([

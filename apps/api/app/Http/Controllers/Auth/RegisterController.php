@@ -25,7 +25,7 @@ class RegisterController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:254', 'unique:users,email'],
-            'phone' => ['required', 'string', 'max:30'],
+            'phone' => ['required', 'string', 'regex:/^09[0-9]{9}$/'],
             'terms' => ['accepted'],
             'captcha_token' => ['required', 'string'],
             'password' => [
@@ -34,6 +34,8 @@ class RegisterController extends Controller
                 'confirmed',
                 Password::min(10)->letters()->numbers(),
             ],
+        ], [
+            'phone.regex' => 'The contact number must contain exactly 11 digits and begin with 09.',
         ]);
 
         $captchaResponse = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [

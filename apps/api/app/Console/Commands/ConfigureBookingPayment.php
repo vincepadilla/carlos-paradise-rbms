@@ -31,7 +31,7 @@ class ConfigureBookingPayment extends Command
 
             'instructions' => $this->ask(
                 'Payment instructions',
-                'Transfer the exact deposit, then upload your receipt.'
+                'Transfer at least the minimum required deposit, then upload your receipt.'
             ),
 
             'qr_code_url' => $this->option('qr-url'),
@@ -89,8 +89,7 @@ class ConfigureBookingPayment extends Command
                 DB::table('payment_methods')->insert([
                     ...$values,
                     'name' => $data['method'],
-                    'account_number' =>
-                        $data['account_number'],
+                    'account_number' => $data['account_number'],
                     'created_at' => $flow->stamp(),
                 ]);
             }

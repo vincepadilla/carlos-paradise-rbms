@@ -58,13 +58,16 @@ export default function AdminGuestsPage() {
             <p>Search profiles and review reservation history.</p>
         </header>
         <div className="admin-guests-card">
-            <label className="admin-guest-search">
-                <span className="sr-only">Search guests</span>
-                <Icon name="search" size={18} />
-                <input type="search" value={search} maxLength={100} onChange={event => updateSearch(event.target.value)} placeholder="Search guest…" />
-            </label>
-            <AdminResource load={load} showRefresh={false}>{guests => <>
-                {guests.data.length ? <div className="admin-table-scroll admin-guests-table-scroll"><table className="admin-table admin-guests-table">
+            <div className="admin-guests-toolbar">
+                <label className="admin-guest-search">
+                    <span className="sr-only">Search guests</span>
+                    <Icon name="search" size={18} />
+                    <input type="search" value={search} maxLength={100} onChange={event => updateSearch(event.target.value)} placeholder="Search guest..." />
+                </label>
+            </div>
+            <div className="admin-guests-resource">
+                <AdminResource load={load} showRefresh={false}>{guests => <>
+                    {guests.data.length ? <div className="admin-table-scroll admin-guests-table-scroll"><table className="admin-table admin-guests-table">
                     <thead><tr><th scope="col">Guest Name</th><th scope="col">Contact Number</th><th scope="col">Email</th></tr></thead>
                     <tbody>{guests.data.map(guest => <tr key={guest.id} tabIndex={0} aria-label={`View details for ${guest.name}`}
                         onClick={event => handleRowClick(event, guest.id)} onKeyDown={event => handleRowKeyDown(event, guest.id)}>
@@ -75,9 +78,10 @@ export default function AdminGuestsPage() {
                         <td>{guest.phone || "—"}</td>
                         <td>{guest.email || "—"}</td>
                     </tr>)}</tbody>
-                </table></div> : <p className="admin-guests-empty">{search.trim() ? "No guests match your search." : "No guest accounts found."}</p>}
-                <AdminPagination page={guests.current_page} lastPage={guests.last_page} total={guests.total} onChange={updatePage} />
-            </>}</AdminResource>
+                    </table></div> : <p className="admin-guests-empty">{search.trim() ? "No guests match your search." : "No guest accounts found."}</p>}
+                    <AdminPagination page={guests.current_page} lastPage={guests.last_page} total={guests.total} onChange={updatePage} />
+                </>}</AdminResource>
+            </div>
         </div>
     </section>;
 }

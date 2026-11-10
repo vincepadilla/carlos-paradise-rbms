@@ -42,8 +42,12 @@
 .admin-payment-review .verification-summary dt { color:var(--muted); font-size:11px; }
 .admin-payment-review .verification-summary dd { margin:0; font-weight:700; text-align:right; }
 .admin-payment-review .amount-match { background:var(--sage-pale); }
+.admin-payment-review .amount-excess { background:#f3eee5; color:var(--brown); }
 .admin-payment-review .amount-mismatch { background:#f7e6e3; color:#a44b45; }
 .admin-payment-review .verification-warning { margin:16px; padding:12px; border:1px solid #e7bbb6; border-radius:8px; background:#f7e6e3; color:#a44b45; font-size:11px; }
+.admin-payment-review .verification-met, .admin-payment-review .verification-neutral { margin:16px; padding:12px; border-radius:8px; font-size:11px; }
+.admin-payment-review .verification-met { border:1px solid var(--sage); background:var(--sage-pale); color:#3d684b; }
+.admin-payment-review .verification-neutral { border:1px solid var(--line); background:#f3eee5; color:var(--brown); }
 .admin-payment-review .payment-decision-actions { padding:20px; display:flex; flex-direction:column; gap:10px; }
 .admin-payment-review .payment-decision-actions p { margin:4px 0 0; font-size:10px; }
 .admin-payment-review .payment-history-list { padding:22px 24px 7px; display:flex; flex-direction:column; overflow-wrap:anywhere; }

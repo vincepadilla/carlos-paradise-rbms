@@ -4,7 +4,7 @@ import { dateTime, money } from "../../../api";
 import { AdminApi } from "../../../services/AdminApi";
 import { ReservationApiError } from "../../../services/ReservationApi";
 import type { PaymentReviewData } from "../../../types/paymentReview";
-import { isReviewablePayment, paymentDifference, paymentReviewLabel } from "../../../utils/paymentReview";
+import { isReviewablePayment, paymentCents, paymentReviewLabel } from "../../../utils/paymentReview";
 import { recordedMoney } from "../../../utils/reservationDetails";
 import { useAdminSession } from "../../auth/RequireAdmin";
 import AdminPageHeader from "../AdminPageHeader";
@@ -29,11 +29,14 @@ export default function PaymentReview({ initialData }: { initialData: PaymentRev
     const payments = [...(r.payments ?? [])].sort((a, b) => b.id - a.id);
     const selectedId = params.get("payment");
     const p = selectedId ? payments.find(payment => String(payment.id) === selectedId) : payments.find(payment => payment.status === "submitted") ?? payments[0];
-    const totalSubmitted = payments.reduce((total, payment) => total + Number(payment.amount), 0);
-    const verifiedTotal = payments.filter(payment => payment.status === "approved").reduce((total, payment) => total + Number(payment.amount), 0);
-    const difference = p ? paymentDifference(r.deposit, p.amount) : null;
+    const totalSubmittedCents = payments.reduce((total, payment) => total + (paymentCents(payment.amount) ?? 0), 0);
+    const verifiedCents = payments.filter(payment => payment.status === "approved").reduce((total, payment) => total + (paymentCents(payment.amount) ?? 0), 0);
+    const selectedCents = p?.status === "submitted" ? paymentCents(p.amount) : null;
+    const requiredCents = paymentCents(r.deposit);
+    const prospectiveCents = selectedCents === null ? verifiedCents : verifiedCents + selectedCents;
+    const differenceCents = requiredCents === null || selectedCents === null ? null : prospectiveCents - requiredCents;
     const reviewable = Boolean(p && isReviewablePayment(r, p) && !refreshRequired);
-    const canApprove = reviewable && difference === 0 && receiptReady && r.total !== null;
+    const canApprove = reviewable && differenceCents !== null && differenceCents >= 0 && receiptReady && r.total !== null;
 
     async function review(note: string) {
         if (!p || !decision || busy || !reviewable || (decision === "approved" && !canApprove)) return;
@@ -87,14 +90,17 @@ export default function PaymentReview({ initialData }: { initialData: PaymentRev
                     <small>{payment.submitted_at ? dateTime(payment.submitted_at) : "Submission time not recorded"}{payment.reviewed_at && ` · Reviewed ${dateTime(payment.reviewed_at)}`}</small>{payment.review_note && <span>{payment.review_note}</span>}</span></div>) : <p>No payment history.</p>}
             </div></DetailPanel>
         </div><aside className="payment-review-side"><DetailPanel title="Payment Verification" badge={<span className={`badge ${p?.status === "approved" ? "badge-green" : "badge-neutral"}`}>{p ? paymentReviewLabel(p.status) : "No submission"}</span>}>
-            <dl className="verification-summary"><div><dt>Required Deposit</dt><dd>{money(r.deposit)}</dd></div><div><dt>Total Submitted</dt><dd>{money(totalSubmitted)}</dd></div>
-                <div><dt>Verified Total</dt><dd>{money(verifiedTotal)}</dd></div><div><dt>Selected Submission</dt><dd>{p ? money(p.amount) : "Unavailable"}</dd></div>
-                <div className={difference !== 0 ? "amount-mismatch" : "amount-match"}><dt>Difference</dt><dd>{difference === null ? "Unavailable" : money(difference)}</dd></div></dl>
-            {p && p.status === "submitted" && difference !== 0 && <p className="verification-warning" role="alert">The submitted amount does not match the required deposit. Approval is blocked. Reject this submission and request the correct amount.</p>}
+            <dl className="verification-summary"><div><dt>Minimum Required Deposit</dt><dd>{money(r.deposit)}</dd></div><div><dt>Total Submitted</dt><dd>{money(totalSubmittedCents / 100)}</dd></div>
+                <div><dt>Already Verified</dt><dd>{money(verifiedCents / 100)}</dd></div><div><dt>Selected Submission</dt><dd>{p ? money(p.amount) : "Unavailable"}</dd></div>
+                <div><dt>Prospective Verified Total</dt><dd>{p?.status === "submitted" ? money(prospectiveCents / 100) : "Unavailable"}</dd></div>
+                <div className={differenceCents === null ? "" : differenceCents < 0 ? "amount-mismatch" : differenceCents > 0 ? "amount-excess" : "amount-match"}><dt>{differenceCents !== null && differenceCents < 0 ? "Remaining Deposit" : "Excess Payment"}</dt><dd>{differenceCents === null ? "Unavailable" : money(Math.abs(differenceCents) / 100)}</dd></div></dl>
+            {p && p.status === "submitted" && differenceCents !== null && differenceCents < 0 && <p className="verification-warning" role="alert">The prospective verified total is below the minimum required deposit. Remaining deposit: {money(Math.abs(differenceCents) / 100)}. Approval is blocked.</p>}
+            {p && p.status === "submitted" && differenceCents === 0 && <p className="verification-met">Deposit requirement met.</p>}
+            {p && p.status === "submitted" && differenceCents !== null && differenceCents > 0 && <p className="verification-neutral">Deposit requirement met. Excess payment: {money(differenceCents / 100)}.</p>}
             {r.total === null && <p className="verification-warning">Agree the reservation total before approving a deposit.</p>}
             <div className="payment-decision-actions"><button className="btn" disabled={busy || !canApprove} onClick={() => { setError(null); setDecision("approved"); }}>Approve Payment</button>
                 <button className="btn danger" disabled={busy || !reviewable} onClick={() => { setError(null); setDecision("rejected"); }}>Reject Payment</button>
-                <p>{reviewable ? "Verify the actual transfer before approving. Approval requires a loaded receipt and the exact required deposit." : "This submission is not awaiting a reviewable decision."}</p>
+                <p>{reviewable ? "Verify the actual transfer before approving. Approval requires a loaded receipt and the minimum required deposit." : "This submission is not awaiting a reviewable decision."}</p>
             </div>
         </DetailPanel></aside></div>
         {decision && <PaymentDecisionDialog decision={decision} busy={busy} error={error} onClose={() => { setDecision(null); setError(null); }} onConfirm={note => void review(note)} />}

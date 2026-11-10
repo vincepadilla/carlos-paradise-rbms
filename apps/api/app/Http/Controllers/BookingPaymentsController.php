@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\AdminNotificationService;
 use App\Services\OfficialPaymentReceipt;
 use App\Services\PaymentReceiptStorage;
+use App\Services\ReservationPricing;
 use App\Services\ReservationWorkflow;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -15,7 +17,8 @@ class BookingPaymentsController extends Controller
     public function __construct(
         private ReservationWorkflow $flow,
         private PaymentReceiptStorage $receipts,
-        private OfficialPaymentReceipt $officialReceipts
+        private OfficialPaymentReceipt $officialReceipts,
+        private AdminNotificationService $notifications,
     ) {}
 
     /*
@@ -198,6 +201,12 @@ class BookingPaymentsController extends Controller
                     'payment_review',
                     $request->user()->id,
                     'Receipt submitted. Staff must verify the actual transfer.'
+                );
+
+                $this->notifications->paymentSubmitted(
+                    $record,
+                    $paymentId,
+                    $submittedAmount,
                 );
 
                 $this->flow->cancelQueuedOverlaps($record);
@@ -429,11 +438,32 @@ class BookingPaymentsController extends Controller
 
     private function validateApproval(object $payment, object $reservation): void
     {
-        $submittedCents = (int) round((float) $payment->amount * 100);
-        $requiredCents = (int) round((float) $reservation->required_deposit * 100);
-        abort_unless($payment->payment_kind === 'deposit' && $payment->currency === 'PHP' && $requiredCents > 0 && $submittedCents === $requiredCents,
-            422, 'The submitted amount must match the required deposit. Reject the incorrect submission and request a corrected payment.');
-        abort_if(DB::table('payments')->where('reservation_id', $reservation->id)->where('status', 'approved')->exists(), 422, 'This reservation already has a verified deposit.');
+        $submittedCents = ReservationPricing::cents($payment->amount);
+        $requiredCents = ReservationPricing::cents($reservation->required_deposit);
+        abort_unless(
+            $payment->payment_kind === 'deposit'
+                && $payment->currency === 'PHP'
+                && $requiredCents > 0
+                && $submittedCents > 0,
+            422,
+            'This submission is not a valid PHP deposit payment.'
+        );
+
+        $approvedCents = DB::table('payments')
+            ->where('reservation_id', $reservation->id)
+            ->where('status', 'approved')
+            ->where('id', '!=', $payment->id)
+            ->lockForUpdate()
+            ->get(['id', 'amount'])
+            ->sum(fn ($approved): int => ReservationPricing::cents($approved->amount));
+        $prospectiveCents = $approvedCents + $submittedCents;
+        $remainingCents = max(0, $requiredCents - $prospectiveCents);
+
+        abort_if(
+            $remainingCents > 0,
+            422,
+            'The prospective verified total is below the minimum required deposit. Remaining deposit: PHP '.number_format($remainingCents / 100, 2, '.', ',').'.'
+        );
         abort_unless($reservation->price_agreed, 422, 'The reservation total must be agreed before confirming payment.');
         abort_unless(CarbonImmutable::parse($reservation->ends_at)->gt($this->flow->now()), 422, 'An ended reservation cannot be confirmed.');
         $receipt = $this->receipts->describe($payment);

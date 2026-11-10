@@ -112,6 +112,78 @@ class AdminPaymentReviewTest extends TestCase
         $this->assertTrue(app(ReservationWorkflow::class)->disk()->exists('proof-'.$payment.'.png'));
     }
 
+    public function test_excess_deposit_is_approved_in_full_and_applied_to_the_reservation_balance(): void
+    {
+        [$id, $payment] = $this->fixture([], ['amount' => 6000]);
+
+        $this->actingAs($this->account('admin'))
+            ->postJson($this->review($id, $payment), $this->decision())
+            ->assertOk()
+            ->assertJsonPath('reservation.status', 'confirmed')
+            ->assertJsonPath('reservation.deposit_paid', '6000.00')
+            ->assertJsonPath('reservation.amount_due', '10000.00');
+
+        $this->assertDatabaseHas('payments', [
+            'id' => $payment,
+            'amount' => 6000,
+            'status' => 'approved',
+        ]);
+    }
+
+    public function test_existing_approved_payments_and_selected_submission_meet_the_minimum_once(): void
+    {
+        [$id, $payment] = $this->fixture([], ['amount' => 3000]);
+        $prior = (array) DB::table('payments')->where('id', $payment)->first();
+        unset($prior['id']);
+        $prior['amount'] = 2000;
+        $prior['reference_number'] = 'PRIOR-APPROVED-'.Str::uuid();
+        $prior['receipt_storage_path'] = 'prior-approved.png';
+        $prior['status'] = 'approved';
+        $prior['created_at'] = now();
+        $prior['updated_at'] = now();
+        $priorId = DB::table('payments')->insertGetId($prior);
+
+        $this->actingAs($this->account('admin'))
+            ->postJson($this->review($id, $payment), $this->decision())
+            ->assertOk()
+            ->assertJsonPath('reservation.status', 'confirmed')
+            ->assertJsonPath('reservation.deposit_paid', '5000.00')
+            ->assertJsonPath('reservation.amount_due', '11000.00');
+
+        $this->assertDatabaseHas('payments', ['id' => $priorId, 'amount' => 2000, 'status' => 'approved']);
+        $this->assertDatabaseHas('payments', ['id' => $payment, 'amount' => 3000, 'status' => 'approved']);
+    }
+
+    public function test_other_pending_and_rejected_payments_do_not_satisfy_the_minimum(): void
+    {
+        [$id, $payment] = $this->fixture([], ['amount' => 3000]);
+        $base = (array) DB::table('payments')->where('id', $payment)->first();
+        unset($base['id']);
+
+        foreach ([
+            ['status' => 'approved', 'amount' => 1000, 'reference_number' => 'PRIOR-'.Str::uuid()],
+            ['status' => 'submitted', 'amount' => 9000, 'reference_number' => 'OTHER-PENDING-'.Str::uuid()],
+            ['status' => 'rejected', 'amount' => 9000, 'reference_number' => 'REJECTED-'.Str::uuid()],
+        ] as $index => $values) {
+            DB::table('payments')->insert([
+                ...$base,
+                ...$values,
+                'receipt_storage_path' => 'other-'.$index.'.png',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $this->actingAs($this->account('admin'))
+            ->postJson($this->review($id, $payment), $this->decision())
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'The prospective verified total is below the minimum required deposit. Remaining deposit: PHP 1,000.00.');
+
+        $this->assertDatabaseHas('payments', ['id' => $payment, 'status' => 'submitted']);
+        $this->assertDatabaseHas('reservations', ['id' => $id, 'status' => 'payment_review']);
+        $this->assertDatabaseCount('payment_reviews', 0);
+    }
+
     public function test_rejection_preserves_reason_history_and_receipt_and_customer_can_resubmit_then_be_verified(): void
     {
         [$id, $payment, $guest] = $this->fixture();
@@ -174,7 +246,7 @@ class AdminPaymentReviewTest extends TestCase
     public function test_mismatched_amount_invalid_currency_unagreed_total_and_missing_proof_cannot_confirm(): void
     {
         $this->actingAs($this->account('admin'));
-        foreach ([['amount' => 4999.99], ['amount' => 5000.01], ['amount' => 0], ['currency' => 'USD'], ['payment_kind' => 'balance']] as $overrides) {
+        foreach ([['amount' => 4999.99], ['amount' => 0], ['currency' => 'USD'], ['payment_kind' => 'balance']] as $overrides) {
             [$id, $payment] = $this->fixture([], $overrides);
             $this->postJson($this->review($id, $payment), $this->decision())->assertUnprocessable();
             $this->assertDatabaseHas('payments', ['id' => $payment, 'status' => 'submitted']);

@@ -64,6 +64,15 @@ body {
   text-align: left;
 }
 
+#login-password::-ms-reveal,
+#login-password::-ms-clear,
+#signup-password::-ms-reveal,
+#signup-password::-ms-clear,
+#signup-password_confirmation::-ms-reveal,
+#signup-password_confirmation::-ms-clear {
+  display: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

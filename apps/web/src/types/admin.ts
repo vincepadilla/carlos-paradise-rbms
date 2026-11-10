@@ -96,6 +96,54 @@ export type Paginated<T> = {
     total: number;
 };
 
+export type AdminNotification = {
+    id: number;
+    type: string;
+    title: string;
+    description: string;
+    reservation_id: number | null;
+    destination: string;
+    occurred_at: string;
+    read_at: string | null;
+};
+
+export type EmailRecipient = {
+    reservation_id: number;
+    recipient_user_id: number;
+    name: string;
+    email: string;
+    reservation_reference: string;
+    check_in_date: string;
+    starts_at: string;
+};
+
+export type EmailCategory = { key: string; label: string; subject: string; message: string };
+export type EmailDocument = { key: string; label: string };
+
+export type OutgoingEmail = {
+    id: number;
+    recipient_name: string;
+    recipient_email: string;
+    reservation_id: number;
+    reservation_reference: string;
+    category: string;
+    category_label: string;
+    subject: string;
+    status: 'scheduled' | 'queued' | 'sent' | 'failed';
+    scheduled_for: string | null;
+    queued_at: string | null;
+    sent_at: string | null;
+    failed_at: string | null;
+    created_at: string;
+    message?: string;
+    sender_name?: string;
+    sender_email?: string;
+    attachments?: EmailDocument[];
+    failure_message?: string | null;
+};
+
+export type ComposeEmailOptions = { categories: EmailCategory[]; documents: EmailDocument[] };
+
 export type AdminReservationList = Paginated<AdminReservation> & {
     filters: {
         statuses: string[];

@@ -16,6 +16,7 @@ import {
     type SignupErrors,
     type SignupValues,
 } from "../components/auth/AuthValidation";
+import { normalizeContactNumber } from "../utils/contactNumber";
 
 const apiBaseUrl = (
     import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -44,7 +45,9 @@ function loadSignupDraft(): SignupValues {
             ...emptySignupValues,
             name: typeof draft.name === "string" ? draft.name : "",
             email: typeof draft.email === "string" ? draft.email : "",
-            contact: typeof draft.contact === "string" ? draft.contact : "",
+            contact: typeof draft.contact === "string"
+                ? normalizeContactNumber(draft.contact)
+                : "",
             terms: typeof draft.terms === "boolean" ? draft.terms : false,
         };
     } catch {
@@ -253,7 +256,7 @@ export default function SignupPage() {
     }
 
     return (
-        <AuthLayout edgeToEdgeImage>
+        <AuthLayout>
             {step === "form" ? (
                 <>
                     <AuthHeading
@@ -289,12 +292,19 @@ export default function SignupPage() {
                                     name="contact"
                                     label="Contact Number"
                                     type="tel"
-                                    placeholder="+63 912 345 6789"
+                                    placeholder="09XXXXXXXXX"
                                     autoComplete="tel"
+                                    inputMode="numeric"
+                                    pattern="09[0-9]{9}"
                                     required
-                                    maxLength={30}
+                                    maxLength={11}
                                     value={values.contact}
-                                    onChange={(e) => change("contact", e.target.value)}
+                                    onChange={(e) =>
+                                        change(
+                                            "contact",
+                                            normalizeContactNumber(e.target.value),
+                                        )
+                                    }
                                     error={errors.contact}
                                     reserveMessageSpace
                                 />

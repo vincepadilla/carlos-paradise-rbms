@@ -1,3 +1,5 @@
+import { isValidContactNumber } from "../../utils/contactNumber";
+
 export type SignupValues = {
     name: string;
     email: string;
@@ -31,8 +33,8 @@ export function validateSignup(v: SignupValues): SignupErrors {
     if (v.name.trim().length < 2) errors.name = "Enter your full name.";
     if (!emailPattern.test(v.email.trim()))
         errors.email = "Enter a valid email address.";
-    if (!/^(?:\+63|0)9\d{9}$/.test(v.contact.replace(/[\s()-]/g, "")))
-        errors.contact = "Enter a valid PH mobile number.";
+    if (!isValidContactNumber(v.contact))
+        errors.contact = "Enter 11 digits beginning with 09.";
     if (!meetsPasswordRequirements(v.password))
         errors.password = "Use 10+ chars, letters & numbers.";
     if (!v.password_confirmation || v.password !== v.password_confirmation)

@@ -6,10 +6,6 @@ export function paymentCents(value: string): number | null {
     const amount = Number(value);
     return value.trim() && Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) : null;
 }
-export function paymentDifference(required: string, submitted: string): number | null {
-    const expected = paymentCents(required), actual = paymentCents(submitted);
-    return expected === null || actual === null ? null : (actual - expected) / 100;
-}
 export const isReviewablePayment = (reservation: AdminReservation, payment: Payment) => reservation.status === "payment_review" && payment.status === "submitted";
 export function pendingDeposits(reservations: AdminReservation[]) {
     return reservations.flatMap(reservation => (reservation.payments ?? []).filter(payment => isReviewablePayment(reservation, payment)).map(payment => ({ reservation, payment })))

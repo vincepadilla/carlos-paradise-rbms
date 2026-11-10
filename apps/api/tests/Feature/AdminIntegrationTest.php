@@ -17,15 +17,21 @@ class AdminIntegrationTest extends TestCase
 
     protected function beforeRefreshingDatabase(): void
     {
-        // Fail before migrations if local configuration ever points at real data.
-        if (config('database.default') !== 'sqlite' || config('database.connections.sqlite.database') !== ':memory:') {
-            throw new \RuntimeException('Admin integration tests require an isolated SQLite :memory: database.');
+        // Protect real data: these tests must use isolated SQLite.
+        if (
+            config('database.default') !== 'sqlite'
+            || config('database.connections.sqlite.database') !== ':memory:'
+        ) {
+            throw new \RuntimeException(
+                'Admin integration tests require an isolated SQLite :memory: database.'
+            );
         }
     }
 
     protected function setUp(): void
     {
         parent::setUp();
+
         $this->seed(ReservationSetupSeeder::class);
     }
 
@@ -58,7 +64,10 @@ class AdminIntegrationTest extends TestCase
     {
         $admin = $this->userWithRole('admin');
         $admin->forceFill(['is_active' => false])->save();
-        $this->actingAs($admin)->getJson('/api/admin/guests')->assertForbidden();
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/guests')
+            ->assertForbidden();
     }
 
     public function test_admin_can_read_guest_accounts_without_private_authentication_fields(): void
@@ -67,7 +76,8 @@ class AdminIntegrationTest extends TestCase
         $admin = $this->userWithRole('admin');
         $owner = $this->userWithRole('owner');
 
-        $this->actingAs($admin)->getJson('/api/admin/guests')
+        $this->actingAs($admin)
+            ->getJson('/api/admin/guests')
             ->assertOk()
             ->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('total', 1)
@@ -77,12 +87,24 @@ class AdminIntegrationTest extends TestCase
             ->assertJsonMissingPath('data.0.google_id');
 
         $this->getJson('/api/admin/guests/'.$guest->id)
-            ->assertOk()->assertJsonPath('guest.id', $guest->id)->assertJsonPath('reservation', null);
-        $this->getJson('/api/admin/guests/'.$admin->id)->assertNotFound();
-        $this->getJson('/api/admin/guests/'.$owner->id)->assertNotFound();
-        $this->getJson('/api/admin/guests/999999')->assertNotFound();
-        $this->getJson('/api/admin/guests/not-a-number')->assertNotFound();
-        $this->getJson('/api/admin/guests?page=-1')->assertUnprocessable();
+            ->assertOk()
+            ->assertJsonPath('guest.id', $guest->id)
+            ->assertJsonPath('reservation', null);
+
+        $this->getJson('/api/admin/guests/'.$admin->id)
+            ->assertNotFound();
+
+        $this->getJson('/api/admin/guests/'.$owner->id)
+            ->assertNotFound();
+
+        $this->getJson('/api/admin/guests/999999')
+            ->assertNotFound();
+
+        $this->getJson('/api/admin/guests/not-a-number')
+            ->assertNotFound();
+
+        $this->getJson('/api/admin/guests?page=-1')
+            ->assertUnprocessable();
     }
 
     public function test_admin_guests_are_paginated(): void
@@ -100,50 +122,91 @@ class AdminIntegrationTest extends TestCase
     public function test_admin_can_search_guest_profiles_and_reservation_contacts_and_references(): void
     {
         $profileMatch = $this->userWithRole('guest');
+
         $profileMatch->forceFill([
             'name' => 'Searchable Profile',
             'email' => 'profile-match@example.test',
             'phone' => '09171112222',
         ])->save();
+
         $reservationMatch = $this->userWithRole('guest');
         $reservationId = $this->createReservation($reservationMatch, 10);
-        DB::table('reservations')->where('id', $reservationId)->update([
-            'booking_reference' => 'BOOKING-FIND-ME',
-            'contact_name' => 'Archived Contact',
-            'contact_email' => 'archived@example.test',
-            'contact_phone' => '09998887777',
-        ]);
+
+        DB::table('reservations')
+            ->where('id', $reservationId)
+            ->update([
+                'booking_reference' => 'BOOKING-FIND-ME',
+                'contact_name' => 'Archived Contact',
+                'contact_email' => 'archived@example.test',
+                'contact_phone' => '09998887777',
+            ]);
+
         $withoutReservation = $this->userWithRole('guest');
         $admin = $this->userWithRole('admin');
 
-        $this->actingAs($admin)->getJson('/api/admin/guests?search=searchable')
-            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $profileMatch->id);
+        $this->actingAs($admin)
+            ->getJson('/api/admin/guests?search=searchable')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.id', $profileMatch->id);
+
         $this->getJson('/api/admin/guests?search=09998887777')
-            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $reservationMatch->id);
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.id', $reservationMatch->id);
+
         $this->getJson('/api/admin/guests?search=archived%40example.test')
-            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $reservationMatch->id);
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.id', $reservationMatch->id);
+
         $this->getJson('/api/admin/guests?search=find-me')
-            ->assertOk()->assertJsonPath('total', 1)
-            ->assertJsonPath('data.0.latest_booking_reference', 'BOOKING-FIND-ME');
+            ->assertOk()
+            ->assertJsonPath('total', 1)
+            ->assertJsonPath(
+                'data.0.latest_booking_reference',
+                'BOOKING-FIND-ME'
+            );
+
         $this->getJson('/api/admin/guests/'.$reservationMatch->id)
             ->assertOk()
-            ->assertJsonPath('reservation.booking_reference', 'BOOKING-FIND-ME')
+            ->assertJsonPath(
+                'reservation.booking_reference',
+                'BOOKING-FIND-ME'
+            )
             ->assertJsonPath('reservation.status', 'confirmed');
+
         $this->getJson('/api/admin/guests')
-            ->assertOk()->assertJsonFragment(['id' => $withoutReservation->id, 'latest_booking_reference' => null]);
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $withoutReservation->id,
+                'latest_booking_reference' => null,
+            ]);
     }
 
     public function test_guest_details_returns_ordered_reservation_history_with_verified_payment_totals(): void
     {
         $guest = $this->userWithRole('guest');
+
         $older = $this->createReservation($guest, 10);
-        DB::table('reservations')->where('id', $older)->update(['booking_reference' => 'HISTORY-OLDER']);
+
+        DB::table('reservations')
+            ->where('id', $older)
+            ->update(['booking_reference' => 'HISTORY-OLDER']);
+
         $current = $this->createReservation($guest, 20);
-        DB::table('reservations')->where('id', $current)->update(['booking_reference' => 'HISTORY-CURRENT']);
+
+        DB::table('reservations')
+            ->where('id', $current)
+            ->update(['booking_reference' => 'HISTORY-CURRENT']);
+
+        // Create the required related record in the isolated test database.
+        $paymentMethodId = $this->createPaymentMethod();
+
         DB::table('payments')->insert([
             'reservation_id' => $current,
             'opportunity_id' => null,
-            'payment_method_id' => DB::table('payment_methods')->value('id'),
+            'payment_method_id' => $paymentMethodId,
             'payment_kind' => 'deposit',
             'amount' => 5000,
             'currency' => 'PHP',
@@ -161,14 +224,26 @@ class AdminIntegrationTest extends TestCase
             ->getJson('/api/admin/guests/'.$guest->id)
             ->assertOk()
             ->assertJsonCount(2, 'reservations')
-            ->assertJsonPath('reservation.booking_reference', 'HISTORY-CURRENT')
+            ->assertJsonPath(
+                'reservation.booking_reference',
+                'HISTORY-CURRENT'
+            )
             ->assertJsonPath('reservation.payment_status', 'Verified')
             ->assertJsonPath('reservation.payment_amount', '5000.00')
-            ->assertJsonPath('reservations.1.booking_reference', 'HISTORY-OLDER')
+            ->assertJsonPath(
+                'reservations.1.booking_reference',
+                'HISTORY-OLDER'
+            )
             ->assertJsonCount(1, 'payments')
-            ->assertJsonPath('payments.0.booking_reference', 'HISTORY-CURRENT')
+            ->assertJsonPath(
+                'payments.0.booking_reference',
+                'HISTORY-CURRENT'
+            )
             ->assertJsonPath('payments.0.reference', 'HISTORY-PAYMENT')
-            ->assertJsonFragment(['event' => 'account_created', 'kind' => 'account']);
+            ->assertJsonFragment([
+                'event' => 'account_created',
+                'kind' => 'account',
+            ]);
     }
 
     public function test_admin_can_update_a_guest_profile_and_email_uniqueness_excludes_that_guest(): void
@@ -185,11 +260,15 @@ class AdminIntegrationTest extends TestCase
             'is_active' => false,
         ];
 
-        $this->actingAs($admin)->patchJson('/api/admin/guests/'.$guest->id, $payload)
+        $this->actingAs($admin)
+            ->patchJson('/api/admin/guests/'.$guest->id, $payload)
             ->assertOk()
             ->assertHeader('Cache-Control', 'no-store, private')
             ->assertJsonPath('guest.name', 'Updated Guest')
-            ->assertJsonPath('guest.address', '123 Updated Street, Laguna')
+            ->assertJsonPath(
+                'guest.address',
+                '123 Updated Street, Laguna'
+            )
             ->assertJsonPath('guest.is_active', false);
 
         $this->assertDatabaseHas('users', [
@@ -200,10 +279,17 @@ class AdminIntegrationTest extends TestCase
             'is_active' => false,
         ]);
 
-        $this->patchJson('/api/admin/guests/'.$guest->id, [...$payload, 'email' => $otherGuest->email])
+        $this->patchJson('/api/admin/guests/'.$guest->id, [
+            ...$payload,
+            'email' => $otherGuest->email,
+        ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('email');
-        $this->patchJson('/api/admin/guests/'.$guest->id, [...$payload, 'email' => 'changed@example.test'])
+
+        $this->patchJson('/api/admin/guests/'.$guest->id, [
+            ...$payload,
+            'email' => 'changed@example.test',
+        ])
             ->assertOk()
             ->assertJsonPath('guest.email', 'changed@example.test');
     }
@@ -211,6 +297,7 @@ class AdminIntegrationTest extends TestCase
     public function test_only_active_admins_and_owners_can_update_guest_profiles(): void
     {
         $guest = $this->userWithRole('guest');
+
         $payload = [
             'name' => 'Staff Updated Guest',
             'email' => $guest->email,
@@ -219,9 +306,13 @@ class AdminIntegrationTest extends TestCase
             'is_active' => true,
         ];
 
-        $this->patchJson('/api/admin/guests/'.$guest->id, $payload)->assertUnauthorized();
+        $this->patchJson('/api/admin/guests/'.$guest->id, $payload)
+            ->assertUnauthorized();
+
         $this->actingAs($this->userWithRole('guest'))
-            ->patchJson('/api/admin/guests/'.$guest->id, $payload)->assertForbidden();
+            ->patchJson('/api/admin/guests/'.$guest->id, $payload)
+            ->assertForbidden();
+
         $this->actingAs($this->userWithRole('owner'))
             ->patchJson('/api/admin/guests/'.$guest->id, $payload)
             ->assertOk()
@@ -231,6 +322,7 @@ class AdminIntegrationTest extends TestCase
     public function test_admin_calendar_only_exposes_unreleased_blocks(): void
     {
         $admin = $this->userWithRole('admin');
+
         $block = [
             'villa_id' => 1,
             'starts_on' => '2027-01-10',
@@ -240,11 +332,19 @@ class AdminIntegrationTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ];
-        DB::table('availability_blocks')->insert($block);
-        DB::table('availability_blocks')->insert([...$block, 'reason' => 'Released block', 'released_at' => now()]);
 
-        $this->actingAs($admin)->getJson('/api/admin/availability-blocks')
-            ->assertOk()->assertJsonPath('total', 1)
+        DB::table('availability_blocks')->insert($block);
+
+        DB::table('availability_blocks')->insert([
+            ...$block,
+            'reason' => 'Released block',
+            'released_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->getJson('/api/admin/availability-blocks')
+            ->assertOk()
+            ->assertJsonPath('total', 1)
             ->assertJsonPath('data.0.reason', 'Scheduled maintenance');
     }
 
@@ -252,30 +352,62 @@ class AdminIntegrationTest extends TestCase
     {
         $firstGuest = $this->userWithRole('guest');
         $secondGuest = $this->userWithRole('guest');
+
         $firstId = $this->createReservation($firstGuest, 10);
         $this->createReservation($secondGuest, 12);
 
-        $this->actingAs($secondGuest)->getJson('/api/reservations')->assertOk()->assertJsonCount(1, 'reservations');
-        $this->getJson('/api/reservations/'.$firstId)->assertForbidden();
-        $this->actingAs($this->userWithRole('admin'))->getJson('/api/reservations')->assertOk()->assertJsonCount(2, 'reservations');
-        $this->getJson('/api/reservations/'.$firstId)->assertOk()->assertJsonPath('reservation.id', $firstId);
-        $this->actingAs($this->userWithRole('owner'))->getJson('/api/reservations')->assertOk()->assertJsonCount(2, 'reservations');
+        $this->actingAs($secondGuest)
+            ->getJson('/api/reservations')
+            ->assertOk()
+            ->assertJsonCount(1, 'reservations');
+
+        $this->getJson('/api/reservations/'.$firstId)
+            ->assertForbidden();
+
+        $this->actingAs($this->userWithRole('admin'))
+            ->getJson('/api/reservations')
+            ->assertOk()
+            ->assertJsonCount(2, 'reservations');
+
+        $this->getJson('/api/reservations/'.$firstId)
+            ->assertOk()
+            ->assertJsonPath('reservation.id', $firstId);
+
+        $this->actingAs($this->userWithRole('owner'))
+            ->getJson('/api/reservations')
+            ->assertOk()
+            ->assertJsonCount(2, 'reservations');
     }
 
     public function test_existing_staff_mutations_reject_guests(): void
     {
         $this->actingAs($this->userWithRole('guest'));
-        $this->patchJson('/api/reservations/1/terms', ['total' => 10000])->assertForbidden();
-        $this->postJson('/api/reservations/1/opportunity')->assertForbidden();
-        $this->postJson('/api/reservations/1/extension/review', ['decision' => 'approved'])->assertForbidden();
-        $this->postJson('/api/payments/1/review', ['decision' => 'approved', 'note' => 'Verified'])->assertForbidden();
+
+        $this->patchJson('/api/reservations/1/terms', [
+            'total' => 10000,
+        ])->assertForbidden();
+
+        $this->postJson('/api/reservations/1/opportunity')
+            ->assertForbidden();
+
+        $this->postJson('/api/reservations/1/extension/review', [
+            'decision' => 'approved',
+        ])->assertForbidden();
+
+        $this->postJson('/api/payments/1/review', [
+            'decision' => 'approved',
+            'note' => 'Verified',
+        ])->assertForbidden();
     }
 
     public function test_admin_login_session_survives_revalidation_and_logout_invalidates_it(): void
     {
         $this->assertLoginSession('admin');
+
         $this->postJson('/auth/logout')->assertNoContent();
+
         Auth::forgetGuards();
+
         $this->getJson('/auth/user')->assertUnauthorized();
         $this->getJson('/api/admin/guests')->assertUnauthorized();
     }
@@ -288,31 +420,67 @@ class AdminIntegrationTest extends TestCase
     private function assertLoginSession(string $role): void
     {
         $user = $this->userWithRole($role);
-        // Fake only the external provider in this isolated test, never application verification.
+
+        // Fake only the external provider.
         Http::preventStrayRequests();
-        Http::fake(['www.google.com/recaptcha/api/siteverify' => Http::response(['success' => true])]);
+
+        Http::fake([
+            'www.google.com/recaptcha/api/siteverify' => Http::response([
+                'success' => true,
+            ]),
+        ]);
 
         $this->postJson('/auth/login', [
             'email' => $user->email,
             'password' => 'password',
             'remember' => false,
             'captcha_token' => 'isolated-test-provider-token',
-        ])->assertOk()->assertJsonPath('user.role', $role)
-            ->assertSessionHas(Auth::guard('web')->getName(), $user->id);
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.role', $role)
+            ->assertSessionHas(
+                Auth::guard('web')->getName(),
+                $user->id
+            );
 
         Auth::forgetGuards();
-        $this->getJson('/auth/user')->assertOk()->assertJsonPath('user.role', $role)->assertJsonPath('user.id', $user->id);
+
+        $this->getJson('/auth/user')
+            ->assertOk()
+            ->assertJsonPath('user.role', $role)
+            ->assertJsonPath('user.id', $user->id);
+
         Http::assertSentCount(1);
     }
 
     private function userWithRole(string $role): User
     {
-        return User::factory()->create(['role_id' => Role::where('name', $role)->sole()->id])->fresh();
+        return User::factory()->create([
+            'role_id' => Role::where('name', $role)->sole()->id,
+        ])->fresh();
     }
 
     private function adminPaths(): array
     {
-        return ['/api/admin/guests', '/api/admin/guests/1', '/api/admin/availability-blocks'];
+        return [
+            '/api/admin/guests',
+            '/api/admin/guests/1',
+            '/api/admin/availability-blocks',
+        ];
+    }
+
+    private function createPaymentMethod(): int
+    {
+        return (int) DB::table('payment_methods')->insertGetId([
+            'name' => 'Test GCash',
+            'account_name' => 'Carlos Paradise Test Account',
+            'account_number' => '09170000000',
+            'qr_code_url' => null,
+            'instructions' => 'Isolated automated test fixture only.',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function createReservation(User $guest, int $days): int
@@ -320,7 +488,7 @@ class AdminIntegrationTest extends TestCase
         $start = now('Asia/Manila')->addDays($days);
         $end = $start->copy()->addDay();
 
-        // Read/authorization fixture; booking creation uses PostgreSQL-specific locks.
+        // Read/authorization fixture; booking creation uses PostgreSQL locks.
         return DB::table('reservations')->insertGetId([
             'booking_reference' => 'ADMIN-TEST-'.$guest->id,
             'user_id' => $guest->id,

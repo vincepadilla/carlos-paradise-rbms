@@ -22,6 +22,10 @@ import MyReservationsPage from "./MyReservationsPage";
 import DashboardPage from "./DashboardPage";
 import ProfilePage from "./ProfilePage";
 import ReservationStatusPanel from "./PaymentPage";
+import {
+    isValidContactNumber,
+    normalizeContactNumber,
+} from "../utils/contactNumber";
 
 export default function MakeReservationPage({
     user: initialUser,
@@ -51,7 +55,7 @@ export default function MakeReservationPage({
         [],
     );
     const [name, setName] = useState(user.name);
-    const [contact, setContact] = useState(
+    const [contact, setContact] = useState(() => normalizeContactNumber(
         user.contact ||
         (
             user as User & {
@@ -59,7 +63,7 @@ export default function MakeReservationPage({
             }
         ).phone ||
         "",
-    );
+    ));
     const [email, setEmail] = useState(user.email);
     const [inquirySource, setInquirySource] = useState<InquirySource>("");
     const [reservationType, setReservationType] =
@@ -238,9 +242,9 @@ export default function MakeReservationPage({
         setError("");
         if (step === 1) {
             if (!name.trim()) return setError("Please enter your full name.");
-            if (!/^09\d{9}$/.test(contact.replace(/[\s-]/g, "")))
+            if (!isValidContactNumber(contact))
                 return setError(
-                    "Please enter a valid contact number in the format 09XX XXX XXXX.",
+                    "Please enter an 11-digit contact number beginning with 09.",
                 );
             if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
                 return setError("Please enter a valid email address.");
@@ -375,7 +379,9 @@ export default function MakeReservationPage({
         // Refresh untouched defaults while preserving a custom booking contact.
         setName((current) => (current === user.name ? nextUser.name : current));
         setContact((current) =>
-            current === previousContact ? nextUser.contact || "" : current,
+            current === normalizeContactNumber(previousContact)
+                ? normalizeContactNumber(nextUser.contact || "")
+                : current,
         );
         setEmail((current) => (current === user.email ? nextUser.email : current));
         setUser(nextUser);
@@ -604,10 +610,20 @@ export default function MakeReservationPage({
                                             <span>Contact Number</span>
                                             <input
                                                 required
+                                                type="tel"
                                                 value={contact}
-                                                onChange={(e) => setContact(e.target.value)}
-                                                placeholder="09XX XXX XXXX"
-                                                inputMode="tel"
+                                                onChange={(e) =>
+                                                    setContact(
+                                                        normalizeContactNumber(
+                                                            e.target.value,
+                                                        ),
+                                                    )
+                                                }
+                                                placeholder="09XXXXXXXXX"
+                                                inputMode="numeric"
+                                                pattern="09[0-9]{9}"
+                                                maxLength={11}
+                                                autoComplete="tel"
                                             />
                                         </label>
                                         <label className="mb-[17px] flex flex-col gap-2 text-xs font-bold text-[#2d261f] [&>span>i]:ml-1 [&>span>i]:font-normal [&>span>i]:not-italic [&>span>i]:text-[#776f65] [&_input]:w-full [&_input]:min-h-[47px] [&_input]:rounded-lg [&_input]:border [&_input]:border-[#e3d9cb] [&_input]:bg-white [&_input]:px-[13px] [&_input]:font-medium [&_input]:text-[#2d261f] [&_input]:outline-none [&_input:focus]:border-[#b08a52] [&_input:focus]:ring-2 [&_input:focus]:ring-[#b08a52]/15 [&_select]:w-full [&_select]:min-h-[47px] [&_select]:rounded-lg [&_select]:border [&_select]:border-[#e3d9cb] [&_select]:bg-white [&_select]:px-[13px] [&_select]:font-medium [&_select]:text-[#2d261f] [&_select]:outline-none [&_select:focus]:border-[#b08a52] [&_select:focus]:ring-2 [&_select:focus]:ring-[#b08a52]/15 [&_textarea]:w-full [&_textarea]:min-h-[47px] [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-[#e3d9cb] [&_textarea]:bg-white [&_textarea]:px-[13px] [&_textarea]:font-medium [&_textarea]:text-[#2d261f] [&_textarea]:outline-none [&_textarea:focus]:border-[#b08a52] [&_textarea:focus]:ring-2 [&_textarea:focus]:ring-[#b08a52]/15 [&_textarea]:min-h-40 [&_textarea]:resize-y [&_textarea]:pt-3.5">

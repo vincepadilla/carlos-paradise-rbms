@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation } from "react-router";
 import { Icon, type IconName } from "../reservations/ReservationUI";
 import AdminSignOutButton from "./AdminSignOutButton";
+import { useAdminNotifications } from "./AdminNotificationsContext";
 
 export const adminNavigation: { path: string; label: string; icon: IconName; mobileLabel?: string }[] = [
     { path: "dashboard", label: "Dashboard", icon: "home" },
@@ -13,11 +14,23 @@ export const adminNavigation: { path: string; label: string; icon: IconName; mob
 
 export function AdminNavLinks({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {
     const { pathname } = useLocation();
-    return (mobile ? adminNavigation.slice(0, 4) : adminNavigation).map(item => <NavLink
-        key={item.path} to={`/admin/${item.path}`} onClick={onNavigate}
-        className={({ isActive }) => `admin-nav-link${isActive || (item.path === "reservations" && pathname === "/admin/queue") ? " admin-nav-active" : ""}`}>
-        <Icon name={item.icon} size={16} /><span>{mobile ? item.mobileLabel ?? item.label : item.label}</span>
-    </NavLink>);
+    const { unreadCount } = useAdminNotifications();
+    return (mobile ? adminNavigation.slice(0, 4) : adminNavigation).map(item => {
+        const isNotifications = item.path === "notifications";
+        return <NavLink
+            key={item.path} to={`/admin/${item.path}`} onClick={onNavigate}
+            className={({ isActive }) => `admin-nav-link${isActive || (item.path === "reservations" && pathname === "/admin/queue") ? " admin-nav-active" : ""}`}>
+            {mobile ? <><Icon name={item.icon} size={16} /><span>{item.mobileLabel ?? item.label}</span></> : <>
+                <span className="admin-nav-copy"><Icon name={item.icon} size={16} /><span>{item.label}</span></span>
+                {isNotifications && unreadCount > 0 && <span className="admin-sidebar-notification-count" aria-hidden="true">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                </span>}
+                {isNotifications && <span className="sr-only" aria-live="polite">
+                    {unreadCount > 0 ? `${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}` : "No unread notifications"}
+                </span>}
+            </>}
+        </NavLink>;
+    });
 }
 
 export default function AdminSidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {

@@ -58,6 +58,24 @@ class ReservationQueueTest extends TestCase
         ]);
     }
 
+    public function test_reservation_requires_an_eleven_digit_mobile_number_beginning_with_zero_nine(): void
+    {
+        $guest = User::factory()->create();
+        $payload = $this->reservationPayload();
+
+        foreach (['0917123456', '091712345678', '0917abc4567', '08171234567', '+639171234567'] as $phone) {
+            $this->actingAs($guest)
+                ->postJson('/api/reservations', [
+                    ...$payload,
+                    'contact_phone' => $phone,
+                ])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('contact_phone');
+        }
+
+        $this->assertDatabaseCount('reservations', 0);
+    }
+
     public function test_cancelling_an_unpaid_opportunity_promotes_the_queue(): void
     {
         $firstGuest = User::factory()->create();
@@ -221,7 +239,7 @@ class ReservationQueueTest extends TestCase
 
         $admin = User::factory()->create([
             'role_id' => $adminRole,
-        ]);
+        ])->fresh();
 
         $methodId = DB::table('payment_methods')->insertGetId([
             'name' => 'GCash',
@@ -258,7 +276,7 @@ class ReservationQueueTest extends TestCase
             ->update(['status' => 'payment_review']);
 
         $this->actingAs($admin)
-            ->postJson('/api/payments/'.$paymentId.'/review', [
+            ->postJson('/api/admin/reservations/'.$firstId.'/payments/'.$paymentId.'/review', [
                 'decision' => 'approved',
                 'note' => 'Transfer verified.',
             ])

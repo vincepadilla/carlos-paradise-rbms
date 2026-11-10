@@ -15,8 +15,10 @@ import AdminReportsPage from "./AdminReportsPage";
 import AdminNotificationsPage from "./AdminNotificationsPage";
 import AdminHelpPage from "./AdminHelpPage";
 
+import AdminNotificationsProvider from '../../components/admin/AdminNotificationsContext';
+
 export default function AdminRoutes() {
-    return <Routes><Route element={<RequireAdmin />}><Route element={<AdminLayout />}>
+    return <AdminNotificationsProvider><Routes><Route element={<RequireAdmin />}><Route element={<AdminLayout />}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="reservations" element={<AdminReservationsPage />} />
@@ -33,5 +35,5 @@ export default function AdminRoutes() {
         <Route path="notifications" element={<AdminNotificationsPage />} />
         <Route path="help" element={<AdminHelpPage />} />
         <Route path="*" element={<AdminPage title="Page not found"><Link to="/admin/dashboard" className="underline">Return to the Admin Dashboard</Link></AdminPage>} />
-    </Route></Route></Routes>;
+    </Route></Route></Routes></AdminNotificationsProvider>;
 }

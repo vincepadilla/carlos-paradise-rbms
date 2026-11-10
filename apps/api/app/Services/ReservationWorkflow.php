@@ -9,6 +9,8 @@ use Illuminate\Validation\ValidationException;
 
 class ReservationWorkflow
 {
+    public function __construct(private AdminNotificationService $notifications) {}
+
     public const QUEUE_CLOSED_REASON =
         'Reservation opportunity is no longer available because an earlier guest submitted the required deposit.';
 
@@ -295,6 +297,8 @@ class ReservationWorkflow
             'created_at' => $this->stamp(),
             'updated_at' => $this->stamp(),
         ]);
+
+        $this->notifications->depositDeadlineActivated($reservation, $deadline);
 
         return $deadline;
     }
