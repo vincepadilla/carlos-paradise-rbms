@@ -41,9 +41,9 @@ export default function OwnerAdminsPage() {
     const page = Math.max(1, Number(query.get("page")) || 1);
     const load = useCallback((signal: AbortSignal) => OwnerApi.admins(new URLSearchParams({ search, page: String(page) }), signal), [search, page, revision]);
     function saved() { setEditor(undefined); setRevision(v => v + 1); }
-    return <OwnerPage title="Admin Management" copy="Manage the people who handle daily resort operations." action={<button className="btn btn-primary" onClick={() => setEditor(null)}>+ Add Admin</button>}>
+    return <OwnerPage title="Admin Management" copy="Manage the people who handle daily resort operations.">
         <ActionNotice {...action} />
-        <div className="owner-card"><div className="owner-toolbar"><label className="owner-field">Search Admins<input type="search" placeholder="Search name or email…" value={search} onChange={event => setQuery({ search: event.target.value })} /></label></div>
+        <div className="owner-card"><div className="owner-toolbar owner-admin-toolbar"><label className="owner-field">Search Admins<input type="search" placeholder="Search name or email…" value={search} onChange={event => setQuery({ search: event.target.value })} /></label><button className="btn btn-primary" onClick={() => setEditor(null)}>+ Add Admin</button></div>
             <AdminResource load={load} showRefresh={false}>{data => <>
                 <div className="admin-table-scroll"><table className="admin-table owner-admins-table"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
                     <tbody>{data.data.map(admin => <tr key={admin.id}><td>{admin.name}</td><td>{admin.email}</td><td>Admin</td><td><span className={`owner-badge${admin.is_active ? "" : " owner-badge-inactive"}`}>{admin.is_active ? "Active" : "Disabled"}</span></td><td><div className="owner-table-actions"><button className="admin-button" onClick={() => setEditor(admin)}>Edit</button><button className="admin-button" disabled={action.busy} onClick={() => setToggle(admin)}>{admin.is_active ? "Disable" : "Enable"}</button></div></td></tr>)}</tbody></table></div>

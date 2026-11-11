@@ -200,6 +200,24 @@ class OwnerPortalTest extends TestCase
             ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.source', 'reservation_history');
     }
 
+    public function test_audit_trail_paginates_five_rows_at_a_time(): void
+    {
+        $owner = $this->account('owner');
+        foreach (range(1, 7) as $number) {
+            app(OwnerAudit::class)->record($owner, 'pagination_event_'.$number, 'Audit Pagination', 'Audit event '.$number.'.');
+        }
+
+        $firstPage = $this->actingAs($owner)->getJson('/api/owner/audit-trail?module=Audit%20Pagination')
+            ->assertOk()->assertJsonPath('current_page', 1)->assertJsonPath('last_page', 2)
+            ->assertJsonPath('per_page', 5)->assertJsonPath('total', 7)->assertJsonCount(5, 'data');
+        $secondPage = $this->getJson('/api/owner/audit-trail?module=Audit%20Pagination&page=2')
+            ->assertOk()->assertJsonPath('current_page', 2)->assertJsonCount(2, 'data');
+
+        $firstIds = collect($firstPage->json('data'))->pluck('id');
+        $secondIds = collect($secondPage->json('data'))->pluck('id');
+        $this->assertCount(0, $firstIds->intersect($secondIds));
+    }
+
     public function test_backup_contains_operational_data_and_never_credentials(): void
     {
         $owner = $this->account('owner');

@@ -43,7 +43,7 @@ class OwnerAuditController extends Controller
             }
         }
         foreach (['module', 'action'] as $filter) if (!empty($data[$filter])) $all->where($filter, $data[$filter]);
-        $page = $all->orderByDesc('occurred_at')->orderByDesc('id')->orderBy('source')->paginate(25);
+        $page = $all->orderByDesc('occurred_at')->orderByDesc('id')->orderBy('source')->paginate(5);
         $page->through(function ($entry) {
             $entry->occurred_at = CarbonImmutable::parse($entry->occurred_at)->setTimezone('Asia/Manila')->toIso8601String();
             return $entry;

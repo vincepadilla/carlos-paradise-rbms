@@ -12,9 +12,9 @@ export default function OwnerAuditPage() {
     function applyFilters(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         const next = new URLSearchParams();
-        for (const [key, value] of new FormData(event.currentTarget)) {
+        new FormData(event.currentTarget).forEach((value, key) => {
             if (typeof value === "string" && value.trim()) next.set(key, value.trim());
-        }
+        });
         setQuery(next);
     }
     return <OwnerPage title="Audit Trail" copy="Review recorded resort activity and reservation history.">
@@ -29,7 +29,6 @@ export default function OwnerAuditPage() {
                 <div className="admin-table-scroll"><table className="admin-table owner-audit-table"><thead><tr><th>Date &amp; Time</th><th>User</th><th>Role</th><th>Action</th><th>Module</th><th>Details</th></tr></thead><tbody>{data.data.map(row => <tr key={`${row.source}-${row.id}`}><td><time dateTime={row.occurred_at}>{ownerDate(row.occurred_at)}</time></td><td>{row.user_name}</td><td>{row.role}</td><td>{row.action.replaceAll('_', ' ')}</td><td>{row.module}</td><td>{row.details}</td></tr>)}</tbody></table></div>
                 {!data.data.length && <p className="owner-empty">No recorded activity matches these filters.</p>}
                 <AdminPagination page={data.current_page} lastPage={data.last_page} total={data.total} onChange={page => { const next = new URLSearchParams(query); next.set("page", String(page)); setQuery(next); }} />
-                <p className="owner-help">{data.integrity} Times are shown in Asia/Manila. Historical reservation roles reflect the user’s current role.</p>
             </>}</AdminResource>
         </div>
     </OwnerPage>;

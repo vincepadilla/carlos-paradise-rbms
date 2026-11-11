@@ -15,13 +15,15 @@
 .owner-error { color: #8b302c; background: #fae9e6; }
 .owner-notice { color: #3d5946; background: var(--admin-sage-pale); }
 .owner-toolbar { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 20px; }
+.owner-admin-toolbar .owner-field { width: min(360px, 100%); }
+.owner-admin-toolbar .btn { margin-left: auto; }
 .owner-field { display: flex; flex-direction: column; gap: 8px; color: var(--admin-brown); font-size: 12px; font-weight: 600; min-width: 0; }
 .owner-field input,.owner-field select,.owner-field textarea { width: 100%; padding: 11px 13px; min-height: 44px; border: 1px solid var(--admin-line); border-radius: 7px; background: #fffefa; color: var(--admin-ink); font: inherit; font-weight: 400; }
 .owner-field textarea { min-height: 110px; resize: vertical; }
 .owner-field small { font-weight: 400; color: var(--admin-muted); line-height: 1.6; }
 .owner-field-wide { grid-column: 1 / -1; }
 .owner-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 22px; }
-.owner-settings-stack { display: flex; flex-direction: column; gap: 10px; max-width: 940px; }
+.owner-settings-stack { display: flex; flex-direction: column; gap: 10px; width: 100%; }
 .owner-settings-stack > details { background: var(--admin-paper); border: 1px solid var(--admin-line); border-radius: 10px; overflow: hidden; }
 .owner-settings-stack summary { list-style: none; padding: 18px 20px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
 .owner-settings-stack summary::-webkit-details-marker { display: none; }
@@ -47,7 +49,7 @@
 .owner-table-actions button,.owner-table-actions a { padding: 6px 9px; min-height: 32px; font-size: 11px; }
 .owner-badge { display: inline-block; padding: 4px 9px; background: var(--admin-sage-pale); color: var(--admin-sage); border-radius: 6px; font-size: 10px; font-weight: 700; }
 .owner-badge-inactive { background: #eee8df; color: #786957; }
-.owner-dialog { max-width: 560px; width: calc(100% - 32px); max-height: calc(100vh - 40px); padding: 26px; border: 1px solid var(--admin-line); border-radius: 14px; background: var(--admin-paper); color: var(--admin-ink); overflow-y: auto; }
+.owner-dialog { position: fixed; inset: 0; max-width: 560px; width: calc(100% - 32px); max-height: calc(100dvh - 40px); margin: auto; padding: 26px; border: 1px solid var(--admin-line); border-radius: 14px; background: var(--admin-paper); color: var(--admin-ink); overflow-y: auto; }
 .owner-dialog::backdrop { background: #21191088; }
 .owner-dialog header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
 .owner-dialog h2 { font-size: 22px; margin: 0; }
