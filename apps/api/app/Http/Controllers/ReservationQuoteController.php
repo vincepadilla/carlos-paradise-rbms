@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use App\Services\ReservationWorkflow;
 
 class ReservationQuoteController extends Controller
 {
@@ -79,7 +80,11 @@ class ReservationQuoteController extends Controller
 
             'charcoal_qty' => 'required|integer|min:0|max:100',
 
+            'liquor_qty' => 'sometimes|integer|min:0|max:100',
+
             'notes' => 'nullable|string|max:2000',
+
+            'staff_pricing' => 'sometimes|boolean',
         ]);
 
         $start = CarbonImmutable::parse(
@@ -134,7 +139,12 @@ class ReservationQuoteController extends Controller
         /*
          * Calculate accommodation charges.
          */
-        $base = 0;
+        $staffPricing = $request->boolean('staff_pricing')
+            && app(ReservationWorkflow::class)->staff($request->user());
+
+        $base = $data['type'] === 'day_tour' && $staffPricing
+            ? (float) $settings['day_tour_rate']
+            : 0;
         $holidayFee = 0;
 
         if ($data['type'] === 'overnight') {
@@ -196,17 +206,18 @@ class ReservationQuoteController extends Controller
             $data['bonfire_qty']
                 * (float) $settings['bonfire_price']
             + $data['charcoal_qty']
-                * (float) $settings['charcoal_price'];
+                * (float) $settings['charcoal_price']
+            + ($data['liquor_qty'] ?? 0)
+                * (float) $settings['liquor_price'];
 
-        // Staff must agree the final day-tour price.
-        $total = $data['type'] === 'day_tour'
+        $total = $data['type'] === 'day_tour' && ! $staffPricing
             ? null
             : round(
-                $base
-                + $holidayFee
-                + $extraFee
-                + $cleaningFee
-                + $optionalFee,
+            $base
+            + $holidayFee
+            + $extraFee
+            + $cleaningFee
+            + $optionalFee,
                 2
             );
 
@@ -327,6 +338,10 @@ class ReservationQuoteController extends Controller
                 'extra_fee' => round($extraFee, 2),
                 'cleaning_fee' => round($cleaningFee, 2),
                 'optional_fee' => round($optionalFee, 2),
+                'bonfire' => round($data['bonfire_qty'] * (float) $settings['bonfire_price'], 2),
+                'charcoal' => round($data['charcoal_qty'] * (float) $settings['charcoal_price'], 2),
+                'liquor' => round(($data['liquor_qty'] ?? 0) * (float) $settings['liquor_price'], 2),
+                'other' => 0,
                 'total' => $total,
                 'deposit' => (float) $settings['deposit'],
                 'security_deposit' => (float) $settings['security_deposit'],

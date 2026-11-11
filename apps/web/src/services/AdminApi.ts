@@ -6,6 +6,7 @@ import type { DepositPaymentRecordList, PaymentReviewData, PendingPaymentReview 
 import type { PaymentReportPrintResponse, PaymentReportResponse, ReservationReportPrintResponse, ReservationReportResponse } from "../types/reports";
 
 import type { OcularVisit, OcularVisitInput, OcularVisitUpdate } from '../types/calendar';
+import type { ReservationCreationGuest, ReservationCreationOptions, ReservationCreationPreview } from '../types/admin';
 import type { AdminNotification, ComposeEmailOptions, EmailRecipient, OutgoingEmail } from '../types/admin';
 
 async function readRecord<T>(path: string, notFoundMessage: string, signal: AbortSignal): Promise<T> {
@@ -21,6 +22,14 @@ async function readRecord<T>(path: string, notFoundMessage: string, signal: Abor
 
 // Reuse the reservation transport, cookies, configuration and server workflow.
 export const AdminApi = {
+    reservationCreationOptions: (signal?: AbortSignal) =>
+        reservationApi<ReservationCreationOptions>('/admin/reservation-create/options', 'GET', undefined, signal),
+    reservationCreationGuests: (search: string, signal?: AbortSignal) =>
+        reservationApi<{ guests: ReservationCreationGuest[] }>(`/admin/reservation-create/guests?${new URLSearchParams({ search })}`, 'GET', undefined, signal),
+    previewReservationCreation: (data: Record<string, unknown>) =>
+        reservationApi<ReservationCreationPreview>('/admin/reservation-create/preview', 'POST', data),
+    createReservation: (data: Record<string, unknown>) =>
+        reservationApi<{ reservation: AdminReservation }>('/admin/reservations', 'POST', data),
     reservationReport: (query: URLSearchParams, signal?: AbortSignal) =>
         reservationApi<ReservationReportResponse>(`/admin/reports/reservations?${query}`, "GET", undefined, signal),
     reservationReportPrint: (query: URLSearchParams, signal?: AbortSignal) =>

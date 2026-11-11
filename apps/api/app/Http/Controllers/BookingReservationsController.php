@@ -707,7 +707,7 @@ class BookingReservationsController extends Controller
      * Old ULID references are ignored.
      * Cancelled reservations still retain their references.
      */
-    private function nextBookingReference(
+    public function nextBookingReference(
         CarbonImmutable $requestedAt
     ): string {
         if (DB::transactionLevel() === 0) {

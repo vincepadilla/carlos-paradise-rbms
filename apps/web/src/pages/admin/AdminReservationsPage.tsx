@@ -1,8 +1,9 @@
-import { useCallback } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useCallback, useState } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import AdminPagination from '../../components/admin/AdminPagination';
 import AdminResource from '../../components/admin/AdminResource';
 import AdminReservationTable from '../../components/admin/AdminReservationTable';
+import AdminReservationModal from '../../components/admin/reservation-create/AdminReservationModal';
 import DepositReviewList from '../../components/admin/payment-review/DepositReviewList';
 import { statusLabel } from '../../api';
 import { AdminApi } from '../../services/AdminApi';
@@ -92,6 +93,9 @@ function QueueManagement() {
 export default function AdminReservationsPage() {
     const [params] = useSearchParams();
     const tab = tabFrom(params.get('tab'));
+    const [creating, setCreating] = useState(false);
+    const [listVersion, setListVersion] = useState(0);
+    const navigate = useNavigate();
 
     return <section className='admin-reservations-page' aria-labelledby='admin-reservations-title'>
         <header className='admin-reservations-header'>
@@ -102,7 +106,7 @@ export default function AdminReservationsPage() {
             <button
                 type='button'
                 className='admin-make-reservation'
-                onClick={() => window.alert('Soon to be implemented.')}
+                onClick={() => setCreating(true)}
             >
                 Make a Reservation
             </button>
@@ -112,6 +116,11 @@ export default function AdminReservationsPage() {
             <Link to='/admin/reservations?tab=deposit-review' aria-current={tab === 'deposit-review' ? 'page' : undefined}>Deposit Review</Link>
             <Link to='/admin/reservations?tab=queue-management' aria-current={tab === 'queue-management' ? 'page' : undefined}>Queue Management</Link>
         </nav>
-        {tab === 'deposit-review' ? <DepositReviewList /> : tab === 'queue-management' ? <QueueManagement /> : <AllReservations />}
+        <div key={listVersion}>{tab === 'deposit-review' ? <DepositReviewList /> : tab === 'queue-management' ? <QueueManagement /> : <AllReservations />}</div>
+        {creating && <AdminReservationModal onClose={() => setCreating(false)} onCreated={id => {
+            setCreating(false);
+            setListVersion(version => version + 1);
+            navigate(`/admin/reservations/${id}`);
+        }} />}
     </section>;
 }

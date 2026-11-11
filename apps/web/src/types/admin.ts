@@ -150,3 +150,20 @@ export type AdminReservationList = Paginated<AdminReservation> & {
         types: string[];
     };
 };
+
+export type ReservationCreationGuest = { id: number; name: string; email: string; phone: string | null; new?: boolean };
+export type ReservationCreationOptions = {
+    creator: { id: number; name: string; role: 'admin' | 'owner' };
+    inquiry_sources: string[];
+    stay_options: Array<{ value: 'overnight' | 'day_tour'; label: string; checkin_time: string; checkout_time: string }>;
+    rates: { weekday: number; friday_saturday: number; sunday: number; special: number; day_tour: number; holiday_surcharge: number; bonfire: number; charcoal: number; liquor: number; deposit: number; security_deposit: number };
+    limits: { max_guests: number; min_lead_days: number };
+    timezone: 'Asia/Manila';
+};
+export type ReservationCreationPreview = {
+    guest: ReservationCreationGuest;
+    creator: ReservationCreationOptions['creator'];
+    quote: { base: number; holiday_fee: number; extra_fee: number; cleaning_fee: number; optional_fee: number; bonfire: number; charcoal: number; liquor: number; other: number; total: number; deposit: number; security_deposit: number };
+    availability: 'available' | 'queue' | 'blocked';
+    queue_position: number | null;
+};

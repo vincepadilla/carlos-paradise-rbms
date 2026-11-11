@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminOutgoingEmailsController;
 use App\Http\Controllers\Admin\AdminPaymentReviewController;
 use App\Http\Controllers\Admin\AdminPaymentReportsController;
 use App\Http\Controllers\Admin\AdminReservationManagementController;
+use App\Http\Controllers\Admin\AdminReservationCreationController;
 use App\Http\Controllers\Admin\AdminReservationReportsController;
 use App\Http\Middleware\RequireAdmin;
 use App\Http\Middleware\RequireAdminOrOwner;
@@ -45,6 +46,10 @@ Route::prefix('api/admin')->middleware(['auth:web', RequireAdmin::class])->group
 });
 
 Route::prefix('api/admin')->middleware(['auth:web', RequireAdminOrOwner::class])->group(function () {
+    Route::get('/reservation-create/options', [AdminReservationCreationController::class, 'options']);
+    Route::get('/reservation-create/guests', [AdminReservationCreationController::class, 'guests'])->middleware('throttle:60,1');
+    Route::post('/reservation-create/preview', [AdminReservationCreationController::class, 'preview'])->middleware('throttle:30,1');
+    Route::post('/reservations', [AdminReservationCreationController::class, 'store'])->middleware('throttle:20,1');
     Route::get('/notifications', [AdminNotificationsController::class, 'index']);
     Route::get('/notifications/unread-count', [AdminNotificationsController::class, 'unreadCount']);
     Route::post('/notifications/{notification}/read', [AdminNotificationsController::class, 'markAsRead'])->whereNumber('notification')->middleware('throttle:60,1');

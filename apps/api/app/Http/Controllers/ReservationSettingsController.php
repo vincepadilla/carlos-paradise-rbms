@@ -21,6 +21,7 @@ class ReservationSettingsController extends Controller
             'friday_saturday_rate' => 22000,
             'sunday_rate' => 18000,
             'special_rate' => 22000,
+            'day_tour_rate' => 12000,
 
             'holiday_surcharge' => 2000,
             'special_dates' => [
@@ -40,6 +41,22 @@ class ReservationSettingsController extends Controller
 
             'bonfire_price' => 400,
             'charcoal_price' => 30,
+            'liquor_price' => 0,
+
+            'inquiry_sources' => [
+                'Facebook Messenger',
+                'TikTok',
+                'Instagram',
+                'WhatsApp',
+                'Phone Call',
+                'Walk-in',
+                'Referral',
+                'Returning Guest',
+            ],
+            'stay_options' => [
+                ['value' => 'overnight', 'label' => 'Overnight Stay', 'checkin_time' => '14:00', 'checkout_time' => '11:00'],
+                ['value' => 'day_tour', 'label' => 'Day Tour', 'checkin_time' => '08:00', 'checkout_time' => '17:00'],
+            ],
 
             'deposit' => 5000,
             'security_deposit' => 3000,
