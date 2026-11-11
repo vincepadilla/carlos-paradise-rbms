@@ -70,8 +70,8 @@ export default function MakeReservationPage({
         useState<ReservationType>("Overnight Stay");
     const [checkin, setCheckin] = useState("");
     const [checkout, setCheckout] = useState("");
-    const [checkinTime, setCheckinTime] = useState("14:00");
-    const [checkoutTime, setCheckoutTime] = useState("11:00");
+    const [checkinTime, setCheckinTime] = useState(settings.check_in_time ?? "14:00");
+    const [checkoutTime, setCheckoutTime] = useState(settings.check_out_time ?? "11:00");
     const [adults, setAdults] = useState(settings.standard_guests);
     const [children8, setChildren8] = useState(0);
     const [pets, setPets] = useState(0);
@@ -543,7 +543,7 @@ export default function MakeReservationPage({
                 <PageHead
                     eyebrow="Reservation Request"
                     title="Request the entire private villa"
-                    copy="Complete the details below. We’ll review your requested dates and notify you when a reservation opportunity is available."
+                    copy={settings.reservation_instructions || "Complete the details below. We’ll review your requested dates and notify you when a reservation opportunity is available."}
                 />
                 <div className="mb-5 grid max-w-[760px] grid-cols-4 gap-2 [&>button]:flex [&>button]:items-center [&>button]:gap-2 [&>button]:border-0 [&>button]:bg-transparent [&>button]:p-0 [&>button]:text-left [&>button]:text-[11px] [&>button]:text-[#a9a198] [&>button>span]:grid [&>button>span]:size-[25px] [&>button>span]:shrink-0 [&>button>span]:place-items-center [&>button>span]:rounded-full [&>button>span]:bg-[#e5e0d9] [&>button>span]:font-extrabold [&>button>b]:hidden sm:[&>button>b]:block sm:[&>button:not(:last-child)]:after:mx-2 sm:[&>button:not(:last-child)]:after:h-px sm:[&>button:not(:last-child)]:after:flex-1 sm:[&>button:not(:last-child)]:after:bg-[#e3d9cb] sm:[&>button:not(:last-child)]:after:content-['']">
                     {["Guest Details", "Stay Details", "Preferences", "Review"].map(
@@ -690,10 +690,10 @@ export default function MakeReservationPage({
                                                         onChange={() => {
                                                             setReservationType(type);
                                                             setCheckinTime(
-                                                                type === "Day Tour" ? "09:00" : "14:00",
+                                                                type === "Day Tour" ? "09:00" : (settings.check_in_time ?? "14:00"),
                                                             );
                                                             setCheckoutTime(
-                                                                type === "Day Tour" ? "17:00" : "11:00",
+                                                                type === "Day Tour" ? "17:00" : (settings.check_out_time ?? "11:00"),
                                                             );
                                                             setWaitAcknowledged(false);
                                                             setError("");
@@ -706,8 +706,8 @@ export default function MakeReservationPage({
                                                                     const nextDay = parseDate(checkin);
                                                                     nextDay.setDate(nextDay.getDate() + 1);
                                                                     setCheckout(inputDate(nextDay));
-                                                                    setCheckinTime("14:00");
-                                                                    setCheckoutTime("11:00");
+                                                                    setCheckinTime(settings.check_in_time ?? "14:00");
+                                                                    setCheckoutTime(settings.check_out_time ?? "11:00");
                                                                 }
                                                             }
                                                         }}
@@ -1178,6 +1178,7 @@ export default function MakeReservationPage({
                                                 </div>
                                                 <p>
                                                     {settings.payment_instructions}
+                                                    {settings.payment_deadline_instructions && <span className="block mt-2">{settings.payment_deadline_instructions}</span>}
                                                     <br />
                                                     Verified receiving accounts will appear after staff
                                                     grant a deposit opportunity.

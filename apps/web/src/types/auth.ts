@@ -29,5 +29,6 @@ export function isAdmin(user: Pick<AuthenticatedUser, "role">): boolean {
 }
 
 export function loginDestination(user: Pick<AuthenticatedUser, "role">): string {
+    if (user.role === "owner") return "/owner/dashboard";
     return isAdmin(user) ? "/admin/dashboard" : "/";
 }

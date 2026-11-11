@@ -1,5 +1,5 @@
+import { operationalApiUrl } from "../../../services/OperationalApi";
 import { useEffect, useState } from "react";
-import { apiBaseUrl } from "../../../services/ReservationApi";
 import type { ReceiptMetadata } from "../../../types/paymentReview";
 import { useAdminSession } from "../../auth/RequireAdmin";
 import { DetailPanel } from "../reservation-details/DetailPrimitives";
@@ -20,7 +20,7 @@ export default function ReceiptPreview({ reservationId, paymentId, receipt, onRe
         setState({ status: "loading" });
         void (async () => {
             try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/reservations/${reservationId}/payments/${paymentId}/receipt`, {
+                const response = await fetch(`${operationalApiUrl("/admin")}/reservations/${reservationId}/payments/${paymentId}/receipt`, {
                     credentials: "include", cache: "no-store", signal: controller.signal,
                     headers: { Accept: "image/jpeg, image/png, application/pdf", "X-Requested-With": "XMLHttpRequest" },
                 });

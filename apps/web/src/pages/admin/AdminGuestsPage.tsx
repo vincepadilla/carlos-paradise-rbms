@@ -1,5 +1,6 @@
+import { StaffLink as Link, useStaffNavigate as useNavigate } from "../../components/admin/StaffRouting";
 import { useCallback, type KeyboardEvent, type MouseEvent } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import AdminPagination from "../../components/admin/AdminPagination";
 import AdminResource from "../../components/admin/AdminResource";
 import { Icon } from "../../components/reservations/ReservationUI";

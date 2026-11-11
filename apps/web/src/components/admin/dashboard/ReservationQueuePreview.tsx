@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { StaffLink as Link } from "../StaffRouting";
+
 import type { AdminReservation } from "../../../types/admin";
 import { dashboardDate, initials } from "../../../utils/adminDashboard";
 import { Icon } from "../../reservations/ReservationUI";

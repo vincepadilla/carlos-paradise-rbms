@@ -1,5 +1,6 @@
+import { StaffLink as Link } from "../../components/admin/StaffRouting";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link, useLocation, useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
 import { money, statusLabel } from "../../api";
 import { useAdminSession } from "../../components/auth/RequireAdmin";
 import StatusBadge from "../../components/admin/StatusBadge";

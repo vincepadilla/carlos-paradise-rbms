@@ -1,5 +1,11 @@
-import { Navigate, Route, Routes, Link } from "react-router";
+import { Navigate, Route, Routes } from "react-router";
+import { StaffLink as Link } from "../../components/admin/StaffRouting";
 import RequireAdmin from "../../components/auth/RequireAdmin";
+import RequireOwner from "../../components/auth/RequireOwner";
+import OwnerDatabasePage from "../owner/OwnerDatabasePage";
+import OwnerSettingsPage from "../owner/OwnerSettingsPage";
+import OwnerAdminsPage from "../owner/OwnerAdminsPage";
+import OwnerAuditPage from "../owner/OwnerAuditPage";
 import AdminLayout from "../../components/admin/AdminLayout";
 import AdminPage from "../../components/admin/AdminPage";
 import AdminDashboardPage from "./AdminDashboardPage";
@@ -17,8 +23,8 @@ import AdminHelpPage from "./AdminHelpPage";
 
 import AdminNotificationsProvider from '../../components/admin/AdminNotificationsContext';
 
-export default function AdminRoutes() {
-    return <AdminNotificationsProvider><Routes><Route element={<RequireAdmin />}><Route element={<AdminLayout />}>
+export default function AdminRoutes({ portal = "admin" }: { portal?: "admin" | "owner" }) {
+    return <Routes><Route element={portal === "owner" ? <RequireOwner /> : <RequireAdmin />}><Route element={<AdminNotificationsProvider><AdminLayout /></AdminNotificationsProvider>}>
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard" element={<AdminDashboardPage />} />
         <Route path="reservations" element={<AdminReservationsPage />} />
@@ -34,6 +40,12 @@ export default function AdminRoutes() {
         <Route path="reports" element={<AdminReportsPage />} />
         <Route path="notifications" element={<AdminNotificationsPage />} />
         <Route path="help" element={<AdminHelpPage />} />
-        <Route path="*" element={<AdminPage title="Page not found"><Link to="/admin/dashboard" className="underline">Return to the Admin Dashboard</Link></AdminPage>} />
-    </Route></Route></Routes></AdminNotificationsProvider>;
+        {portal === "owner" && <>
+            <Route path="database" element={<OwnerDatabasePage />} />
+            <Route path="settings" element={<OwnerSettingsPage />} />
+            <Route path="admin-management" element={<OwnerAdminsPage />} />
+            <Route path="audit-trail" element={<OwnerAuditPage />} />
+        </>}
+        <Route path="*" element={<AdminPage title="Page not found"><Link to="/admin/dashboard" className="underline">Return to the {portal === "owner" ? "Owner" : "Admin"} Dashboard</Link></AdminPage>} />
+    </Route></Route></Routes>;
 }

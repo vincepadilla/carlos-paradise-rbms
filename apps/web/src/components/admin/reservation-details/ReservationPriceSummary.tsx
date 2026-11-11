@@ -36,7 +36,7 @@ export default function ReservationPriceSummary({ reservation: r, details, mode,
                     <div className="discount-readout discount-final"><span>Final Reservation Price{editing ? " (preview)" : ""}</span><strong>{recordedMoney(displayedTotal)}</strong></div>
                     <label className="discount-justification">Discount Justification{editing && draft.discount.type !== "none" && <i>Required</i>}<textarea name="discount.justification" disabled={!editing || busy} maxLength={2000} value={editing ? draft.discount.justification ?? "" : discount?.justification ?? "Not recorded"}
                         onChange={event => setDraft(current => ({ ...current, discount: { ...current.discount, justification: event.target.value } }))} /></label>
-                </div>{discount?.applied_at && !editing && <div className="discount-audit"><span><small>Applied by</small><b>Admin #{discount.applied_by}</b></span><span><small>Applied at</small><b>{new Date(discount.applied_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</b></span></div>}
+                </div>{discount?.applied_at && !editing && <div className="discount-audit"><span><small>Applied by</small><b>Staff #{discount.applied_by}</b></span><span><small>Applied at</small><b>{new Date(discount.applied_at).toLocaleString("en-PH", { timeZone: "Asia/Manila" })}</b></span></div>}
             </div>
         </DetailPanel>
         <DetailPanel title="Reservation Cost Summary" className="payment-record cost-record">

@@ -1,5 +1,6 @@
+import { StaffLink as Link } from "../../components/admin/StaffRouting";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { Link, useSearchParams } from 'react-router';
+import { useSearchParams } from "react-router";
 import AdminPagination from '../../components/admin/AdminPagination';
 import { useAdminNotifications } from '../../components/admin/AdminNotificationsContext';
 import { AdminApi } from '../../services/AdminApi';

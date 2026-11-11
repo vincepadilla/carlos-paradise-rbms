@@ -1,4 +1,5 @@
-import { apiBaseUrl, reservationApi, ReservationApiError } from "./ReservationApi";
+import { operationalApi as reservationApi, operationalApiUrl } from "./OperationalApi";
+import { ReservationApiError } from "./ReservationApi";
 import type { AdminGuest, AdminGuestDetails, AdminGuestUpdate, AdminReservation, AdminReservationList, AvailabilityBlock, Paginated } from "../types/admin";
 import type { CalendarData } from "../types/calendar";
 import type { ReservationDetailResponse, ReservationEdit } from "../types/reservationDetails";
@@ -39,7 +40,7 @@ export const AdminApi = {
     guestReportPrint: (query: URLSearchParams, signal?: AbortSignal) =>
         reservationApi<ReservationReportPrintResponse>(`/admin/reports/guests/print?${query}`, "GET", undefined, signal),
     exportReservationReport: async (query: URLSearchParams): Promise<{ blob: Blob; filename: string }> => {
-        const response = await fetch(`${apiBaseUrl}/api/admin/reports/reservations/export?${query}`, {
+        const response = await fetch(`${operationalApiUrl("/admin")}/reports/reservations/export?${query}`, {
             credentials: "include",
             headers: { Accept: "text/csv", "X-Requested-With": "XMLHttpRequest" },
         });
@@ -52,7 +53,7 @@ export const AdminApi = {
         return { blob: await response.blob(), filename };
     },
     exportGuestReport: async (query: URLSearchParams): Promise<{ blob: Blob; filename: string }> => {
-        const response = await fetch(`${apiBaseUrl}/api/admin/reports/guests/export?${query}`, {
+        const response = await fetch(`${operationalApiUrl("/admin")}/reports/guests/export?${query}`, {
             credentials: "include",
             headers: { Accept: "text/csv", "X-Requested-With": "XMLHttpRequest" },
         });
@@ -69,7 +70,7 @@ export const AdminApi = {
     paymentReportPrint: (query: URLSearchParams, signal?: AbortSignal) =>
         reservationApi<PaymentReportPrintResponse>(`/admin/reports/payments/print?${query}`, "GET", undefined, signal),
     exportPaymentReport: async (query: URLSearchParams): Promise<{ blob: Blob; filename: string }> => {
-        const response = await fetch(`${apiBaseUrl}/api/admin/reports/payments/export?${query}`, {
+        const response = await fetch(`${operationalApiUrl("/admin")}/reports/payments/export?${query}`, {
             credentials: "include",
             headers: { Accept: "text/csv", "X-Requested-With": "XMLHttpRequest" },
         });

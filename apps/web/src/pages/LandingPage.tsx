@@ -1,3 +1,5 @@
+import { loginDestination } from "../types/auth";
+import { reservationApi } from "../services/ReservationApi";
 import { useEffect, useState, useCallback, useRef, type ReactNode } from "react";
 
 import { useNavigate } from "react-router";
@@ -20,7 +22,7 @@ const apiBaseUrl = (
     import.meta.env.VITE_API_URL || "http://localhost:8000"
 ).replace(/\/+$/, "");
 
-type AccountUser = { id: number | string; name: string; email: string };
+type AccountUser = { id: number | string; name: string; email: string; role: string | null };
 type AccountStatus = "loading" | "ready" | "error";
 
 async function getSessionUser(signal: AbortSignal): Promise<AccountUser | null> {
@@ -44,7 +46,7 @@ async function getSessionUser(signal: AbortSignal): Promise<AccountUser | null> 
         typeof user.name !== "string" || typeof user.email !== "string") {
         throw new Error("Invalid account response.");
     }
-    return { id: user.id, name: user.name, email: user.email };
+    return { id: user.id, name: user.name, email: user.email, role: "role" in user && typeof user.role === "string" ? user.role : null };
 }
 
 async function endSession(): Promise<void> {
@@ -351,6 +353,31 @@ function Logo({ light = false }: { light?: boolean }) {
 
 export default function LandingPage() {
     const navigateTo = useNavigate();
+    const [publicSettings, setPublicSettings] = useState<Record<string, unknown>>({});
+    useEffect(() => {
+        const controller = new AbortController();
+        void reservationApi<{ settings: Record<string, unknown> }>("/settings", "GET", undefined, controller.signal)
+            .then(data => { if (!controller.signal.aborted) setPublicSettings(data.settings); })
+            .catch(() => { /* The established resort content remains available if configuration cannot load. */ });
+        return () => controller.abort();
+    }, []);
+    const content = (key: string) => typeof publicSettings[key] === "string" ? publicSettings[key] as string : "";
+    const lines = (key: string) => content(key).split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+    const amount = (key: string) => `₱${Number(publicSettings[key] ?? 0).toLocaleString("en-PH")}`;
+    const displayedAmenities = content("amenities") ? lines("amenities").map(title => ({ title, description: "" })) : amenities;
+    const displayedPolicies = content("policies") ? [{ title: "Resort Policies", rules: lines("policies") }] : policies;
+    const displayedRates = publicSettings.weekday_rate !== undefined ? [
+        ["Mon–Thu", amount("weekday_rate")], ["Fri–Sat", amount("friday_saturday_rate")], ["Sunday", amount("sunday_rate")],
+        ["Peak dates", amount("special_rate")], ["Holiday surcharge — when applicable", `+${amount("holiday_surcharge")}`],
+    ] : rates;
+    const displayedNotes = publicSettings.deposit !== undefined ? [
+        `${publicSettings.standard_guests} chargeable guests are included in each standard price.`,
+        `Each extra chargeable guest is ${amount("extra_guest_fee")}, up to ${publicSettings.max_guests} guests.`,
+        `A ${amount("deposit")} reservation deposit is required.`,
+        `A ${amount("security_deposit")} refundable security deposit is paid at check-in.`,
+        `Check-in: ${content("check_in_time")}; check-out: ${content("check_out_time")} the next day.`,
+        ...lines("inclusions"),
+    ] : reservationNotes;
     const [menuOpen, setMenuOpen] = useState(false);
     const [currentSlide, setCurrentSlide] = useState(0);
     const [galleryOpen, setGalleryOpen] = useState(false);
@@ -382,6 +409,10 @@ export default function LandingPage() {
             try {
                 const user = await getSessionUser(controller.signal);
                 if (!active || controller.signal.aborted) return;
+                if (user && ["admin", "owner"].includes(user.role ?? "")) {
+                    navigateTo(loginDestination(user), { replace: true });
+                    return;
+                }
                 setAccountUser(user);
                 setAccountStatus("ready");
                 if (!user) setAccountOpen(false);
@@ -694,10 +725,10 @@ export default function LandingPage() {
                         <span className="hidden">Welcome to</span>
 
                         <h1 className="mb-3 font-display text-[clamp(3.2rem,6vw,5.6rem)] font-normal leading-[1.04] tracking-[-.035em] max-[819px]:text-[43px]">
-                            Carlos Paradise
+                            {content("landing_title") || content("name") || "Carlos Paradise"}
                         </h1>
                         <h2 className="mb-[38px] font-display text-[clamp(1.4rem,2.5vw,2.1rem)] font-normal leading-normal text-sand max-[819px]:mb-8">
-                            Private Villa and Resort
+                            {content("landing_description") || "Private Villa and Resort"}
                         </h2>
 
                         <blockquote className="m-0 max-w-[620px] font-sans text-[clamp(1rem,1.8vw,1.25rem)] leading-[1.7] text-[#f4eadb] max-[819px]:text-base max-[819px]:leading-[1.75]">
@@ -768,10 +799,10 @@ export default function LandingPage() {
 
                             <div className="min-[960px]:pt-9">
                                 <p className="m-0 max-w-[660px] text-base leading-[1.8] text-muted">
-                                    Carlos Paradise welcomes families, friends, and groups to their own
+                                    {content("description") || <>Carlos Paradise welcomes families, friends, and groups to their own
                                     private getaway in Bustos, Bulacan. Spend time together by the pool,
                                     prepare shared meals, sing the night away, or simply unwind. The
-                                    property is exclusively reserved for your group.
+                                    property is exclusively reserved for your group.</>}
                                 </p>
 
                                 <div className="mt-8 flex flex-col gap-[18px]">
@@ -994,7 +1025,7 @@ export default function LandingPage() {
                         </p>
 
                         <div className="mt-6 grid grid-cols-2 border-t border-line max-[520px]:grid-cols-1">
-                            {amenities.map((amenity) => (
+                            {displayedAmenities.map((amenity) => (
                                 <div
                                     key={amenity.title}
                                     className="flex items-start gap-3 border-b border-line py-4 pr-5 odd:mr-5 max-[520px]:mr-0 max-[520px]:pr-0 [&_svg]:shrink-0 [&_svg]:text-sage"
@@ -1031,7 +1062,7 @@ export default function LandingPage() {
                         </h2>
 
                         <div className="mt-5 flex flex-col">
-                            {rates.map(([label, price]) => (
+                            {displayedRates.map(([label, price]) => (
                                 <div
                                     key={label}
                                     className="flex items-start justify-between gap-6 border-b border-[#d7cfc3] py-[13px]"
@@ -1060,7 +1091,7 @@ export default function LandingPage() {
                         </h2>
 
                         <ul className="mt-5 mb-0 list-none p-0">
-                            {reservationNotes.map((note) => (
+                            {displayedNotes.map((note) => (
                                 <li
                                     key={note}
                                     className="flex gap-3 border-b border-[#d7cfc3] py-3 leading-6 text-muted [&_svg]:mt-1 [&_svg]:shrink-0 [&_svg]:text-sage"
@@ -1103,7 +1134,7 @@ export default function LandingPage() {
                         </div>
 
                         <div className="mt-10 grid grid-cols-2 items-start gap-4 max-[760px]:grid-cols-1">
-                            {policies.map((policy) => (
+                            {displayedPolicies.map((policy) => (
                                 <details
                                     key={policy.title}
                                     className="group rounded-[10px] border border-line bg-paper"
@@ -1185,8 +1216,11 @@ export default function LandingPage() {
                             Let&apos;s plan your stay.
                         </h2>
                         <p className="mb-[1em] text-muted leading-[1.75]">
-                            Carlos Paradise Private Villa and Resort
+                            {content("name") || "Carlos Paradise Private Villa and Resort"}
                         </p>
+
+                        {content("contact") && <p className="text-muted whitespace-pre-line">{content("contact")}</p>}
+                        {content("address") && <p className="text-muted whitespace-pre-line">{content("address")}</p>}
 
                         <div className="mt-[25px] flex flex-col gap-[7px] [&>button]:flex [&>button]:cursor-pointer [&>button]:justify-between [&>button]:gap-[18px] [&>button]:rounded-lg [&>button]:border [&>button]:border-line [&>button]:bg-paper [&>button]:px-3.5 [&>button]:py-[13px] [&>button]:text-left [&>button]:text-ink [&>button]:transition [&>button:hover]:translate-x-[3px] [&>button:hover]:border-gold [&_span]:text-[10px] [&_span]:text-muted [&_b]:text-right [&_b]:text-[11px] [&_b]:wrap-anywhere">
                             <button

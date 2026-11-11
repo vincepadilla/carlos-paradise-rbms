@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import { Navigate, Outlet } from "react-router";
 import { useAuthenticatedSession } from "../../hooks/useAuthenticatedSession";
-import { isAdmin, loginDestination, type AuthenticatedUser } from "../../types/auth";
+import { loginDestination, type AuthenticatedUser } from "../../types/auth";
 
 type AdminSession = {
     user: AuthenticatedUser;
@@ -16,7 +16,7 @@ export function useAdminSession(): AdminSession {
     return session;
 }
 
-export default function RequireAdmin() {
+export default function RequireAdmin({ role = "admin" }: { role?: "admin" | "owner" }) {
     const { session, revalidate, clear } = useAuthenticatedSession();
     if (session.status === "loading") {
         return <main className="min-h-screen bg-cream p-10 text-center" role="status">Checking your session…</main>;
@@ -28,7 +28,7 @@ export default function RequireAdmin() {
         </main>;
     }
     if (session.status === "anonymous") return <Navigate to="/login" replace />;
-    if (!isAdmin(session.user)) return <Navigate to={loginDestination(session.user)} replace />;
+    if (session.user.role !== role) return <Navigate to={loginDestination(session.user)} replace />;
     return <AdminSessionContext.Provider value={{ user: session.user, revalidate, clear }}>
         <Outlet />
     </AdminSessionContext.Provider>;

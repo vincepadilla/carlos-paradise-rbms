@@ -1,5 +1,6 @@
+import { StaffLink as Link } from "../StaffRouting";
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { dateTime, money } from "../../../api";
 import { AdminApi } from "../../../services/AdminApi";
 import { ReservationApiError } from "../../../services/ReservationApi";

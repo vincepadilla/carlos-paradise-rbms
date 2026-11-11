@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { StaffLink as Link } from "../StaffRouting";
+
 import type { AdminReservation } from "../../../types/admin";
 import { money } from "../../../api";
 import { dashboardDate, dashboardTime, depositState, guestCount, initials, stayDuration } from "../../../utils/adminDashboard";

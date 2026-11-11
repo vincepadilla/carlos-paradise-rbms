@@ -113,7 +113,9 @@ class GoogleAuthController extends Controller
             $request->session()->regenerate();
 
             // Tokens and passwords are never placed in the URL or browser storage.
-            return redirect()->away($this->frontend('/'));
+            return redirect()->away($this->frontend(match ($user->role?->name) {
+                'owner' => '/owner/dashboard', 'admin' => '/admin/dashboard', default => '/',
+            }));
         } catch (InvalidStateException $exception) {
             return $this->failure($page, 'expired');
         } catch (Throwable $exception) {

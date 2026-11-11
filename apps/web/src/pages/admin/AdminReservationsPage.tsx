@@ -1,5 +1,6 @@
+import { StaffLink as Link, useStaffNavigate as useNavigate } from "../../components/admin/StaffRouting";
 import { useCallback, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router';
+import { useSearchParams } from "react-router";
 import AdminPagination from '../../components/admin/AdminPagination';
 import AdminResource from '../../components/admin/AdminResource';
 import AdminReservationTable from '../../components/admin/AdminReservationTable';

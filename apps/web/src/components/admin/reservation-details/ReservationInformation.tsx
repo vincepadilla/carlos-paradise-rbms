@@ -1,5 +1,6 @@
+import { StaffLink as Link } from "../StaffRouting";
 import type { Dispatch, SetStateAction } from "react";
-import { Link } from "react-router";
+
 import { dateTime } from "../../../api";
 import type { AdminReservation } from "../../../types/admin";
 import type { ReservationDetailData, ReservationEdit } from "../../../types/reservationDetails";

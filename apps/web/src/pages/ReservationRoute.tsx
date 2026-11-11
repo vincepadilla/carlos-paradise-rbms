@@ -1,3 +1,4 @@
+import { loginDestination } from "../types/auth";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import type { Settings, User } from "../api";
@@ -75,6 +76,10 @@ export default function ReservationRoute({
                     throw new Error(
                         "The account response is missing a name or email address.",
                     );
+                }
+                if (["admin", "owner"].includes(data.user.role)) {
+                    navigate(loginDestination(data.user), { replace: true });
+                    return;
                 }
                 setUser(data.user as User);
             } catch (cause) {

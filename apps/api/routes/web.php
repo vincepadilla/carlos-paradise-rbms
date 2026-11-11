@@ -71,6 +71,7 @@ Route::post(
 
 require __DIR__.'/reservations.php';
 require __DIR__.'/admin.php';
+require __DIR__.'/owner.php';
 
 Route::middleware('auth')->prefix('api')->group(function () {
     Route::get('profile', [GuestProfileController::class, 'show']);

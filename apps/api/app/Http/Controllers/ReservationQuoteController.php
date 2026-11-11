@@ -127,12 +127,12 @@ class ReservationQuoteController extends Controller
             $data['type'] === 'overnight' &&
             (
                 $data['checkout'] <= $data['checkin'] ||
-                $data['checkin_time'] !== '14:00' ||
-                $data['checkout_time'] !== '11:00'
+                $data['checkin_time'] !== $settings['check_in_time'] ||
+                $data['checkout_time'] !== $settings['check_out_time']
             )
         ) {
             throw ValidationException::withMessages([
-                'checkin_time' => 'Overnight stays use 2 PM check-in and 11 AM check-out on a later date.',
+                'checkin_time' => 'Overnight stays use the configured check-in and check-out times on a later date.',
             ]);
         }
 

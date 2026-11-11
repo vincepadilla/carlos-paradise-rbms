@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { StaffLink as Link } from "../StaffRouting";
+
 import type { AvailabilityBlock } from "../../../types/admin";
 import type { CalendarEvent, CalendarView } from "../../../types/calendar";
 import { calendarBadge, calendarDateLabel, dateValue, eventClass, eventHref, eventsOnDate } from "../../../utils/adminCalendar";

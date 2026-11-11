@@ -1,4 +1,5 @@
-import { useNavigate } from 'react-router';
+import { useStaffNavigate as useNavigate } from "./StaffRouting";
+
 import { dateTime, money, statusLabel } from '../../api';
 import type { AdminReservation } from '../../types/admin';
 import StatusBadge from './StatusBadge';

@@ -1,5 +1,6 @@
+import { useStaffNavigate as useNavigate } from "../StaffRouting";
 import { useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useSearchParams } from "react-router";
 import { dateTime, money } from "../../../api";
 import { AdminApi } from "../../../services/AdminApi";
 import type { DepositPaymentRecord, DepositPaymentStatus } from "../../../types/paymentReview";

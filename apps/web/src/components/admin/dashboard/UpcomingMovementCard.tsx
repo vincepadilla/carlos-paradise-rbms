@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { StaffLink as Link } from "../StaffRouting";
+
 import { dashboardTime, guestCount, type VillaMovement } from "../../../utils/adminDashboard";
 import { Icon } from "../../reservations/ReservationUI";
 import StatusBadge from "../StatusBadge";

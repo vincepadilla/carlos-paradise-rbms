@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
+import { ownerFixtureResponse, runOwnerChecks } from './owner-browser-checks.mjs';
 
 const base = process.env.RBMS_TEST_URL || "http://127.0.0.1:5175";
 assert.ok(["localhost", "127.0.0.1"].includes(new URL(base).hostname), "Use a local test server.");
@@ -19,7 +20,7 @@ let launchError;
 chrome.on("error", error => { launchError = error; });
 let socket;
 let checks = 0;
-const capture = process.env.RBMS_CAPTURE_SCREENSHOTS === "1";
+const capture = process.env.RBMS_CAPTURE_SCREENSHOTS === "1" || process.argv.includes('--capture');
 const screenshots = resolve("node_modules/.tmp/admin-visual");
 
 function installFixtures() {
@@ -98,9 +99,18 @@ function installFixtures() {
     const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { "Content-Type": "application/json" } });
     window.fetch = async (input, options = {}) => {
         const url = new URL(typeof input === "string" ? input : input.url, location.origin);
-        const path = url.pathname;
+        const rawPath = url.pathname;
+        const path = rawPath.replace(/^\/api\/owner\/operations(?=\/)/, '/api/admin');
         if (!path.startsWith("/auth/") && !path.startsWith("/api/")) return original(input, options);
-        requests.push({ path, query: url.search, credentials: options.credentials, method: options.method || "GET", headers: options.headers, body: options.body });
+        requests.push({ path: rawPath, query: url.search, credentials: options.credentials, method: options.method || "GET", headers: options.headers, body: options.body });
+        const ownerResponse = window.__ownerFixtureResponse(url, options, state);
+        if (ownerResponse) return ownerResponse;
+        if (/^\/api\/admin\/reports\/(reservations|guests|payments)$/.test(path)) return json({
+            data: [], total: 0, current_page: 1, last_page: 1, per_page: 15, from: null, to: null,
+            generated_at: new Date().toISOString(), filters: { applied: { search: '', date_range: 'this_month', status: '', payment_status: '', start_date: '', end_date: '', date_label: 'This Month' }, statuses: [], date_ranges: [] },
+        });
+        if (path === '/api/admin/notifications/unread-count') return json({ unread_count: 0 });
+        if (path === '/api/admin/notifications' || path === '/api/admin/outgoing-emails') return json({ data: [], total: 0, current_page: 1, last_page: 1, from: null, to: null });
         if (path === "/auth/user") {
             const account = { role: state.role, name: state.adminName || "Test Admin", error: state.sessionError, status: state.sessionStatus };
             if (state.delay) await new Promise((resolve, reject) => {
@@ -141,6 +151,7 @@ function installFixtures() {
             return json({reservation,details});
         }
         if (path === "/api/admin/reservations" && options.method === "GET") {
+            if (state.dataError) return json({ message: "Test reservation service unavailable" }, 503);
             const search=(url.searchParams.get('search')??'').toLowerCase(), status=url.searchParams.get('status')??'', type=url.searchParams.get('type')??'';
             const filtered=records.filter(record=>(!search||record.reference.toLowerCase().includes(search)||record.contact_name.toLowerCase().includes(search))&&(!status||record.status===status)&&(!type||record.type===type));
             const page=Number(url.searchParams.get('page')||1), size=10, data=filtered.slice((page-1)*size,page*size);
@@ -338,7 +349,7 @@ try {
             if (await evaluate(expression)) return;
             await delay(100);
         }
-        throw new Error(`Condition timed out: ${expression}; URL: ${await evaluate("location.pathname")}`);
+        throw new Error(`Condition timed out: ${expression}; URL: ${await evaluate("location.pathname + location.search")}`);
     }
     function passed(label) { checks++; console.log(`PASS ${label}`); }
     async function detailButton(label) {
@@ -354,7 +365,7 @@ try {
         await navigate(path);
     }
     async function heading(title) {
-        const expected = title === "Admin Dashboard" ? "Welcome back, Admin!" : title === "Calendar" ? "Centralized Calendar" : title === "Reservation details" ? "Reservation Details" : title;
+        const expected = title === "Admin Dashboard" ? "Welcome back, Admin!" : title === "Calendar" ? "Centralized Calendar" : title === "Reservation details" ? "Reservation Details" : title === "Queue" ? "Reservations" : title === "Notifications" ? "Notification Center" : title;
         await until(`document.querySelector('h1')?.textContent === ${JSON.stringify(expected)}`);
     }
     async function snapshot(name) {
@@ -369,10 +380,13 @@ try {
     await cdp("Page.enable");
     await cdp("Runtime.enable");
     await cdp("Fetch.enable", { patterns: [{ urlPattern: "*/api/health", requestStage: "Request" }] });
-    await cdp("Page.addScriptToEvaluateOnNewDocument", { source: `(${installFixtures.toString()})();` });
+    await cdp("Page.addScriptToEvaluateOnNewDocument", { source: `window.__ownerFixtureResponse=(${ownerFixtureResponse.toString()});(${installFixtures.toString()})();` });
     // Establish a same-origin document before setting per-test session fixtures.
     await cdp("Page.navigate", { url: base + "/admin/dashboard" });
     await until("Boolean(window.__adminQA)");
+    if (process.argv.includes('--owner')) {
+        await runOwnerChecks({ visit, navigate, evaluate, until, heading, passed, cdp, screenshot: snapshot, runtimeErrors });
+    } else {
     if (!process.argv.includes('--reservation-management')) {
     await visit("/admin/dashboard", { role: "admin", delay: 1000 });
     await until("window.__adminQA?.requests.some(request => request.path === '/auth/user')");
@@ -386,7 +400,7 @@ try {
         return { destinations: roles.map(role => loginDestination({ role })),
             rejectsMalformed: readAuthenticatedUser({ user: { role: 'admin' } }) === null };
     })()`);
-    assert.deepEqual(roleChecks.destinations, ["/admin/dashboard", "/", "/", "/", "/"]);
+    assert.deepEqual(roleChecks.destinations, ["/admin/dashboard", "/", "/owner/dashboard", "/", "/"]);
     assert.equal(roleChecks.rejectsMalformed, true);
     passed("Confirmed-session login destinations preserve guest, owner and unknown roles");
 
@@ -644,13 +658,13 @@ try {
 
     await evaluate("document.querySelector('.admin-calendar .page-head .btn-primary').click()");
     await until("Boolean(document.querySelector('dialog[open].ocular-modal'))");
-    assert.ok(await evaluate("document.querySelector('dialog').textContent.includes('nothing entered here will be saved')"));
-    assert.equal(await evaluate("document.querySelector('dialog button[type=submit]').disabled"), true);
+    assert.ok(await evaluate("document.querySelector('dialog').textContent.includes('separate from overnight reservations')"));
+    assert.equal(await evaluate("document.querySelector('dialog form').checkValidity()"), false);
     assert.ok(await evaluate("document.querySelector('dialog .readonly-creator').textContent.includes('Test Admin')"));
     await snapshot("calendar-ocular-preview");
     await evaluate("document.querySelector('dialog .btn-ghost').click()");
     assert.ok(await evaluate("!window.__adminQA.requests.some(request => request.path.includes('ocular'))"));
-    passed("Ocular form matches reference fields and explicitly prevents fake persistence");
+    passed("Ocular form shows the authenticated creator, validates required fields, and cancels without a write");
 
     await evaluate("document.querySelector('.admin-calendar .page-head .btn-danger').click()");
     await until("Boolean(document.querySelector('dialog[open].block-modal form'))");
@@ -702,8 +716,7 @@ try {
     await evaluate("[...document.querySelectorAll('dialog button')].find(button => button.textContent === 'Remove Block').click()");
     await until("document.querySelector('dialog h2')?.textContent === 'Remove Block?'");
     await evaluate("document.querySelector('dialog .btn-danger').click()");
-    await until("!document.querySelector('dialog[open]') && document.querySelectorAll('.calendar-day').length > 0");
-    assert.ok(await evaluate("![...document.querySelectorAll('.calendar-event.blocked-event')].some(event => event.textContent.includes('Updated Maintenance'))"));
+    await until("!document.querySelector('dialog[open]') && document.querySelectorAll('.calendar-day').length > 0 && ![...document.querySelectorAll('.calendar-event.blocked-event')].some(event => event.textContent.includes('Updated Maintenance'))");
     passed("Block details, notes editing and confirmed release update the calendar");
 
     await evaluate("window.__calendarHeader = document.querySelector('.admin-header'); window.__calendarAuth = window.__adminQA.requests.filter(request => request.path === '/auth/user').length; document.querySelector('.calendar-event.confirmed-event').click()");
@@ -881,9 +894,9 @@ try {
     await evaluate("document.querySelector('.activity-action').click()"); await reviewReady();
     assert.equal(await evaluate('location.pathname'), '/admin/reservations/1/payment-review');
     await evaluate("document.querySelector('.back-link').click()"); await heading('Reservations');
-    await until("document.body.textContent.includes('Review Payment')");
+    await until("Boolean(document.querySelector('.admin-deposit-table tbody tr'))");
     assert.equal(await evaluate('location.search'), '?tab=deposit-review');
-    await evaluate("[...document.querySelectorAll('.admin-table a')].find(a => a.textContent === 'Review Payment').click()"); await reviewReady();
+    await evaluate("document.querySelector('.admin-deposit-table tbody tr').click()"); await reviewReady();
     await reviewButton('Reject Payment'); await until("Boolean(document.querySelector('dialog[open]'))");
     await evaluate("(() => { const input=document.querySelector('#rejection-reason'); Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(input,'   '); input.dispatchEvent(new Event('input',{bubbles:true})); })()");
     await evaluate("document.querySelector('dialog form').requestSubmit()");
@@ -912,7 +925,7 @@ try {
             await until("Boolean(document.querySelector('.payment-review-side'))");
             assert.ok(await evaluate("[...document.querySelectorAll('.admin-payment-review button')].find(b=>b.textContent==='Approve Payment').disabled"));
             if (mode === 'missing') assert.ok(await evaluate("document.querySelector('.receipt-preview').textContent.includes('No payment receipt submitted.')"));
-            if (mode === 'mismatch') assert.ok(await evaluate("document.querySelector('.verification-warning').textContent.includes('does not match')"));
+            if (mode === 'mismatch') assert.ok(await evaluate("document.querySelector('.verification-warning').textContent.includes('below the minimum required deposit')"));
         }
         await snapshot(`payment-review-${mode}`);
     }
@@ -934,41 +947,25 @@ try {
         await snapshot(`payment-review-${width}`);
     }
     for (const role of ['guest','owner','anonymous']) {
-        await visit('/admin/reservations/1/payment-review', {role}); await until(`location.pathname === '${role === 'anonymous' ? '/login' : '/'}'`);
+        await visit('/admin/reservations/1/payment-review', {role}); await until(`location.pathname === '${role === 'anonymous' ? '/login' : role === 'owner' ? '/owner/dashboard' : '/'}'`);
         assert.equal(await evaluate("Boolean(document.querySelector('.admin-payment-review'))"), false);
     }
     assert.deepEqual(runtimeErrors, []);
     passed('Payment review fits desktop/tablet/mobile widths and denies non-Admin sessions without runtime errors');
 
-    await cdp("Emulation.setDeviceMetricsOverride", { width: 1850, height: 1000, deviceScaleFactor: 1, mobile: false });
-    await visit("/admin/reservations", { role: "admin", dashboardMode: "populated" });
-    await heading("Reservations");
-    await until("Boolean(document.querySelector('.admin-reservation-table tbody'))");
-    assert.deepEqual(await evaluate("[...document.querySelectorAll('.admin-reservation-table th')].map(h => h.textContent)"), ["Reference", "Contact", "Stay", "Status", "Agreed total", "Actions"]);
-    assert.ok(await evaluate("[...document.querySelectorAll('.admin-reservation-table tbody tr')].every(row => row.cells.length === 6 && !row.cells[3].querySelector('a') && (row.cells[3].textContent === 'Payment Review' ? Boolean(row.cells[5].querySelector('.admin-reservation-review')) : row.cells[5].textContent === '—'))"));
-    assert.equal(await evaluate("document.querySelectorAll('.admin-reservation-review').length"), 2);
-    assert.ok(await evaluate("[...document.querySelectorAll('.admin-reservation-review')].every(a => { const s = getComputedStyle(a); return s.backgroundColor === 'rgb(74, 50, 38)' && s.color === 'rgb(255, 255, 255)' && s.whiteSpace === 'nowrap' && s.textDecorationLine === 'none' && s.cursor === 'pointer' && a.getBoundingClientRect().width >= 148; })"));
-    assert.ok(await evaluate("[...document.querySelectorAll('.admin-reservation-table tbody tr')].filter(row => row.querySelector('.admin-reservation-review')).every(row => row.cells[3].querySelector('.badge-amber')?.textContent === 'Payment Review')"));
-    await snapshot("reservation-table-actions-desktop");
-    await evaluate("document.querySelector('.admin-reservation-review').click()");
-    await heading("Deposit Verification");
-    assert.equal(await evaluate("location.pathname"), "/admin/reservations/20/payment-review");
-    passed("Reservation table separates status badges and brown Review Payment buttons; only reviewable rows have actions and navigation opens verification");
-
-    for (const payments of [[], [{ id: 1101, status: "approved", amount: "5000.00", reference: "TEST-VERIFIED", method: "GCash", review_note: null }]]) {
-        await visit("/admin/reservations", { role: "admin", paymentReviewMode: "pending", reviewRecord: { payments } });
-        await heading("Reservations"); await until("Boolean(document.querySelector('.admin-reservation-table tbody'))");
-        assert.equal(await evaluate("document.querySelectorAll('.admin-reservation-review').length"), 0);
+    for (const width of [1850, 375]) {
+        await cdp("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: width === 375 });
+        await visit("/admin/reservations", { role: "admin", dashboardMode: "populated" });
+        await heading("Reservations");
+        await until("Boolean(document.querySelector('.admin-reservation-table tbody tr'))");
+        assert.deepEqual(await evaluate("[...document.querySelectorAll('.admin-reservation-table th')].map(h=>h.textContent)"), ["Reservation ID", "Guest", "Requested Date", "Guests", "Deposit", "Status"]);
+        assert.ok(await evaluate("[...document.querySelectorAll('.admin-reservation-table tbody tr')].every(row=>row.tabIndex===0&&row.cells.length===6)"));
+        assert.ok(await evaluate("document.documentElement.scrollWidth<=innerWidth"));
+        await evaluate("[...document.querySelectorAll('.admin-reservation-table tbody tr')].find(row=>row.textContent.includes('TEST-REVIEW-21')).dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}))");
+        await heading("Reservation Details");
+        assert.equal(await evaluate("location.pathname"), "/admin/reservations/21");
     }
-    passed("Payment Review status without a submitted payment does not show a review action");
-
-    await cdp("Emulation.setDeviceMetricsOverride", { width: 375, height: 812, deviceScaleFactor: 1, mobile: true });
-    await visit("/admin/reservations", { role: "admin", dashboardMode: "populated" }); await heading("Reservations");
-    await until("Boolean(document.querySelector('.admin-reservation-review'))");
-    await evaluate("document.querySelector('.admin-reservation-review').focus(); document.querySelector('.admin-reservation-review').scrollIntoView({block:'center',inline:'nearest'})");
-    assert.ok(await evaluate("(() => { const a = document.querySelector('.admin-reservation-review'), r = a.getBoundingClientRect(), s = getComputedStyle(a); return document.documentElement.scrollWidth <= innerWidth && document.activeElement === a && r.left >= 0 && r.right <= innerWidth && r.height >= 42 && s.fontSize === '12px'; })()"));
-    await snapshot("reservation-table-actions-mobile");
-    passed("Mobile table scroll keeps the action readable, focusable and accessible without page overflow");
+    passed("Reservation table displays the current operational columns and opens rows by keyboard at desktop/mobile widths");
 
     for (const width of [1850, 375]) {
         await cdp("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: width === 375 });
@@ -1178,8 +1175,11 @@ try {
 
     for (const role of ["guest", "owner", "null", "unknown", "anonymous"]) {
         await visit("/admin/dashboard", { role });
-        await until(`location.pathname === ${JSON.stringify(role === "anonymous" ? "/login" : "/")}`);
-        assert.equal(await evaluate("Boolean(document.querySelector('.admin-header'))"), false);
+        await until(`location.pathname === ${JSON.stringify(role === "anonymous" ? "/login" : role === "owner" ? "/owner/dashboard" : "/")}`);
+        if (role === "owner") {
+            await heading("Welcome back, Owner!");
+            assert.equal(await evaluate("document.querySelector('.admin-portal-label').textContent"), 'OWNER PORTAL');
+        } else assert.equal(await evaluate("Boolean(document.querySelector('.admin-header'))"), false);
         passed(`Admin access denied for ${role}`);
     }
 
@@ -1194,7 +1194,7 @@ try {
     assert.equal(await evaluate("location.pathname"), "/make-reservation");
     assert.equal(await evaluate("document.querySelector('fieldset select').value"), "");
     assert.equal(await evaluate("document.querySelector('fieldset select option:checked').textContent"), "Select");
-    await fillEditor('input[inputmode=tel]', '09171234567');
+    await fillEditor('input[type=tel]', '09171234567');
     await fillEditor('fieldset select', 'Phone Call');
     await evaluate("[...document.querySelectorAll('button')].find(button=>button.textContent.includes('Continue')).click()");
     await until("document.body.textContent.includes('Tell us about your group')");
@@ -1227,7 +1227,7 @@ try {
     await visit("/admin/reservations", { role: "admin", dataError: true });
     await heading("Reservations");
     await until("Boolean(document.querySelector('#admin-content [role=alert]'))");
-    await evaluate("window.__adminQA.state.dataError = false; document.querySelector('#admin-content button').click()");
+    await evaluate("window.__adminQA.state.dataError = false; [...document.querySelectorAll('#admin-content button')].find(button=>button.textContent==='Try again').click()");
     await until("Boolean(document.querySelector('.admin-table'))");
     passed("Data errors offer retry without showing invented records");
 
@@ -1255,6 +1255,7 @@ try {
     assert.equal(await evaluate("Boolean(document.querySelector('.admin-header'))"), false);
     passed("Protected dashboard remains inaccessible after logout");
 
+    }
     console.log(`${checks} browser checks passed. Sessions and API data were mocked; live CAPTCHA login was not tested.`);
 } finally {
     socket?.close();

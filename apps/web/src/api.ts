@@ -55,6 +55,11 @@ export type Notice = {
 };
 export type Block = { id: number; date: string; reason: string };
 export type Settings = {
+    check_in_time?: string;
+    check_out_time?: string;
+    reservation_instructions?: string;
+    payment_deadline_instructions?: string;
+    policies?: string;
     name: string;
     contact: string;
     payment_instructions: string;

@@ -1,5 +1,6 @@
+import { StaffLink as Link } from "../../components/admin/StaffRouting";
 import { useEffect, useState } from "react";
-import { Link } from "react-router";
+
 import AdminPageHeader from "../../components/admin/AdminPageHeader";
 import AdminResource from "../../components/admin/AdminResource";
 import OngoingStayCard from "../../components/admin/dashboard/OngoingStayCard";
@@ -9,16 +10,19 @@ import UpcomingMovementCard from "../../components/admin/dashboard/UpcomingMovem
 import { AdminApi } from "../../services/AdminApi";
 import { selectDashboard } from "../../utils/adminDashboard";
 import "../../components/admin/dashboard/dashboard.css";
+import { useAdminSession } from "../../components/auth/RequireAdmin";
 
 export default function AdminDashboardPage() {
+    const { user } = useAdminSession();
+    const role = user.role === "owner" ? "Owner" : "Admin";
     const [now, setNow] = useState(Date.now);
     useEffect(() => {
         const timer = window.setInterval(() => setNow(Date.now()), 60_000);
         return () => window.clearInterval(timer);
     }, []);
 
-    return <div className="admin-dashboard" aria-label="Admin Dashboard">
-        <AdminPageHeader eyebrow="Today's Overview" title="Welcome back, Admin!" copy="Here’s what needs your attention today."
+    return <div className="admin-dashboard" aria-label={`${role} Dashboard`}>
+        <AdminPageHeader eyebrow="Today's Overview" title={`Welcome back, ${role}!`} copy="Here’s what needs your attention today."
             action={<Link to="/admin/reservations" className="btn btn-primary">Open Reservation</Link>} />
         <AdminResource load={AdminApi.reservations} showRefresh={false}>{({ reservations }) => {
             const dashboard = selectDashboard(reservations, now);

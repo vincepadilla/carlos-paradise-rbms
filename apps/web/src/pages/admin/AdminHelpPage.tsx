@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { StaffLink as Link } from "../../components/admin/StaffRouting";
+
 import AdminPage from "../../components/admin/AdminPage";
 
 export default function AdminHelpPage() {

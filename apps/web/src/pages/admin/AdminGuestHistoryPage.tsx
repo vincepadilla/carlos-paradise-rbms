@@ -1,5 +1,6 @@
+import { StaffLink as Link } from "../../components/admin/StaffRouting";
 import { useCallback } from "react";
-import { Link, useLocation, useParams } from "react-router";
+import { useLocation, useParams } from "react-router";
 import { dateTime, money, statusLabel } from "../../api";
 import AdminResource from "../../components/admin/AdminResource";
 import StatusBadge from "../../components/admin/StatusBadge";

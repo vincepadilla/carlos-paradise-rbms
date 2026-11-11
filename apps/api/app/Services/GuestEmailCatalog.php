@@ -39,6 +39,15 @@ class GuestEmailCatalog
     {
         $settings = $this->settings();
         $configured = is_array($settings['email_documents'] ?? null) ? $settings['email_documents'] : [];
+        $active = DB::table('active_documents as active')->join('document_versions as version', 'version.id', '=', 'active.version_id')
+            ->get(['active.document_key', 'version.storage_path']);
+        foreach ($active as $version) {
+            $configured = array_values(array_filter($configured, fn ($document) =>
+                !is_array($document) || ($document['key'] ?? null) !== $version->document_key));
+            $configured[] = ['key' => $version->document_key,
+                'label' => ($version->document_key === 'house-rules-policies' ? 'House Rules & Policies' : 'Waiver Form').'.pdf',
+                'disk' => 'local', 'path' => $version->storage_path];
+        }
 
         return collect($configured)->filter(function ($document) {
             return is_array($document)

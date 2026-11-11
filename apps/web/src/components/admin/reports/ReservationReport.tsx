@@ -1,5 +1,6 @@
+import { useStaffNavigate as useNavigate } from "../StaffRouting";
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from "react";
-import { useNavigate, type SetURLSearchParams } from "react-router";
+import { type SetURLSearchParams } from "react-router";
 import { statusLabel } from "../../../api";
 import { AdminApi } from "../../../services/AdminApi";
 import type { ReservationReportFilters, ReservationReportResponse, ReservationReportRow } from "../../../types/reports";

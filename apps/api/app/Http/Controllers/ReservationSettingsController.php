@@ -14,6 +14,11 @@ class ReservationSettingsController extends Controller
         $settings = [
             'name' => 'Carlos Paradise',
             'contact' => '',
+            'address' => '', 'description' => '',
+            'check_in_time' => '14:00', 'check_out_time' => '11:00',
+            'reservation_instructions' => '', 'payment_deadline_instructions' => '',
+            'amenities' => '', 'inclusions' => '', 'landing_title' => '', 'landing_description' => '',
+            'policies' => '', 'notification_email' => '',
             'payment_instructions' =>
                 'Contact the resort for verified payment details.',
 
@@ -84,6 +89,9 @@ class ReservationSettingsController extends Controller
 
             $settings = array_replace($settings, [
                 'name' => $villa->name,
+                'address' => $villa->address, 'description' => $villa->description ?? '',
+                'check_in_time' => substr($villa->check_in_time, 0, 5),
+                'check_out_time' => substr($villa->check_out_time, 0, 5),
 
                 'weekday_rate' =>
                     (float) $villa->base_nightly_rate,

@@ -33,7 +33,7 @@ export default function OcularVisitDialog({ date, onClose, onSaved }: { date: st
    <label className='field'><span>Start Time</span><input name='start_time' type='time' required defaultValue='10:00'/></label>
    <label className='field'><span>End Time</span><input name='end_time' type='time' required defaultValue='11:00'/></label>
    <label className='field'><span>Inquiry Source</span><select name='inquiry_source'><option value=''>Select option</option>{['Facebook Messenger','TikTok','Instagram','WhatsApp','Phone Call'].map(x=><option key={x}>{x}</option>)}</select></label>
-   <div className='readonly-creator'><span>Created By</span><b>{session.user.name} - Admin</b></div>
+   <div className='readonly-creator'><span>Created By</span><b>{session.user.name} - {session.user.role === 'owner' ? 'Owner' : 'Admin'}</b></div>
   </div><label className='field'><span>Notes</span><textarea name='notes' maxLength={4200}/></label>
   {error&&<p role='alert' className='form-error'>{error}</p>}<div className='button-row'><button className='btn btn-primary'>{busy?'Scheduling...':'Schedule Visit'}</button><button type='button' className='btn btn-ghost' onClick={onClose}>Cancel</button></div>
   </fieldset></form>

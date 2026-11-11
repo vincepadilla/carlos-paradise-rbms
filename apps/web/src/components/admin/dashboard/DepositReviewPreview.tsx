@@ -1,4 +1,5 @@
-import { Link } from "react-router";
+import { StaffLink as Link } from "../StaffRouting";
+
 import { money } from "../../../api";
 import { Icon } from "../../reservations/ReservationUI";
 import DashboardPanel from "./DashboardPanel";

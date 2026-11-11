@@ -107,6 +107,7 @@ export default function PaymentPage({
     const [reservation, setReservation] =
         useState<Reservation>(initialReservation);
     const [methods, setMethods] = useState(paymentMethods);
+    const [deadlineInstructions, setDeadlineInstructions] = useState("");
     const [methodId, setMethodId] = useState(
         paymentMethods[0]?.id.toString() || "",
     );
@@ -180,7 +181,7 @@ export default function PaymentPage({
                         undefined,
                         controller.signal,
                     ),
-                    reservationApi<{ payment_methods: PaymentMethod[] }>(
+                    reservationApi<{ payment_methods: PaymentMethod[]; settings?: { payment_deadline_instructions?: string } }>(
                         "/settings",
                         "GET",
                         undefined,
@@ -196,6 +197,7 @@ export default function PaymentPage({
                     throw new Error("The reservation response is incomplete.");
                 setReservation(data.reservation);
                 setMethods(configuration.payment_methods);
+                setDeadlineInstructions(configuration.settings?.payment_deadline_instructions ?? "");
                 setMethodId((id) =>
                     configuration.payment_methods.some(
                         (account) => String(account.id) === id,
@@ -324,6 +326,7 @@ export default function PaymentPage({
 
     return (
         <div className="text-[#2d261f] [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-[#b08a52]">
+            {deadlineInstructions && <p className="mx-auto mb-5 max-w-[1100px] rounded-lg border border-[#e3d9cb] bg-[#fffdf8] p-4 text-sm">{deadlineInstructions}</p>}
             {latestPayment?.status === "rejected" && <div role="status" className="mx-auto mb-5 max-w-[1100px] rounded-lg border border-[#e7bbb6] bg-[#f7e6e3] p-4 text-xs text-[#a44b45]">
                 <b>Payment proof rejected.</b> {latestPayment.review_note || "Contact the resort for the review reason."}{" "}
                 {canPay ? "You can submit a new payment proof before the updated deadline. Previously submitted transfer references cannot be reused." : "Check your current reservation status and deposit deadline before resubmitting."}

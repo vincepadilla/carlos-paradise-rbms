@@ -42,6 +42,11 @@ export default function App() {
             <AdminRoutes />
           </Suspense>
         } />
+        <Route path="/owner/*" element={
+          <Suspense fallback={<p role="status" className="p-10 text-center">Loading…</p>}>
+            <AdminRoutes portal="owner" />
+          </Suspense>
+        } />
         <Route path="/make-reservation" element={<ReservationRoute />} />
         <Route
           path="/dashboard"
