@@ -16,6 +16,7 @@ import {
     validateLogin,
     type LoginErrors,
 } from "../components/auth/AuthValidation";
+import { readVerification, savePendingVerification } from "../services/EmailVerification";
 
 async function readJson(response: Response): Promise<Record<string, unknown> | null> {
     const payload: unknown = await response.json().catch(() => null);
@@ -106,6 +107,16 @@ export default function LoginPage() {
 
             if (!response.ok) {
                 recaptchaRef.current?.reset();
+
+                if (response.status === 409) {
+                    const verification = readVerification(data?.verification);
+                    if (verification) {
+                        savePendingVerification(verification);
+                        setPassword("");
+                        navigate("/verify-email");
+                        return;
+                    }
+                }
 
                 if (response.status === 422 && data?.errors &&
                     typeof data.errors === "object") {

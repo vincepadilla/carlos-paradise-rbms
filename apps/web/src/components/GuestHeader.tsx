@@ -39,6 +39,7 @@ export default function GuestHeader({
     const [loggingOut, setLoggingOut] = useState(false);
     const [logoutError, setLogoutError] = useState("");
     const accountRef = useRef<HTMLDivElement>(null);
+    const menuButtonRef = useRef<HTMLButtonElement>(null);
     useEffect(() => {
         if (!accountMenu) return;
 
@@ -62,6 +63,23 @@ export default function GuestHeader({
             document.removeEventListener("keydown", closeWithEscape);
         };
     }, [accountMenu]);
+    useEffect(() => {
+        if (!menu) return;
+        function closeMobileMenu(event: KeyboardEvent) {
+            if (event.key === "Escape") {
+                setMenu(false);
+                menuButtonRef.current?.focus();
+            }
+        }
+        document.addEventListener("keydown", closeMobileMenu);
+        return () => document.removeEventListener("keydown", closeMobileMenu);
+    }, [menu]);
+    useEffect(() => {
+        const desktop = window.matchMedia("(min-width: 1100px)");
+        const closeAtDesktop = (event: MediaQueryListEvent) => { if (event.matches) setMenu(false); };
+        desktop.addEventListener("change", closeAtDesktop);
+        return () => desktop.removeEventListener("change", closeAtDesktop);
+    }, []);
 
     async function logout() {
         if (loggingOut) return;
@@ -85,7 +103,7 @@ export default function GuestHeader({
     ];
     return (
         <>
-            <header className="sticky top-0 z-30 grid min-h-[78px] grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-[#e3d9cb] bg-[#fffdf8] px-4 shadow-[0_6px_24px_rgba(63,47,33,0.05)] min-[1100px]:gap-7 min-[1100px]:px-[3vw]">
+            <header className="sticky top-0 z-30 grid min-h-[78px] w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-visible border-b border-[#e3d9cb] bg-[#fffdf8] px-3 shadow-[0_6px_24px_rgba(63,47,33,0.05)] sm:gap-3 sm:px-4 min-[1100px]:gap-7 min-[1100px]:px-[3vw]">
                 <a
                     className="inline-flex items-center gap-2.5 text-left text-[#4c3425] no-underline [&>span:last-child]:flex [&>span:last-child]:flex-col [&>span:last-child]:leading-none [&_b]:font-serif [&_b]:text-[17px] [&_b]:font-normal [&_strong]:mt-1 [&_strong]:text-[11px] [&_strong]:uppercase [&_strong]:tracking-[0.15em]"
                     href="/"
@@ -178,33 +196,42 @@ export default function GuestHeader({
                     )}
                 </div>
                 <button
+                    ref={menuButtonRef}
                     type="button"
-                    className="grid size-10 place-items-center rounded-lg border border-[#e3d9cb] bg-[#f6f1e7] text-[#4c3425] min-[1100px]:hidden"
-                    aria-label="Toggle guest navigation"
+                    className="grid size-11 shrink-0 place-items-center rounded-lg border border-[#e3d9cb] bg-[#f6f1e7] text-[#4c3425] outline-none hover:bg-[#eee5d8] focus-visible:ring-2 focus-visible:ring-[#b08a52] focus-visible:ring-offset-2 min-[1100px]:hidden"
+                    aria-label={menu ? "Close guest navigation" : "Open guest navigation"}
                     aria-expanded={menu}
-                    onClick={() => setMenu(!menu)}
+                    aria-controls="guest-mobile-navigation"
+                    onClick={() => { setMenu((open) => !open); setAccountMenu(false); }}
                 >
-                    <Icon name="menu" />
+                    <Icon name={menu ? "close" : "menu"} />
                 </button>
             </header>
             {menu && (
                 <nav
-                    className="flex flex-wrap gap-3 border-b border-[#e3d9cb] bg-[#fffdf8] p-4 [&>button]:border-0 [&>button]:bg-transparent [&>button]:text-[#4c3425] [&>a]:font-bold"
+                    id="guest-mobile-navigation"
+                    className="relative z-20 grid w-full max-w-full grid-cols-1 gap-1 overflow-x-hidden border-b border-[#e3d9cb] bg-[#fffdf8] p-3 shadow-[0_10px_24px_rgba(63,47,33,0.08)] min-[1100px]:hidden [&>a]:min-h-11 [&>a]:w-full [&>a]:items-center [&>a]:gap-3 [&>a]:rounded-lg [&>a]:px-4 [&>a]:text-sm [&>a]:font-bold [&>a]:text-[#4c3425] [&>a]:no-underline [&>button]:min-h-11 [&>button]:w-full [&>button]:items-center [&>button]:gap-3 [&>button]:rounded-lg [&>button]:border-0 [&>button]:bg-transparent [&>button]:px-4 [&>button]:text-left [&>button]:text-sm [&>button]:font-bold [&>button]:text-[#4c3425] [&>button]:outline-none [&>button:hover]:bg-[#f6f1e7] [&>button:focus-visible]:ring-2 [&>button:focus-visible]:ring-[#b08a52] [&>button:focus-visible]:ring-offset-1"
                     aria-label="Guest navigation"
                 >
-                    {links.map(([label]) => (
+                    {links.map(([label, icon]) => (
                         <button
                             type="button"
                             key={label}
+                            className={`flex ${label === activeLabel ? "bg-[#e8eee5]!" : ""}`}
+                            aria-current={label === activeLabel ? "page" : undefined}
                             onClick={() => {
                                 setMenu(false);
                                 openPage(label);
                             }}
                         >
+                            <Icon name={icon} size={18} />
                             {label}
                         </button>
                     ))}
-                    <a href="/">Back to Main Site</a>
+                    <a className="flex outline-none hover:bg-[#f6f1e7] focus-visible:ring-2 focus-visible:ring-[#b08a52] focus-visible:ring-offset-1" href="/" onClick={() => setMenu(false)}>
+                        <Icon name="arrow" size={18} />
+                        Back to Main Site
+                    </a>
                 </nav>
             )}
             {notice && (

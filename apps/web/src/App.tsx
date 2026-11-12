@@ -6,6 +6,7 @@ import VillaPage from "./pages/VillaPage";
 
 import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
+import EmailVerificationPage from "./pages/EmailVerificationPage";
 import ReservationRoute from "./pages/ReservationRoute";
 import { apiBaseUrl } from "./services/ReservationApi";
 
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/villa" element={<VillaPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<SignupPage />} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/admin/*" element={
           <Suspense fallback={<p role="status" className="p-10 text-center">Loading…</p>}>
             <AdminRoutes />

@@ -27,6 +27,8 @@ import {
     normalizeContactNumber,
 } from "../utils/contactNumber";
 
+import AvailabilityDateRangePicker from '../components/reservations/AvailabilityDateRangePicker';
+
 export default function MakeReservationPage({
     user: initialUser,
     settings,
@@ -85,6 +87,10 @@ export default function MakeReservationPage({
     const [waitAcknowledged, setWaitAcknowledged] = useState(false);
     const [saved, setSaved] = useState<SavedReservation | null>(null);
     const [busy, setBusy] = useState(false);
+    const [availabilityBusy, setAvailabilityBusy] = useState(false);
+    const [availabilityError, setAvailabilityError] = useState('');
+    const [datePickerTarget, setDatePickerTarget] = useState<'checkin' | 'checkout' | null>(null);
+    const availabilitySequence = useRef(0);
     const busyRef = useRef(false);
     const requestKey = useRef<{ fingerprint: string; key: string } | null>(null);
     const [serverResult, setServerResult] = useState<
@@ -99,6 +105,8 @@ export default function MakeReservationPage({
     const today = new Date(`${todayString}T12:00:00`);
     const earliest = new Date(today);
     earliest.setDate(earliest.getDate() + settings.min_lead_days);
+    const latest = new Date(today);
+    latest.setFullYear(latest.getFullYear() + 2);
     const inputDate = (date: Date) =>
         `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     const parseDate = (value: string) => new Date(`${value}T12:00:00`);
@@ -200,6 +208,7 @@ export default function MakeReservationPage({
         contact_phone: contact.trim(),
     };
     const fingerprint = JSON.stringify(payload);
+    const earliestValue = inputDate(earliest);
     const checked =
         serverResult?.fingerprint === fingerprint ? serverResult : null;
     if (checked) {
@@ -216,6 +225,7 @@ export default function MakeReservationPage({
             ? "unavailable"
             : checked?.availability || "unchecked";
     const blockedConflict = availability === "unavailable";
+    const checkoutInvalid = blockedConflict;
     const handleError = (cause: unknown) => {
         if (cause instanceof ReservationApiError && cause.status === 401)
             setError(
@@ -237,6 +247,37 @@ export default function MakeReservationPage({
         setServerResult({ ...data, fingerprint });
         return data;
     }
+    useEffect(() => {
+        const request = ++availabilitySequence.current;
+        const start = Date.parse(`${checkin}T${checkinTime}:00+08:00`);
+        const end = Date.parse(`${checkout}T${checkoutTime}:00+08:00`);
+        const valid = checkin >= earliestValue && checkout !== '' && end > start && end - start <= 30 * 86400000
+            && (reservationType === 'Day Tour' ? checkout === checkin : checkout > checkin);
+        if (!valid) {
+            setAvailabilityBusy(false);
+            setAvailabilityError('');
+            return;
+        }
+        const controller = new AbortController();
+        setAvailabilityBusy(true);
+        setAvailabilityError('');
+        const requestPayload = JSON.parse(fingerprint) as typeof payload;
+        const timer = window.setTimeout(() => {
+            reservationApi<QuoteResponse>('/quote', 'POST', requestPayload, controller.signal)
+                .then((data) => {
+                    if (request === availabilitySequence.current) setServerResult({ ...data, fingerprint });
+                })
+                .catch((cause: unknown) => {
+                    if (!controller.signal.aborted && request === availabilitySequence.current)
+                        setAvailabilityError(cause instanceof Error ? cause.message : 'Selected-stay availability could not be checked.');
+                })
+                .finally(() => {
+                    if (request === availabilitySequence.current) setAvailabilityBusy(false);
+                });
+        }, 250);
+        return () => { window.clearTimeout(timer); controller.abort(); };
+    }, [fingerprint, checkin, checkinTime, checkout, checkoutTime, reservationType, earliestValue]);
+
     async function next() {
         if (busyRef.current) return;
         setError("");
@@ -725,58 +766,23 @@ export default function MakeReservationPage({
                                         )}
                                     </fieldset>
                                     <div className="mb-4 grid grid-cols-1 gap-x-[18px] sm:grid-cols-2">
-                                        <label className="mb-[17px] flex flex-col gap-2 text-xs font-bold text-[#2d261f] [&>span>i]:ml-1 [&>span>i]:font-normal [&>span>i]:not-italic [&>span>i]:text-[#776f65] [&_input]:w-full [&_input]:min-h-[47px] [&_input]:rounded-lg [&_input]:border [&_input]:border-[#e3d9cb] [&_input]:bg-white [&_input]:px-[13px] [&_input]:font-medium [&_input]:text-[#2d261f] [&_input]:outline-none [&_input:focus]:border-[#b08a52] [&_input:focus]:ring-2 [&_input:focus]:ring-[#b08a52]/15 [&_select]:w-full [&_select]:min-h-[47px] [&_select]:rounded-lg [&_select]:border [&_select]:border-[#e3d9cb] [&_select]:bg-white [&_select]:px-[13px] [&_select]:font-medium [&_select]:text-[#2d261f] [&_select]:outline-none [&_select:focus]:border-[#b08a52] [&_select:focus]:ring-2 [&_select:focus]:ring-[#b08a52]/15 [&_textarea]:w-full [&_textarea]:min-h-[47px] [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-[#e3d9cb] [&_textarea]:bg-white [&_textarea]:px-[13px] [&_textarea]:font-medium [&_textarea]:text-[#2d261f] [&_textarea]:outline-none [&_textarea:focus]:border-[#b08a52] [&_textarea:focus]:ring-2 [&_textarea:focus]:ring-[#b08a52]/15 [&_textarea]:min-h-40 [&_textarea]:resize-y [&_textarea]:pt-3.5">
+                                        <div className="mb-[17px] flex flex-col gap-2 text-xs font-bold text-[#2d261f]">
                                             <span>Check-in Date</span>
-                                            <input
-                                                className={
-                                                    availability === "unavailable"
-                                                        ? "border-[#a44b45]! bg-[#f7e6e3]!"
-                                                        : ""
-                                                }
-                                                type="date"
-                                                min={inputDate(earliest)}
-                                                value={checkin}
-                                                onChange={(e) => {
-                                                    const value = e.target.value;
-                                                    setCheckin(value);
-                                                    setWaitAcknowledged(false);
-                                                    if (value) {
-                                                        if (reservationType === "Day Tour") {
-                                                            setCheckout(value);
-                                                        } else {
-                                                            const nextDay = parseDate(value);
-                                                            nextDay.setDate(nextDay.getDate() + 1);
-                                                            setCheckout(inputDate(nextDay));
-                                                        }
-                                                    } else setCheckout("");
-                                                    setError("");
-                                                }}
-                                            />
-                                        </label>
-                                        <label className="mb-[17px] flex flex-col gap-2 text-xs font-bold text-[#2d261f] [&>span>i]:ml-1 [&>span>i]:font-normal [&>span>i]:not-italic [&>span>i]:text-[#776f65] [&_input]:w-full [&_input]:min-h-[47px] [&_input]:rounded-lg [&_input]:border [&_input]:border-[#e3d9cb] [&_input]:bg-white [&_input]:px-[13px] [&_input]:font-medium [&_input]:text-[#2d261f] [&_input]:outline-none [&_input:focus]:border-[#b08a52] [&_input:focus]:ring-2 [&_input:focus]:ring-[#b08a52]/15 [&_select]:w-full [&_select]:min-h-[47px] [&_select]:rounded-lg [&_select]:border [&_select]:border-[#e3d9cb] [&_select]:bg-white [&_select]:px-[13px] [&_select]:font-medium [&_select]:text-[#2d261f] [&_select]:outline-none [&_select:focus]:border-[#b08a52] [&_select:focus]:ring-2 [&_select:focus]:ring-[#b08a52]/15 [&_textarea]:w-full [&_textarea]:min-h-[47px] [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-[#e3d9cb] [&_textarea]:bg-white [&_textarea]:px-[13px] [&_textarea]:font-medium [&_textarea]:text-[#2d261f] [&_textarea]:outline-none [&_textarea:focus]:border-[#b08a52] [&_textarea:focus]:ring-2 [&_textarea:focus]:ring-[#b08a52]/15 [&_textarea]:min-h-40 [&_textarea]:resize-y [&_textarea]:pt-3.5">
+                                            <button type="button" aria-haspopup="dialog" onClick={() => setDatePickerTarget('checkin')}
+                                                className={`min-h-[47px] w-full rounded-lg border bg-white px-[13px] text-left font-medium outline-none transition focus:border-[#b08a52] focus:ring-2 focus:ring-[#b08a52]/15 ${blockedConflict ? 'border-[#a44b45] bg-[#f7e6e3]' : 'border-[#e3d9cb]'}`}>
+                                                {checkinDate ? prettyDate(checkinDate) : 'Select check-in date'}
+                                            </button>
+                                        </div>
+                                        <div className="mb-[17px] flex flex-col gap-2 text-xs font-bold text-[#2d261f]">
                                             <span>Check-out Date</span>
-                                            <input
-                                                className={
-                                                    availability === "unavailable"
-                                                        ? "border-[#a44b45]! bg-[#f7e6e3]!"
-                                                        : ""
-                                                }
-                                                type="date"
-                                                min={
-                                                    reservationType === "Day Tour" && checkin
-                                                        ? checkin
-                                                        : earliestCheckout
-                                                            ? inputDate(earliestCheckout)
-                                                            : inputDate(earliest)
-                                                }
-                                                value={checkout}
-                                                onChange={(e) => {
-                                                    setCheckout(e.target.value);
-                                                    setWaitAcknowledged(false);
-                                                    setError("");
-                                                }}
-                                            />
-                                        </label>
+                                            <button type="button" aria-haspopup="dialog" onClick={() => setDatePickerTarget('checkout')}
+                                                className={`min-h-[47px] w-full rounded-lg border bg-white px-[13px] text-left font-medium outline-none transition focus:border-[#b08a52] focus:ring-2 focus:ring-[#b08a52]/15 ${blockedConflict ? 'border-[#a44b45] bg-[#f7e6e3]' : 'border-[#e3d9cb]'}`}>
+                                                {checkoutDate ? prettyDate(checkoutDate) : 'Select check-out date'}
+                                            </button>
+                                            {checkoutInvalid && <small role="alert" className="text-[#a44b45]">The selected stay is no longer available. Please select a new date range.</small>}
+                                        </div>
+                                        {availabilityBusy && checkin && checkout && <small aria-live="polite" className="-mt-3 mb-4 sm:col-span-2">Checking the selected stay interval…</small>}
+                                        {!availabilityBusy && availabilityError && <small role="alert" className="-mt-3 mb-4 text-[#a44b45] sm:col-span-2">{availabilityError}</small>}
                                         <label className="mb-[17px] flex flex-col gap-2 text-xs font-bold text-[#2d261f] [&>span>i]:ml-1 [&>span>i]:font-normal [&>span>i]:not-italic [&>span>i]:text-[#776f65] [&_input]:w-full [&_input]:min-h-[47px] [&_input]:rounded-lg [&_input]:border [&_input]:border-[#e3d9cb] [&_input]:bg-white [&_input]:px-[13px] [&_input]:font-medium [&_input]:text-[#2d261f] [&_input]:outline-none [&_input:focus]:border-[#b08a52] [&_input:focus]:ring-2 [&_input:focus]:ring-[#b08a52]/15 [&_select]:w-full [&_select]:min-h-[47px] [&_select]:rounded-lg [&_select]:border [&_select]:border-[#e3d9cb] [&_select]:bg-white [&_select]:px-[13px] [&_select]:font-medium [&_select]:text-[#2d261f] [&_select]:outline-none [&_select:focus]:border-[#b08a52] [&_select:focus]:ring-2 [&_select:focus]:ring-[#b08a52]/15 [&_textarea]:w-full [&_textarea]:min-h-[47px] [&_textarea]:rounded-lg [&_textarea]:border [&_textarea]:border-[#e3d9cb] [&_textarea]:bg-white [&_textarea]:px-[13px] [&_textarea]:font-medium [&_textarea]:text-[#2d261f] [&_textarea]:outline-none [&_textarea:focus]:border-[#b08a52] [&_textarea:focus]:ring-2 [&_textarea:focus]:ring-[#b08a52]/15 [&_textarea]:min-h-40 [&_textarea]:resize-y [&_textarea]:pt-3.5">
                                             <span>Check-in Time</span>
                                             <input
@@ -1522,7 +1528,7 @@ export default function MakeReservationPage({
                                     <span />
                                 )}
                                 {step < 4 ? (
-                                    <Button disabled={busy} onClick={() => void next()}>
+                                    <Button disabled={busy || availabilityBusy || checkoutInvalid} onClick={() => void next()}>
                                         {busy ? "Checking availability…" : "Continue"}{" "}
                                         <Icon name="arrow" />
                                     </Button>
@@ -1610,6 +1616,27 @@ export default function MakeReservationPage({
                     )}
                 </div>
             </div>
+            {datePickerTarget && (
+                <AvailabilityDateRangePicker
+                    initialCheckin={checkin}
+                    initialCheckout={checkout}
+                    initialSelection={datePickerTarget}
+                    earliest={inputDate(earliest)}
+                    latest={inputDate(latest)}
+                    reservationType={reservationType === 'Day Tour' ? 'day_tour' : 'overnight'}
+                    durationDays={reservationType === 'Day Tour' ? 0 : Math.max(1, nights)}
+                    checkinTime={checkinTime}
+                    checkoutTime={checkoutTime}
+                    onClose={() => setDatePickerTarget(null)}
+                    onApply={(nextCheckin, nextCheckout) => {
+                        setCheckin(nextCheckin);
+                        setCheckout(nextCheckout);
+                        setWaitAcknowledged(false);
+                        setError('');
+                        setDatePickerTarget(null);
+                    }}
+                />
+            )}
         </div>
     );
 }

@@ -39,7 +39,8 @@ class ContactNumberValidationTest extends TestCase
 
         $this->postJson('/api/register', $payload)
             ->assertCreated()
-            ->assertJsonPath('user.email', $payload['email']);
+            ->assertJsonPath('verification.masked_email', 'co••••••••••@example.test')
+            ->assertJsonMissingPath('user.id');
 
         $this->assertDatabaseHas('users', [
             'email' => $payload['email'],

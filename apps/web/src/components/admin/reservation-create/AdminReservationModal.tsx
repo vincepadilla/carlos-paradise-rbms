@@ -9,13 +9,14 @@ type GuestMode = 'existing' | 'new';
 type StayType = 'overnight' | 'day_tour';
 type Draft = {
     guestMode: GuestMode; guestId: number | null; guestName: string; contactNumber: string; email: string; inquirySource: string;
-    stayType: StayType; checkInDate: string; duration: number; checkInTime: string; checkOutDate: string; checkOutTime: string;
+    stayType: StayType; checkInDate: string; checkInTime: string; checkOutDate: string; checkOutTime: string;
     adults: number; children: number; pets: number; bonfireWood: number; charcoal: number; liquor: number; specialRequests: string;
 };
 
 const steps = ['Guest', 'Stay', 'Details', 'Review'] as const;
-function localDate(offset = 0) { const date = new Date(); date.setDate(date.getDate() + offset); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+function localDate(offset = 0) { const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()); return addDays(today, offset); }
 function addDays(value: string, days: number) { if (!value) return ''; const [year, month, day] = value.split('-').map(Number); const date = new Date(year, month - 1, day + days); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; }
+function daysBetween(start: string, end: string) { if (!start || !end) return 0; return Math.round((Date.parse(`${end}T12:00:00Z`) - Date.parse(`${start}T12:00:00Z`)) / 86400000); }
 function displayDate(value: string) { if (!value) return 'Not provided'; const [year, month, day] = value.split('-').map(Number); return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(year, month - 1, day)); }
 function displayTime(value: string) { if (!value) return 'Not provided'; const [hour, minute] = value.split(':').map(Number); return new Intl.DateTimeFormat('en-PH', { hour: 'numeric', minute: '2-digit' }).format(new Date(2020, 0, 1, hour, minute)); }
 function money(value: number) { return new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value); }
@@ -24,7 +25,7 @@ function Field({ label, children, full = false, error }: { label: string; childr
 
 const initialDraft: Draft = {
     guestMode: 'existing', guestId: null, guestName: '', contactNumber: '', email: '', inquirySource: '', stayType: 'overnight',
-    checkInDate: localDate(2), duration: 1, checkInTime: '14:00', checkOutDate: localDate(3), checkOutTime: '11:00',
+    checkInDate: localDate(2), checkInTime: '14:00', checkOutDate: localDate(3), checkOutTime: '11:00',
     adults: 1, children: 0, pets: 0, bonfireWood: 0, charcoal: 0, liquor: 0, specialRequests: '',
 };
 
@@ -35,6 +36,8 @@ export default function AdminReservationModal({ onClose, onCreated }: { onClose:
     const [draft, setDraft] = useState<Draft>(initialDraft);
     const [options, setOptions] = useState<ReservationCreationOptions | null>(null);
     const [preview, setPreview] = useState<ReservationCreationPreview | null>(null);
+    const [stayApproval, setStayApproval] = useState<ReservationCreationPreview | null>(null);
+    const [waitAcknowledged, setWaitAcknowledged] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [message, setMessage] = useState('');
     const [busy, setBusy] = useState(false);
@@ -66,8 +69,14 @@ export default function AdminReservationModal({ onClose, onCreated }: { onClose:
         return () => { window.clearTimeout(timer); controller.abort(); };
     }, [draft.guestMode, guestSearch]);
 
+    const invalidateStayApproval = () => {
+        setStayApproval(null); setWaitAcknowledged(false); setPreview(null); setMessage('');
+    };
     const update = <K extends keyof Draft>(key: K, value: Draft[K]) => {
         setDraft(current => ({ ...current, [key]: value })); setPreview(null); setMessage('');
+        if (key === 'checkInDate' || key === 'checkOutDate' || key === 'checkInTime' || key === 'checkOutTime' || key === 'stayType') {
+            setStayApproval(null); setWaitAcknowledged(false);
+        }
         setErrors(current => { const next = { ...current }; delete next[key]; return next; });
     };
     const selectGuest = (guest: ReservationCreationGuest) => {
@@ -80,8 +89,19 @@ export default function AdminReservationModal({ onClose, onCreated }: { onClose:
     };
     const chooseStay = (type: StayType) => {
         const configured = options?.stay_options.find(item => item.value === type);
-        setDraft(current => ({ ...current, stayType: type, duration: type === 'day_tour' ? 1 : Math.max(1, current.duration), checkInTime: configured?.checkin_time ?? current.checkInTime, checkOutTime: configured?.checkout_time ?? current.checkOutTime, checkOutDate: addDays(current.checkInDate, type === 'day_tour' ? 0 : Math.max(1, current.duration)) }));
-        setPreview(null); setErrors({}); setMessage('');
+        setDraft(current => {
+            const duration = Math.max(1, daysBetween(current.checkInDate, current.checkOutDate));
+            return { ...current, stayType: type, checkInTime: configured?.checkin_time ?? current.checkInTime, checkOutTime: configured?.checkout_time ?? current.checkOutTime, checkOutDate: addDays(current.checkInDate, type === 'day_tour' ? 0 : duration) };
+        });
+        invalidateStayApproval(); setErrors({});
+    };
+    const changeCheckInDate = (value: string) => {
+        setDraft(current => {
+            const duration = Math.max(1, daysBetween(current.checkInDate, current.checkOutDate));
+            return { ...current, checkInDate: value, checkOutDate: addDays(value, current.stayType === 'day_tour' ? 0 : duration) };
+        });
+        invalidateStayApproval();
+        setErrors(current => { const next = { ...current }; delete next.checkin; delete next.checkout; return next; });
     };
     const payload = (): Record<string, unknown> => ({
         guest_mode: draft.guestMode, guest_id: draft.guestId, contact_name: draft.guestName.trim(), contact_email: draft.email.trim(), contact_phone: draft.contactNumber.trim(), inquiry_source: draft.inquirySource,
@@ -108,16 +128,54 @@ export default function AdminReservationModal({ onClose, onCreated }: { onClose:
         if (step === 1) {
             if (!draft.checkInDate) next.checkin = 'Select a check-in date.';
             if (!draft.checkOutDate) next.checkout = 'Select a check-out date.';
-            if (draft.duration < 1) next.duration = 'Duration must be at least 1.';
+            if (!draft.checkInTime) next.checkin_time = 'Select a check-in time.';
+            if (!draft.checkOutTime) next.checkout_time = 'Select a check-out time.';
+            if (draft.checkInDate && draft.checkOutDate) {
+                if (draft.stayType === 'day_tour' && draft.checkOutDate !== draft.checkInDate) next.checkout = 'Day tours must check out on the check-in date.';
+                if (draft.stayType === 'overnight' && draft.checkOutDate <= draft.checkInDate) next.checkout = 'Overnight checkout must be after check-in.';
+                if (daysBetween(draft.checkInDate, draft.checkOutDate) > 30) next.checkout = 'The stay cannot exceed 30 days.';
+            }
+            if (draft.checkInDate && draft.checkOutDate && draft.checkInTime && draft.checkOutTime) {
+                const start = Date.parse(`${draft.checkInDate}T${draft.checkInTime}:00+08:00`);
+                const end = Date.parse(`${draft.checkOutDate}T${draft.checkOutTime}:00+08:00`);
+                if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) next.checkout_time = 'Check-out must be after check-in.';
+            }
         }
         if (step === 2 && draft.adults < 1) next.adults = 'At least one adult is required.';
         setErrors(next); return Object.keys(next).length === 0;
     };
     const continueToNext = async (event: FormEvent) => {
         event.preventDefault(); if (!localValid()) return;
-        if (step < 2) { setStep(current => (current + 1) as Step); return; }
+        if (step === 0) { setStep(1); return; }
         setBusy(true); setMessage('');
-        try { const result = await AdminApi.previewReservationCreation(payload()); setPreview(result); setStep(3); }
+        try {
+            const result = await AdminApi.previewReservationCreation(payload());
+            if (step === 1) {
+                setStayApproval(result);
+                if (result.availability === 'blocked') {
+                    setMessage('The complete stay overlaps a confirmed booking or active availability block. Please choose different dates or times.');
+                    return;
+                }
+                if (result.availability === 'queue') {
+                    if (!waitAcknowledged) return;
+                    setStep(2);
+                    return;
+                }
+                setStep(2);
+                return;
+            }
+            if (result.availability === 'blocked') {
+                setStayApproval(result); setWaitAcknowledged(false); setStep(1);
+                setMessage('Availability changed. Please choose different dates or times.');
+                return;
+            }
+            if (result.availability === 'queue' && !waitAcknowledged) {
+                setStayApproval(result); setStep(1);
+                setMessage('Availability changed. Acknowledge Wait for Availability before continuing.');
+                return;
+            }
+            setPreview(result); setStep(3);
+        }
         catch (cause) { applyError(cause); }
         finally { setBusy(false); }
     };
@@ -125,17 +183,23 @@ export default function AdminReservationModal({ onClose, onCreated }: { onClose:
         if (!preview || preview.availability === 'blocked' || busy) return;
         setBusy(true); setMessage('');
         try {
-            const result = await AdminApi.createReservation({ ...payload(), request_key: requestKey.current, expected_total: preview.quote.total, queue_acknowledged: preview.availability === 'queue' });
+            const result = await AdminApi.createReservation({ ...payload(), request_key: requestKey.current, expected_total: preview.quote.total, queue_acknowledged: preview.availability === 'queue' && waitAcknowledged });
             onCreated(result.reservation.id);
-        } catch (cause) { applyError(cause); }
+        } catch (cause) {
+            if (cause instanceof ReservationApiError && cause.errors?.dates) {
+                setPreview(null); setStayApproval(null); setWaitAcknowledged(false); setStep(1);
+            }
+            applyError(cause);
+        }
         finally { setBusy(false); }
     };
+    const derivedDuration = draft.stayType === 'day_tour' ? 1 : Math.max(0, daysBetween(draft.checkInDate, draft.checkOutDate));
     const services = [draft.bonfireWood ? quantity(draft.bonfireWood, 'bonfire wood bundle') : '', draft.charcoal ? quantity(draft.charcoal, 'charcoal quantity') : '', draft.liquor ? `${quantity(draft.liquor, 'liquor item')} at ${money(options?.rates.liquor ?? 0)} each` : ''].filter(Boolean);
 
     return <dialog ref={dialogRef} className='admin-create-dialog' aria-labelledby='admin-create-title' onCancel={event => { event.preventDefault(); onClose(); }} onClose={onClose}>
         <div className='admin-create-modal'>
             <header className='admin-create-header'><div><span className='admin-create-eyebrow'>Staff-created reservation</span><h2 id='admin-create-title'>Make a Reservation</h2><p>Create a reservation on behalf of a guest.</p></div><div className='admin-create-header-actions'><span className='admin-create-badge'>Admin creating</span><button type='button' className='admin-create-close' onClick={onClose} aria-label='Close reservation form'>x</button></div></header>
-            <ol className='admin-create-progress' aria-label='Reservation creation progress'>{steps.map((label, index) => <li key={label} className={index < step ? 'complete' : index === step ? 'current' : ''} aria-current={index === step ? 'step' : undefined}><span>{index < step ? 'Done' : index + 1}</span><b>{label}</b></li>)}</ol>
+            <ol className='admin-create-progress' aria-label='Reservation creation progress'>{steps.map((label, index) => <li key={label} className={index < step ? 'complete' : index === step ? 'current' : ''} aria-current={index === step ? 'step' : undefined}><span aria-label={index < step ? `${label} completed` : undefined}>{index < step ? '✓' : index + 1}</span><b>{label}</b></li>)}</ol>
             <form className='admin-create-body' onSubmit={continueToNext} noValidate>
                 {!options && <section className='admin-create-loading' aria-live='polite'>{message || 'Loading reservation settings...'}</section>}
                 {options && step === 0 && <section aria-labelledby='admin-create-guest'>
@@ -148,7 +212,17 @@ export default function AdminReservationModal({ onClose, onCreated }: { onClose:
                 {options && step === 1 && <section aria-labelledby='admin-create-stay'>
                     <div className='admin-create-section-title'><span>02</span><div><h3 id='admin-create-stay'>Stay</h3><p>Choose the reservation type and schedule in Asia/Manila.</p></div></div>
                     <fieldset className='admin-create-choice admin-create-field-full'><legend>Stay Type</legend>{options.stay_options.map(item => <label key={item.value} className={draft.stayType === item.value ? 'selected' : ''}><input type='radio' name='stay-type' checked={draft.stayType === item.value} onChange={() => chooseStay(item.value)} /><span><b>{item.label}</b><small>{displayTime(item.checkin_time)} to {displayTime(item.checkout_time)}</small></span></label>)}</fieldset>
-                    <div className='admin-create-grid'><Field label='Check-in Date' error={errors.checkin}><input autoFocus type='date' min={localDate(options.limits.min_lead_days)} value={draft.checkInDate} onChange={event => { const value = event.target.value; setDraft(current => ({ ...current, checkInDate: value, checkOutDate: addDays(value, current.stayType === 'day_tour' ? 0 : current.duration) })); setPreview(null); }} aria-invalid={Boolean(errors.checkin)} /></Field><Field label='Stay Duration' error={errors.duration}><input type='number' min='1' max='30' value={draft.duration} onChange={event => { const value = Math.max(1, Number(event.target.value) || 1); setDraft(current => ({ ...current, duration: value, checkOutDate: addDays(current.checkInDate, current.stayType === 'day_tour' ? 0 : value) })); setPreview(null); }} disabled={draft.stayType === 'day_tour'} /></Field><Field label='Check-in Time' error={errors.checkin_time}><input type='time' value={draft.checkInTime} onChange={event => update('checkInTime', event.target.value)} readOnly={draft.stayType === 'overnight'} /></Field><Field label='Check-out Date' error={errors.checkout}><input type='date' value={draft.checkOutDate} onChange={event => update('checkOutDate', event.target.value)} readOnly={draft.stayType === 'day_tour'} /></Field><Field label='Check-out Time' error={errors.checkout_time}><input type='time' value={draft.checkOutTime} onChange={event => update('checkOutTime', event.target.value)} readOnly={draft.stayType === 'overnight'} /></Field></div>
+                    <div className='admin-create-grid'>
+                        <Field label='Check-in Date' error={errors.checkin}><input autoFocus type='date' min={localDate(options.limits.min_lead_days)} value={draft.checkInDate} onChange={event => changeCheckInDate(event.target.value)} aria-invalid={Boolean(errors.checkin)} /></Field>
+                        <Field label='Check-out Date' error={errors.checkout}><input type='date' min={draft.stayType === 'day_tour' ? draft.checkInDate : addDays(draft.checkInDate, 1)} value={draft.checkOutDate} onChange={event => update('checkOutDate', event.target.value)} readOnly={draft.stayType === 'day_tour'} aria-invalid={Boolean(errors.checkout)} /></Field>
+                        <Field label='Check-in Time' error={errors.checkin_time}><input type='time' value={draft.checkInTime} onChange={event => update('checkInTime', event.target.value)} readOnly={draft.stayType === 'overnight'} aria-invalid={Boolean(errors.checkin_time)} /></Field>
+                        <Field label='Check-out Time' error={errors.checkout_time}><input type='time' value={draft.checkOutTime} onChange={event => update('checkOutTime', event.target.value)} readOnly={draft.stayType === 'overnight'} aria-invalid={Boolean(errors.checkout_time)} /></Field>
+                    </div>
+                    {stayApproval?.availability === 'queue' && <div className='admin-create-opportunity' role='status'>
+                        <b>Availability Notice — Reservation opportunity conflict</b>
+                        <p>An unpaid reservation currently has an active opportunity for this stay. This staff-created request can continue through the supported waiting queue without displacing it.</p>
+                        <label><input type='checkbox' checked={waitAcknowledged} onChange={event => { setWaitAcknowledged(event.target.checked); setMessage(''); }} /> <span><strong>Wait for Availability</strong><small>I acknowledge that this request will join the waiting queue.</small></span></label>
+                    </div>}
                 </section>}
                 {options && step === 2 && <section aria-labelledby='admin-create-details'>
                     <div className='admin-create-section-title'><span>03</span><div><h3 id='admin-create-details'>Details</h3><p>Add guest counts, configured services, and requests.</p></div></div>
@@ -157,10 +231,10 @@ export default function AdminReservationModal({ onClose, onCreated }: { onClose:
                 {options && step === 3 && preview && <section aria-labelledby='admin-create-review'>
                     <div className='admin-create-section-title'><span>04</span><div><h3 id='admin-create-review'>Review</h3><p>Server-validated details, pricing, and availability.</p></div></div>
                     <div className={`admin-create-availability admin-create-availability-${preview.availability}`}><b>{preview.availability === 'available' ? 'Available' : preview.availability === 'queue' ? `Waiting queue - estimated position ${preview.queue_position ?? '-'}` : 'Unavailable'}</b><span>{preview.availability === 'available' ? 'Availability will be checked again when saving.' : preview.availability === 'queue' ? 'This request will follow the existing deposit opportunity queue.' : 'Choose another schedule before saving.'}</span></div>
-                    <div className='admin-create-review-grid'><article><h4>Guest</h4><strong>{draft.guestName}</strong><p>{draft.contactNumber}<br />{draft.email}</p><small>{draft.guestMode === 'existing' ? `Existing guest account #${preview.guest.id}` : 'New guest account'} - {draft.inquirySource}</small></article><article><h4>Created By</h4><strong>{preview.creator.name}</strong><p>{preview.creator.role === 'owner' ? 'Owner' : 'Admin'} - authenticated staff account</p></article><article><h4>Stay</h4><strong>{draft.stayType === 'overnight' ? 'Overnight Stay' : 'Day Tour'}</strong><p>{displayDate(draft.checkInDate)}, {displayTime(draft.checkInTime)}<br />to {displayDate(draft.checkOutDate)}, {displayTime(draft.checkOutTime)}</p><small>{draft.duration} day{draft.duration === 1 ? '' : 's'} - Asia/Manila</small></article><article><h4>Guest Count</h4><strong>{draft.adults + draft.children} guests</strong><p>{quantity(draft.adults, 'adult')} - {quantity(draft.children, 'child aged 8+')} - {quantity(draft.pets, 'pet')}</p></article><article><h4>Additional Services</h4><strong>{services.length ? services.join(' - ') : 'None selected'}</strong><p>Additional charges: {money(preview.quote.optional_fee)}<br />Special requests: {draft.specialRequests.trim() || 'None'}</p></article><article className='admin-create-estimate'><h4>Reservation Cost Estimate</h4><strong>{money(preview.quote.total)}</strong><p>Deposit required: {money(preview.quote.deposit)}<br />Refundable security deposit: {money(preview.quote.security_deposit)} (not included)</p></article></div>
+                    <div className='admin-create-review-grid'><article><h4>Guest</h4><strong>{draft.guestName}</strong><p>{draft.contactNumber}<br />{draft.email}</p><small>{draft.guestMode === 'existing' ? `Existing guest account #${preview.guest.id}` : 'New guest account'} - {draft.inquirySource}</small></article><article><h4>Created By</h4><strong>{preview.creator.name}</strong><p>{preview.creator.role === 'owner' ? 'Owner' : 'Admin'} - authenticated staff account</p></article><article><h4>Stay</h4><strong>{draft.stayType === 'overnight' ? 'Overnight Stay' : 'Day Tour'}</strong><p>{displayDate(draft.checkInDate)}, {displayTime(draft.checkInTime)}<br />to {displayDate(draft.checkOutDate)}, {displayTime(draft.checkOutTime)}</p><small>{draft.stayType === 'day_tour' ? '1 day' : `${derivedDuration} ${derivedDuration === 1 ? 'night' : 'nights'}`} - Asia/Manila</small></article><article><h4>Guest Count</h4><strong>{draft.adults + draft.children} guests</strong><p>{quantity(draft.adults, 'adult')} - {quantity(draft.children, 'child aged 8+')} - {quantity(draft.pets, 'pet')}</p></article><article><h4>Additional Services</h4><strong>{services.length ? services.join(' - ') : 'None selected'}</strong><p>Additional charges: {money(preview.quote.optional_fee)}<br />Special requests: {draft.specialRequests.trim() || 'None'}</p></article><article className='admin-create-estimate'><h4>Reservation Cost Estimate</h4><strong>{money(preview.quote.total)}</strong><p>Deposit required: {money(preview.quote.deposit)}<br />Refundable security deposit: {money(preview.quote.security_deposit)} (not included)</p></article></div>
                 </section>}
                 {message && options && <p className='admin-create-submit-error' role='alert'>{message}</p>}
-                <footer className='admin-create-footer'><div>{step === 3 && <small>{busy ? 'Saving reservation...' : 'Saving rechecks pricing and availability before creating the unpaid reservation.'}</small>}</div><div>{step === 0 ? <button type='button' className='secondary' onClick={onClose}>Cancel</button> : <button type='button' className='secondary' disabled={busy} onClick={() => { setMessage(''); setErrors({}); setStep(current => Math.max(0, current - 1) as Step); }}>Back</button>}{step < 3 ? <button type='submit' className='primary' disabled={!options || busy}>{busy ? 'Checking...' : 'Continue'}</button> : <button type='button' className='primary' disabled={!preview || preview.availability === 'blocked' || busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save Reservation'}</button>}</div></footer>
+                <footer className='admin-create-footer'><div>{step === 3 && <small>{busy ? 'Saving reservation...' : 'Saving rechecks pricing and availability before creating the unpaid reservation.'}</small>}</div><div>{step === 0 ? <button type='button' className='secondary' onClick={onClose}>Cancel</button> : <button type='button' className='secondary' disabled={busy} onClick={() => { setMessage(''); setErrors({}); setStep(current => Math.max(0, current - 1) as Step); }}>Back</button>}{step < 3 ? <button type='submit' className='primary' disabled={!options || busy}>{busy ? step === 1 ? 'Checking availability...' : 'Checking...' : 'Continue'}</button> : <button type='button' className='primary' disabled={!preview || preview.availability === 'blocked' || busy} onClick={() => void save()}>{busy ? 'Saving...' : 'Save Reservation'}</button>}</div></footer>
             </form>
         </div>
     </dialog>;

@@ -9,11 +9,12 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
+use App\Services\EmailVerificationService;
 use Illuminate\Validation\ValidationException;
 
 class SessionAuthController extends Controller
 {
-    public function login(Request $request): JsonResponse
+    public function login(Request $request, EmailVerificationService $verificationService): JsonResponse
     {
         if (is_string($request->input('email'))) {
             $request->merge([
@@ -46,20 +47,30 @@ class SessionAuthController extends Controller
             'is_active' => true,
         ];
 
-        if (! Auth::guard('web')->attempt(
-            $credentials,
-            $request->boolean('remember')
-        )) {
+        $guard = Auth::guard('web');
+        $provider = $guard->getProvider();
+        /** @var User|null $candidate */
+        $candidate = $provider->retrieveByCredentials($credentials);
+
+        if (! $candidate || ! $provider->validateCredentials($candidate, $credentials)) {
             // Same message for unknown email, wrong password or disabled account.
             throw ValidationException::withMessages([
                 'email' => ['Unable to sign in with these details.'],
             ]);
         }
 
+        if ($candidate->role?->name === 'guest' && ! $candidate->email_verified_at) {
+            return response()->json([
+                'message' => 'Email verification is required.',
+                'verification' => $verificationService->resume($candidate),
+            ], 409);
+        }
+
+        $guard->login($candidate, $request->boolean('remember'));
         $request->session()->regenerate();
 
         /** @var User $user */
-        $user = Auth::guard('web')->user();
+        $user = $candidate;
 
         return response()->json([
             'message' => 'Signed in successfully.',
@@ -82,6 +93,13 @@ class SessionAuthController extends Controller
             $request->session()->regenerateToken();
 
             return response()->json(['message' => 'Unauthenticated.'], 401);
+        }
+
+        if ($user->role?->name === 'guest' && ! $user->email_verified_at) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+            return response()->json(['message' => 'Email verification is required.'], 403);
         }
 
         return response()->json(['user' => $this->userData($user)]);

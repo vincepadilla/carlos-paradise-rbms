@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import ReCAPTCHA from "react-google-recaptcha";
 import AuthLayout from "../components/auth/AuthLayout";
 import GoogleAuthButton from "../components/auth/GoogleAuthButton";
@@ -17,6 +17,7 @@ import {
     type SignupValues,
 } from "../components/auth/AuthValidation";
 import { normalizeContactNumber } from "../utils/contactNumber";
+import { readVerification, savePendingVerification } from "../services/EmailVerification";
 
 const apiBaseUrl = (
     import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -73,16 +74,9 @@ function saveSignupDraft(
     }
 }
 
-function clearSignupDraft() {
-    try {
-        window.sessionStorage.removeItem(signupDraftKey);
-    } catch {
-        return;
-    }
-}
-
 export default function SignupPage() {
-    const [step, setStep] = useState<"form" | "success">("form");
+    const navigate = useNavigate();
+    const [step] = useState<"form" | "success">("form");
     const [values, setValues] = useState<SignupValues>(loadSignupDraft);
     const [errors, setErrors] = useState<SignupErrors>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -92,14 +86,13 @@ export default function SignupPage() {
     const passwordRequirementsMet = meetsPasswordRequirements(values.password);
 
     useEffect(() => {
-        if (step !== "form") return;
         saveSignupDraft({
             name: values.name,
             email: values.email,
             contact: values.contact,
             terms: values.terms,
         });
-    }, [step, values.name, values.email, values.contact, values.terms]);
+    }, [values.name, values.email, values.contact, values.terms]);
 
     function change<K extends keyof SignupValues>(
         key: K,
@@ -228,22 +221,21 @@ export default function SignupPage() {
                 return;
             }
 
-            if (!data || !data.user || typeof data.user !== "object") {
+            const verification = readVerification(data?.verification);
+            if (!verification) {
                 setFormError(
                     "The server returned an unexpected response. Check your account status before trying again.",
                 );
                 return;
             }
 
-            clearSignupDraft();
+            savePendingVerification(verification);
             setValues((current) => ({
                 ...current,
-                name: current.name.trim(),
-                email: current.email.trim().toLowerCase(),
                 password: "",
                 password_confirmation: "",
             }));
-            setStep("success");
+            navigate("/verify-email");
         } catch {
             recaptchaRef.current?.reset();
             setFormError(

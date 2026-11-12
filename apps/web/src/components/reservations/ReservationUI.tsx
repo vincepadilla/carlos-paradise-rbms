@@ -4,6 +4,7 @@ export type IconName =
     | "arrow"
     | "calendar"
     | "check"
+    | "close"
     | "chevron"
     | "clock"
     | "credit"
@@ -27,6 +28,7 @@ const icons: Record<IconName, ReactNode> = {
         </>
     ),
     check: <path d="m5 12 4 4L19 6" />,
+    close: <path d="M6 6l12 12M18 6 6 18" />,
     chevron: <path d="m9 18 6-6-6-6" />,
     clock: (
         <>

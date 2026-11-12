@@ -10,13 +10,14 @@
 .admin-create-close { width:31px; height:31px; padding:0; border:1px solid #d8cdbf; border-radius:50%; background:transparent; color:var(--admin-brown); font:16px/1 inherit; cursor:pointer; }
 .admin-create-close:hover { background:#eee6db; }
 .admin-create-progress { flex:none; margin:0; padding:18px 30px; border-bottom:1px solid #e2d8ca; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); list-style:none; }
-.admin-create-progress li { position:relative; color:#958b80; display:flex; align-items:center; gap:8px; font-size:9px; text-transform:uppercase; letter-spacing:.06em; }
-.admin-create-progress li:not(:last-child)::after { content:''; position:absolute; left:34px; right:9px; top:12px; height:1px; background:#d7ccbe; }
+.admin-create-progress li { position:relative; color:#958b80; display:flex; flex-direction:column; align-items:center; gap:6px; font-size:9px; text-transform:uppercase; letter-spacing:.06em; }
+.admin-create-progress li:not(:last-child)::after { content:''; position:absolute; left:calc(50% + 13px); right:calc(-50% + 13px); top:12px; height:1px; background:#d7ccbe; }
 .admin-create-progress li.complete:not(:last-child)::after { background:#79906f; }
 .admin-create-progress li>span { position:relative; z-index:1; width:25px; height:25px; border:1px solid #cfc3b4; border-radius:50%; background:#fbf7ef; display:grid; place-items:center; font-size:8px; font-weight:800; }
 .admin-create-progress li.current,.admin-create-progress li.complete { color:var(--admin-brown); }
 .admin-create-progress li.current>span { border-color:var(--admin-brown); background:var(--admin-brown); color:white; }
 .admin-create-progress li.complete>span { border-color:#79906f; background:#79906f; color:white; }
+.admin-create-progress li b { position:relative; z-index:1; text-decoration:none; }
 .admin-create-body { min-height:0; display:flex; flex-direction:column; overflow:hidden; }
 .admin-create-body>section { min-height:0; padding:24px 30px 28px; overflow-y:auto; }
 .admin-create-section-title { margin-bottom:20px; display:flex; align-items:center; gap:11px; }
@@ -56,6 +57,14 @@
 .admin-create-availability-queue b { color:#7d5b20; }
 .admin-create-availability-blocked { border-color:#e2b8b4; background:#f8e9e7; }
 .admin-create-availability-blocked b { color:#983f39; }
+.admin-create-opportunity { margin-top:17px; padding:14px; border:1px solid #e3c98f; border-radius:9px; background:#f7eed9; color:#6f5730; font-size:9px; line-height:1.5; }
+.admin-create-opportunity>b { display:block; color:#7d5b20; font-size:11px; }
+.admin-create-opportunity p { margin:5px 0 11px; }
+.admin-create-opportunity label { padding:10px; border:1px solid #dbc18a; border-radius:7px; background:#fffaf0; display:flex; align-items:flex-start; gap:9px; cursor:pointer; }
+.admin-create-opportunity input { margin-top:2px; accent-color:var(--admin-brown); }
+.admin-create-opportunity label span { display:flex; flex-direction:column; gap:2px; }
+.admin-create-opportunity strong { color:var(--admin-brown); font-size:10px; }
+.admin-create-opportunity small { color:#77684e; font-size:8px; }
 .admin-create-submit-error { flex:none; margin:0; padding:9px 30px; border-top:1px solid #e4beb9; background:#faecea; color:#963f39; font-size:9px; line-height:1.45; }
 .admin-create-review-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
 .admin-create-review-grid article { min-width:0; padding:16px; border:1px solid #ded4c7; border-radius:10px; background:#fffdf8; overflow-wrap:anywhere; }
@@ -82,8 +91,7 @@
     .admin-create-badge { display:none; }
     .admin-create-progress { padding:13px 17px 20px; }
     .admin-create-progress li { justify-content:center; }
-    .admin-create-progress li b { position:absolute; top:29px; font-size:7px; }
-    .admin-create-progress li:not(:last-child)::after { left:calc(50% + 13px); right:calc(-50% + 13px); }
+    .admin-create-progress li b { font-size:7px; }
     .admin-create-body>section { padding:27px 17px 22px; }
     .admin-create-grid,.admin-create-choice,.admin-create-review-grid { grid-template-columns:minmax(0,1fr); }
     .admin-create-field-full { grid-column:auto; }

@@ -9,12 +9,14 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
+use App\Services\EmailVerificationService;
 
 class RegisterController extends Controller
 {
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, EmailVerificationService $verificationService): JsonResponse
     {
         if (is_string($request->input('email'))) {
             $request->merge([
@@ -52,27 +54,24 @@ class RegisterController extends Controller
 
         $guestRole = Role::where('name', 'guest')->firstOrFail();
 
-        $user = new User();
+        $user = DB::transaction(function () use ($validated, $guestRole) {
+            $user = new User();
+            $user->name = $validated['name'];
+            $user->email = $validated['email'];
+            $user->phone = $validated['phone'] ?? null;
+            $user->password = Hash::make($validated['password']);
+            $user->email_verified_at = null;
+            $user->is_active = true;
+            $user->role()->associate($guestRole);
+            $user->save();
+            return $user;
+        });
 
-        $user->name = $validated['name'];
-        $user->email = $validated['email'];
-        $user->phone = $validated['phone'] ?? null;
-        $user->password = Hash::make($validated['password']);
-        $user->is_active = true;
-
-        $user->role()->associate($guestRole);
-
-        $user->save();
+        $verification = $verificationService->issue($user);
 
         return response()->json([
-            'message' => 'Account created successfully.',
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $guestRole->name,
-                'email_verified' => false,
-            ],
+            'message' => 'Account created. Verify your email to continue.',
+            'verification' => $verification,
         ], 201);
     }
 }

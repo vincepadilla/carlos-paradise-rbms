@@ -3,8 +3,9 @@
 use App\Http\Controllers\BookingPaymentsController;
 use App\Http\Controllers\BookingReservationsController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Middleware\RequireVerifiedGuestEmail;
 
-Route::prefix('api')->middleware('auth')->group(function () {
+Route::prefix('api')->middleware(['auth', RequireVerifiedGuestEmail::class])->group(function () {
     Route::get('/reservations', [
         BookingReservationsController::class, 'index',
     ]);

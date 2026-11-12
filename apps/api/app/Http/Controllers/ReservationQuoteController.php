@@ -2,16 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\ReservationAvailability;
+use App\Services\ReservationWorkflow;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use App\Services\ReservationWorkflow;
 
 class ReservationQuoteController extends Controller
 {
+    public function __construct(private ReservationAvailability $availabilityService) {}
+
     public function quote(
         Request $request,
         ReservationSettingsController $settingsController
@@ -213,123 +214,16 @@ class ReservationQuoteController extends Controller
         $total = $data['type'] === 'day_tour' && ! $staffPricing
             ? null
             : round(
-            $base
-            + $holidayFee
-            + $extraFee
-            + $cleaningFee
-            + $optionalFee,
+                $base
+                + $holidayFee
+                + $extraFee
+                + $cleaningFee
+                + $optionalFee,
                 2
             );
 
-        /*
-         * Check overlapping reservations.
-         *
-         * ISO timestamps preserve Philippine time offsets
-         * when passed to PostgreSQL.
-         */
-        $overlapping = DB::table('reservations')
-            ->where('villa_id', 1)
-            ->where(
-                'starts_at',
-                '<',
-                $end->toIso8601String()
-            )
-            ->where(
-                'ends_at',
-                '>',
-                $start->toIso8601String()
-            );
-
-        $confirmedConflict = (clone $overlapping)
-            ->whereIn('status', ['confirmed', 'reserved'])
-            ->exists();
-
-        $temporaryConflict = (clone $overlapping)
-            ->where(function ($query) {
-                $query
-                    ->where('status', 'payment_review')
-                    ->orWhere(function ($held) {
-                        $held
-                            ->whereIn('status', [
-                                'held',
-                                'awaiting_deposit',
-                            ])
-                            ->where(function ($deadline) {
-                                $deadline
-                                    ->whereNull('deadline')
-                                    ->orWhere(
-                                        'deadline',
-                                        '>',
-                                        CarbonImmutable::now(
-                                            'Asia/Manila'
-                                        )->toIso8601String()
-                                    );
-                            });
-                    });
-            })
-            ->exists();
-
-        $queuePosition = null;
-
-        if ($temporaryConflict) {
-            $queuePosition = (clone $overlapping)
-                ->where(function ($query) {
-                    $query
-                        ->whereIn('status', [
-                            'pending',
-                            'queued',
-                            'payment_review',
-                        ])
-                        ->orWhere(function ($held) {
-                            $held
-                                ->whereIn('status', [
-                                    'held',
-                                    'awaiting_deposit',
-                                ])
-                                ->where(function ($deadline) {
-                                    $deadline
-                                        ->whereNull('deadline')
-                                        ->orWhere(
-                                            'deadline',
-                                            '>',
-                                            CarbonImmutable::now(
-                                                'Asia/Manila'
-                                            )->toIso8601String()
-                                        );
-                                });
-                        });
-                })
-                ->count() + 1;
-        }
-
-        /*
-         * Supports blocked dates once that table is added.
-         * ends_on is exclusive.
-         */
-        $blocked = false;
-
-        if (Schema::hasTable('availability_blocks')) {
-            $blocked = DB::table('availability_blocks')
-                ->where('villa_id', 1)
-                ->whereNull('released_at')
-                ->where(
-                    'starts_on',
-                    '<=',
-                    $end->subSecond()->toDateString()
-                )
-                ->where(
-                    'ends_on',
-                    '>',
-                    $start->toDateString()
-                )
-                ->exists();
-        }
-
-        $availability = match (true) {
-            $confirmedConflict || $blocked => 'blocked',
-            $temporaryConflict => 'queue',
-            default => 'available',
-        };
+        $availabilityResult = $this->availabilityService->forInterval($start, $end);
+        $availability = $availabilityResult['availability'];
 
         return response()->json([
             'quote' => [
@@ -348,9 +242,7 @@ class ReservationQuoteController extends Controller
             ],
 
             'availability' => $availability,
-            'queue_position' => $availability === 'queue'
-                ? $queuePosition
-                : null,
+            'queue_position' => $availabilityResult['queue_position'],
         ]);
     }
 }

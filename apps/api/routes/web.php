@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\SessionAuthController;
 use App\Http\Controllers\Auth\GoogleAuthController;
 use App\Http\Controllers\GuestProfileController;
 use App\Http\Controllers\Auth\GoogleCalendarController;
+use App\Http\Middleware\RequireVerifiedGuestEmail;
 
 Route::get('/', function () {
     return view('welcome');
@@ -45,7 +46,7 @@ Route::post(
         \App\Http\Controllers\ReservationQuoteController::class,
         'quote',
     ]
-)->middleware('auth');
+)->middleware(['auth', RequireVerifiedGuestEmail::class]);
 
 Route::get(
     '/api/settings',
@@ -67,13 +68,18 @@ Route::post(
         \App\Http\Controllers\ReservationQuoteController::class,
         'quote',
     ]
-)->middleware('auth');
+)->middleware(['auth', RequireVerifiedGuestEmail::class]);
 
 require __DIR__.'/reservations.php';
 require __DIR__.'/admin.php';
 require __DIR__.'/owner.php';
 
-Route::middleware('auth')->prefix('api')->group(function () {
+Route::get('/api/availability', [
+    \App\Http\Controllers\ReservationAvailabilityController::class,
+    'index',
+])->middleware(['auth', RequireVerifiedGuestEmail::class, 'throttle:60,1']);
+
+Route::middleware(['auth', RequireVerifiedGuestEmail::class])->prefix('api')->group(function () {
     Route::get('profile', [GuestProfileController::class, 'show']);
     Route::patch('profile', [GuestProfileController::class, 'update'])
         ->middleware('throttle:20,1');
