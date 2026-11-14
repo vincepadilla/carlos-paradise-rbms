@@ -1,6 +1,6 @@
 import { operationalApi as reservationApi, operationalApiUrl } from "./OperationalApi";
 import { ReservationApiError } from "./ReservationApi";
-import type { AdminGuest, AdminGuestDetails, AdminGuestUpdate, AdminReservation, AdminReservationList, AvailabilityBlock, Paginated } from "../types/admin";
+import type { AdminGuest, AdminGuestDetails, AdminGuestUpdate, AdminReservation, AdminReservationList, AvailabilityBlock, DashboardSummary, Paginated } from "../types/admin";
 import type { CalendarData } from "../types/calendar";
 import type { ReservationDetailResponse, ReservationEdit } from "../types/reservationDetails";
 import type { DepositPaymentRecordList, PaymentReviewData, PendingPaymentReview } from "../types/paymentReview";
@@ -23,6 +23,26 @@ async function readRecord<T>(path: string, notFoundMessage: string, signal: Abor
 
 // Reuse the reservation transport, cookies, configuration and server workflow.
 export const AdminApi = {
+    dashboardSummary: (signal?: AbortSignal) =>
+        reservationApi<DashboardSummary>('/admin/dashboard/summary', 'GET', undefined, signal),
+    dashboardReport: (kind: import('../types/interactiveReports').ReportKind, query: URLSearchParams, signal?: AbortSignal) => {
+        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : 'queue';
+        return reservationApi<import('../types/interactiveReports').DashboardReport>(`/admin/reports/${resource}?${query}`, 'GET', undefined, signal);
+    },
+    dashboardReportPrint: (kind: import('../types/interactiveReports').ReportKind, query: URLSearchParams, signal?: AbortSignal) => {
+        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : 'queue';
+        return reservationApi<import('../types/interactiveReports').DashboardReport>(`/admin/reports/${resource}/print?${query}`, 'GET', undefined, signal);
+    },
+    exportDashboardReport: async (kind: import('../types/interactiveReports').ReportKind, query: URLSearchParams): Promise<{ blob: Blob; filename: string }> => {
+        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : 'queue';
+        const response = await fetch(`${operationalApiUrl('/admin')}/reports/${resource}/export?${query}`, {
+            credentials: 'include', headers: { Accept: 'text/csv', 'X-Requested-With': 'XMLHttpRequest' },
+        });
+        if (!response.ok) throw new ReservationApiError(`Export failed (${response.status}).`, response.status);
+        const disposition = response.headers.get('Content-Disposition') ?? '';
+        const filename = disposition.match(/filename=?([^;]+)/i)?.[1]?.replaceAll(String.fromCharCode(34), '') ?? `${kind}-report.csv`;
+        return { blob: await response.blob(), filename };
+    },
     reservationCreationOptions: (signal?: AbortSignal) =>
         reservationApi<ReservationCreationOptions>('/admin/reservation-create/options', 'GET', undefined, signal),
     reservationCreationGuests: (search: string, signal?: AbortSignal) =>
@@ -142,12 +162,13 @@ export const AdminApi = {
         reservationApi<{ message: string }>(`/admin/availability-blocks/${id}/release`, "POST"),
     reservations: (signal: AbortSignal) =>
         reservationApi<{ reservations: AdminReservation[] }>("/reservations", "GET", undefined, signal),
-    reservationList: (page: number, search: string, status: string, type: string, signal: AbortSignal) =>
+    reservationList: (page: number, search: string, status: string, type: string, checkInMonth: string, signal: AbortSignal) =>
         reservationApi<AdminReservationList>(`/admin/reservations?${new URLSearchParams({
             page: String(page),
             ...(search ? { search } : {}),
             ...(status ? { status } : {}),
             ...(type ? { type } : {}),
+            ...(checkInMonth ? { check_in_month: checkInMonth } : {}),
         })}`, "GET", undefined, signal),
     reservation: (id: string, signal: AbortSignal) =>
         readRecord<ReservationDetailResponse>(`/reservations/${encodeURIComponent(id)}`, "Reservation not found.", signal),

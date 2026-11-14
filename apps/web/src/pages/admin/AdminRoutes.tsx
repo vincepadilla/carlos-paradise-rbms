@@ -6,6 +6,7 @@ import OwnerDatabasePage from "../owner/OwnerDatabasePage";
 import OwnerSettingsPage from "../owner/OwnerSettingsPage";
 import OwnerAdminsPage from "../owner/OwnerAdminsPage";
 import OwnerAuditPage from "../owner/OwnerAuditPage";
+import OwnerHelpPage from "../owner/OwnerHelpPage";
 import AdminLayout from "../../components/admin/AdminLayout";
 import AdminPage from "../../components/admin/AdminPage";
 import AdminDashboardPage from "./AdminDashboardPage";
@@ -39,7 +40,7 @@ export default function AdminRoutes({ portal = "admin" }: { portal?: "admin" | "
         <Route path="guests/:id/activity" element={<AdminGuestHistoryPage view="activity" />} />
         <Route path="reports" element={<AdminReportsPage />} />
         <Route path="notifications" element={<AdminNotificationsPage />} />
-        <Route path="help" element={<AdminHelpPage />} />
+        <Route path="help" element={portal === "owner" ? <OwnerHelpPage /> : <AdminHelpPage />} />
         {portal === "owner" && <>
             <Route path="database" element={<OwnerDatabasePage />} />
             <Route path="settings" element={<OwnerSettingsPage />} />

@@ -1,40 +1,29 @@
 import { StaffLink as Link } from "../../components/admin/StaffRouting";
-import { useEffect, useState } from "react";
 
 import AdminPageHeader from "../../components/admin/AdminPageHeader";
-import AdminResource from "../../components/admin/AdminResource";
 import OngoingStayCard from "../../components/admin/dashboard/OngoingStayCard";
-import ReservationQueuePreview from "../../components/admin/dashboard/ReservationQueuePreview";
-import DepositReviewPreview from "../../components/admin/dashboard/DepositReviewPreview";
 import UpcomingMovementCard from "../../components/admin/dashboard/UpcomingMovementCard";
-import { AdminApi } from "../../services/AdminApi";
-import { selectDashboard } from "../../utils/adminDashboard";
+import DashboardCharts from "../../components/admin/dashboard/DashboardCharts";
+import DashboardPanel from "../../components/admin/dashboard/DashboardPanel";
+import DashboardSummaryCards from "../../components/admin/dashboard/DashboardSummaryCards";
+import { useDashboardSummary } from "../../hooks/useDashboardSummary";
 import "../../components/admin/dashboard/dashboard.css";
 import { useAdminSession } from "../../components/auth/RequireAdmin";
 
 export default function AdminDashboardPage() {
     const { user } = useAdminSession();
     const role = user.role === "owner" ? "Owner" : "Admin";
-    const [now, setNow] = useState(Date.now);
-    useEffect(() => {
-        const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-        return () => window.clearInterval(timer);
-    }, []);
+    const { summary, error, retry } = useDashboardSummary();
+    const pendingState = (title: string) => <DashboardPanel title={title} copy='Live reservation data'>
+        <div className='dashboard-empty' role={error ? 'alert' : 'status'}>{error || 'Loading...'}</div>
+    </DashboardPanel>;
 
     return <div className="admin-dashboard" aria-label={`${role} Dashboard`}>
         <AdminPageHeader eyebrow="Today's Overview" title={`Welcome back, ${role}!`} copy="Here’s what needs your attention today."
             action={<Link to="/admin/reservations" className="btn btn-primary">Open Reservation</Link>} />
-        <AdminResource load={AdminApi.reservations} showRefresh={false}>{({ reservations }) => {
-            const dashboard = selectDashboard(reservations, now);
-            return <>
-                <OngoingStayCard reservation={dashboard.ongoing} />
-                <div className="dashboard-grid operational-grid">
-                    <ReservationQueuePreview reservations={dashboard.queue} />
-                    <DepositReviewPreview />
-                </div>
-                <UpcomingMovementCard movement={dashboard.movement} ongoingId={dashboard.ongoing?.id} />
-                <p className="dashboard-scope">Overview reflects the latest {reservations.length === 500 ? "500" : reservations.length} reservations. All times are Asia/Manila.</p>
-            </>;
-        }}</AdminResource>
+        <DashboardSummaryCards summary={summary} error={error} onRetry={retry} />
+        {summary ? <OngoingStayCard reservation={summary.ongoing_reservation} /> : pendingState('Ongoing Stay')}
+        <DashboardCharts summary={summary} error={error} onRetry={retry} />
+        {summary ? <UpcomingMovementCard movement={summary.upcoming_movement} ongoingId={summary.ongoing_reservation?.id} /> : pendingState('Upcoming Check-ins / Check-outs')}
     </div>;
 }

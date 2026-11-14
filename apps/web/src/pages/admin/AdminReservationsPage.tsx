@@ -27,12 +27,13 @@ function AllReservations() {
     const search = params.get('search')?.trim() ?? '';
     const status = params.get('status') ?? '';
     const type = params.get('type') ?? '';
+    const checkInMonth = params.get('check_in_month') ?? '';
     const load = useCallback(
-        (signal: AbortSignal) => AdminApi.reservationList(page, search, status, type, signal),
-        [page, search, status, type],
+        (signal: AbortSignal) => AdminApi.reservationList(page, search, status, type, checkInMonth, signal),
+        [page, search, status, type, checkInMonth],
     );
 
-    const setFilter = (key: 'search' | 'status' | 'type', value: string) => {
+    const setFilter = (key: 'search' | 'status' | 'type' | 'check_in_month', value: string) => {
         const next = new URLSearchParams(params);
         next.delete('tab');
         next.delete('page');
@@ -60,6 +61,10 @@ function AllReservations() {
                 </select>
             </label>
             <label>
+                <span className='sr-only'>Filter by check-in month</span>
+                <input type='month' value={checkInMonth} onChange={event => setFilter('check_in_month', event.target.value)} aria-label='Check-in month' />
+            </label>
+            <label>
                 <span className='sr-only'>Filter by reservation type</span>
                 <select value={type} onChange={event => setFilter('type', event.target.value)}>
                     <option value=''>All Types</option>
@@ -83,9 +88,11 @@ function AllReservations() {
 }
 
 function QueueManagement() {
+    const [params] = useSearchParams();
+    const waitingOnly = params.get('queue_status') === 'waiting';
     return <AdminResource load={AdminApi.reservations} showRefresh={false}>{({ reservations }) => {
         const queued = reservations
-            .filter(item => ['pending', 'queued', 'awaiting_deposit'].includes(item.status))
+            .filter(item => waitingOnly ? item.status === 'queued' : ['pending', 'queued', 'awaiting_deposit'].includes(item.status))
             .sort((left, right) => (left.queue_position ?? Infinity) - (right.queue_position ?? Infinity) || left.id - right.id);
         return <AdminReservationTable queue reservations={queued} total={queued.length} />;
     }}</AdminResource>;

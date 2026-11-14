@@ -5,6 +5,9 @@
 .owner-card { margin: 18px 0; padding: 26px; border: 1px solid var(--admin-line); border-radius: 12px; background: var(--admin-paper); }
 .owner-card h2 { margin: 4px 0 12px; font-size: 20px; font-weight: 600; }
 .owner-card p { max-width: 820px; margin: 10px 0 18px; line-height: 1.7; color: var(--admin-muted); font-size: 13px; }
+.owner-help-card { max-width: 820px; margin-top: 0; }
+.owner-help-card h2 { margin-top: 0; }
+.owner-help-card p { margin-bottom: 0; }
 .owner-kicker { color: var(--admin-sage); text-transform: uppercase; font-size: 10px; font-weight: 800; letter-spacing: .12em; }
 .owner-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; align-items: center; }
 .owner-page .btn,.owner-dialog .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 11px 18px; border: 1px solid var(--admin-brown); border-radius: 8px; background: var(--admin-brown); color: #fff; font: inherit; font-size: 12px; font-weight: 700; text-decoration: none; cursor: pointer; }

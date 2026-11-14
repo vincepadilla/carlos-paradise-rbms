@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminAvailabilityBlocksController;
 use App\Http\Controllers\Admin\AdminCalendarController;
+use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminExtensionAccessController;
 use App\Http\Controllers\Admin\AdminGuestsController;
 use App\Http\Controllers\Admin\AdminNotificationsController;
@@ -9,6 +10,7 @@ use App\Http\Controllers\Admin\AdminOcularVisitsController;
 use App\Http\Controllers\Admin\AdminOutgoingEmailsController;
 use App\Http\Controllers\Admin\AdminPaymentReviewController;
 use App\Http\Controllers\Admin\AdminPaymentReportsController;
+use App\Http\Controllers\Admin\AdminQueueReportsController;
 use App\Http\Controllers\Admin\AdminReservationManagementController;
 use App\Http\Controllers\Admin\AdminReservationCreationController;
 use App\Http\Controllers\Admin\AdminReservationReportsController;
@@ -20,6 +22,7 @@ use Illuminate\Support\Facades\Route;
 // These routes use the same web session and CSRF stack as reservations.
 foreach (['api/admin' => RequireAdmin::class, 'api/owner/operations' => RequireOwner::class] as $prefix => $authorization) {
     Route::prefix($prefix)->middleware(['auth:web', $authorization])->group(function () {
+        Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
         Route::get('/reservations', [AdminReservationManagementController::class, 'index']);
         Route::get('/reports/reservations', [AdminReservationReportsController::class, 'index']);
         Route::get('/reports/reservations/print', [AdminReservationReportsController::class, 'printData']);
@@ -30,6 +33,9 @@ foreach (['api/admin' => RequireAdmin::class, 'api/owner/operations' => RequireO
         Route::get('/reports/payments', [AdminPaymentReportsController::class, 'index']);
         Route::get('/reports/payments/print', [AdminPaymentReportsController::class, 'printData']);
         Route::get('/reports/payments/export', [AdminPaymentReportsController::class, 'export']);
+        Route::get('/reports/queue', [AdminQueueReportsController::class, 'index']);
+        Route::get('/reports/queue/print', [AdminQueueReportsController::class, 'printData']);
+        Route::get('/reports/queue/export', [AdminQueueReportsController::class, 'export']);
         Route::patch('/reservations/{reservation}', [AdminReservationManagementController::class, 'update'])->whereNumber('reservation')->middleware('throttle:30,1');
         Route::post('/reservations/{reservation}/complete', [AdminReservationManagementController::class, 'complete'])->whereNumber('reservation')->middleware('throttle:30,1');
         Route::post('/reservations/{reservation}/extension-access', [AdminExtensionAccessController::class, 'store'])->whereNumber('reservation')->middleware('throttle:30,1');

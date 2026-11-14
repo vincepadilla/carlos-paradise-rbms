@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Services\ReservationManagement;
 use App\Services\ReservationPricing;
 use App\Services\ReservationWorkflow;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -21,6 +22,7 @@ class AdminReservationManagementController extends Controller
             'search' => 'sometimes|nullable|string|max:255',
             'status' => 'sometimes|nullable|string|max:30',
             'type' => 'sometimes|nullable|string|max:20',
+            'check_in_month' => ['sometimes', 'nullable', 'date_format:Y-m'],
         ]);
 
         $search = trim($data['search'] ?? '');
@@ -38,8 +40,16 @@ class AdminReservationManagementController extends Controller
                         ->orWhereLike('booking_reference', $pattern, caseSensitive: false);
                 });
             }
-            if (! empty($data['status'])) $query->where('status', $data['status']);
-            if (! empty($data['type'])) $query->where('type', $data['type']);
+            if (! empty($data['status'])) {
+                $query->where('status', $data['status']);
+            }
+            if (! empty($data['type'])) {
+                $query->where('type', $data['type']);
+            }
+            if (! empty($data['check_in_month'])) {
+                $month = CarbonImmutable::createFromFormat('!Y-m', $data['check_in_month'], 'Asia/Manila');
+                $query->whereBetween('check_in_date', [$month->startOfMonth()->toDateString(), $month->endOfMonth()->toDateString()]);
+            }
 
             $reservations = $query->orderByDesc('id')->paginate($data['per_page'] ?? 10);
             $reservations->setCollection($reservations->getCollection()->map(fn ($reservation) => $flow->present($reservation)));
@@ -71,8 +81,12 @@ class AdminReservationManagementController extends Controller
             'damages.*.id' => 'nullable|integer|min:1|distinct', 'damages.*.description' => 'required|string|max:1000',
             'damages.*.item_area' => 'required|string|max:255', 'damages.*.amount' => $money, 'damages.*.notes' => 'nullable|string|max:2000',
         ];
-        foreach (ReservationPricing::CHARGES as $charge) $rules['pricing.'.$charge] = $money;
-        foreach (['status', 'total', 'quoted_total', 'required_deposit', 'deposit_paid', 'payments', 'user_id'] as $protected) $rules[$protected] = 'prohibited';
+        foreach (ReservationPricing::CHARGES as $charge) {
+            $rules['pricing.'.$charge] = $money;
+        }
+        foreach (['status', 'total', 'quoted_total', 'required_deposit', 'deposit_paid', 'payments', 'user_id'] as $protected) {
+            $rules[$protected] = 'prohibited';
+        }
         $management->update($reservation, $request->user()->id, $request->validate($rules));
 
         return $read->show($request, $reservation);

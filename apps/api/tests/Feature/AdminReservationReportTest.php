@@ -200,6 +200,64 @@ class AdminReservationReportTest extends TestCase
         $this->assertStringNotContainsString('Payment State', $csv);
     }
 
+    public function test_dashboard_analytics_group_guests_and_expose_queue_without_duplicate_rows(): void
+    {
+        $admin = $this->account('admin');
+        $guest = $this->account('guest');
+        $period = now('Asia/Manila')->startOfMonth()->addDays(6);
+        $this->reservation($guest, $period->copy()->subMonth(), ['booking_reference' => 'CP-PRIOR']);
+        $first = $this->reservation($guest, $period, ['booking_reference' => 'CP-DASH-1', 'status' => 'confirmed']);
+        $moved = $this->reservation($guest, $period->copy()->addDay(), ['booking_reference' => 'CP-DASH-2', 'status' => 'completed']);
+
+        $this->actingAs($admin)->getJson('/api/admin/reports/guests?dashboard=1&date_range=custom&start_date='.$period->toDateString().'&end_date='.$period->copy()->addDay()->toDateString())
+            ->assertOk()->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.reservation_count', 2)
+            ->assertJsonPath('data.0.history_reservation_count', 3)
+            ->assertJsonPath('analytics.classification.1.key', 'returning')
+            ->assertJsonPath('analytics.classification.1.value', 1)
+            ->assertJsonPath('analytics.frequency.1.value', 1)
+            ->assertJsonPath('analytics.cards.0.value', 1)
+            ->assertJsonPath('analytics.cards.1.value', 0)
+            ->assertJsonPath('analytics.cards.2.value', 1)
+            ->assertJsonPath('analytics.cards.3.value', 1)
+            ->assertJsonPath('kpis.total_reservations', 2);
+        $this->getJson('/api/admin/reports/guests?dashboard=1&date_range=custom&start_date='.$period->toDateString().'&end_date='.$period->copy()->addDay()->toDateString().'&frequency=2%2B')
+            ->assertOk()->assertJsonPath('total', 1);
+        $this->getJson('/api/admin/reports/guests/print?dashboard=1&date_range=custom&start_date='.$period->toDateString().'&end_date='.$period->copy()->addDay()->toDateString())
+            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.reservation_count', 2);
+
+        DB::table('reservations')->where('id', $first)->update(['status' => 'queued']);
+        DB::table('reservation_status_history')->insert([
+            'reservation_id' => $first, 'from_status' => 'pending', 'to_status' => 'queued',
+            'changed_at' => now('Asia/Manila'), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('reservation_status_history')->insert([
+            'reservation_id' => $moved, 'from_status' => 'queued', 'to_status' => 'completed',
+            'changed_at' => now('Asia/Manila'), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('reservation_opportunities')->insert([
+            ['reservation_id' => $first, 'granted_at' => now(), 'deposit_deadline' => now()->addDay(), 'closed_at' => null, 'status' => 'active', 'created_at' => now(), 'updated_at' => now()],
+            ['reservation_id' => $moved, 'granted_at' => now()->subDays(2), 'deposit_deadline' => now()->subDay(), 'closed_at' => now()->subDay(), 'status' => 'expired', 'created_at' => now(), 'updated_at' => now()],
+        ]);
+        $this->getJson('/api/admin/reports/queue?date_range=all')
+            ->assertOk()->assertJsonPath('total', 2)
+            ->assertJsonFragment(['id' => $first])
+            ->assertJsonFragment(['id' => $moved])
+            ->assertJsonPath('analytics.cards.0.value', 1)
+            ->assertJsonPath('analytics.cards.1.value', 1)
+            ->assertJsonPath('analytics.cards.2.value', 1)
+            ->assertJsonPath('analytics.cards.3.value', 1)
+            ->assertJsonFragment(['key' => 'queued', 'label' => 'Queued', 'value' => 1])
+            ->assertJsonFragment(['key' => 'completed', 'label' => 'Completed', 'value' => 1]);
+        $this->getJson('/api/admin/reports/queue?date_range=all&category=expired_opportunities')
+            ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.id', $moved);
+        $this->getJson('/api/admin/reports/queue/print?date_range=all')
+            ->assertOk()->assertJsonPath('total', 2);
+        $queueCsv = $this->get('/api/admin/reports/queue/export?date_range=all')
+            ->assertOk()->streamedContent();
+        $this->assertStringContainsString('CP-DASH-1', $queueCsv);
+    }
+
     private function account(string $role): User
     {
         return User::factory()->create([

@@ -151,6 +151,20 @@ export type AdminReservationList = Paginated<AdminReservation> & {
     };
 };
 
+export type DashboardSummary = {
+    total_reservations: number;
+    total_guests: number;
+    payments_to_review: number;
+    waiting_requests: number;
+    reservation_statuses: Array<{ key: string; count: number; percentage: number }>;
+    reservations_per_month: Array<{ month: string; count: number }>;
+    status_period_label: string;
+    monthly_period_label: string;
+    ongoing_reservation: AdminReservation | null;
+    upcoming_movement: { reservation: AdminReservation; at: string; kind: 'Check-in' | 'Check-out' } | null;
+    generated_at: string;
+};
+
 export type ReservationCreationGuest = { id: number; name: string; email: string; phone: string | null; new?: boolean };
 export type ReservationCreationOptions = {
     creator: { id: number; name: string; role: 'admin' | 'owner' };

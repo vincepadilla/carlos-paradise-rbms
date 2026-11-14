@@ -13,6 +13,7 @@ export default function AdminSignOutButton() {
 
     async function signOut() {
         if (submitting.current) return;
+        if (!window.confirm('Are you sure you want to sign out?')) return;
         submitting.current = true;
         setSigningOut(true);
         setError("");

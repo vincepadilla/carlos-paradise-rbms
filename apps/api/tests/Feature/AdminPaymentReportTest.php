@@ -158,6 +158,40 @@ class AdminPaymentReportTest extends TestCase
         $this->assertStringContainsString('CP-NO-PAYMENT', $csv);
     }
 
+    public function test_dashboard_is_payment_level_and_verified_kpi_excludes_submitted_and_rejected_amounts(): void
+    {
+        $admin = $this->account('admin');
+        $guest = $this->account('guest');
+        $reservation = $this->reservation($guest, now('Asia/Manila')->startOfMonth()->addDays(5), 'CP-DASH-PAY');
+        $method = $this->method('Dashboard Bank');
+        $this->payment($reservation, $guest, $method, 'submitted', 1500, 'DASH-SUBMITTED');
+        $this->payment($reservation, $guest, $method, 'approved', 2000, 'DASH-APPROVED');
+        $this->payment($reservation, $guest, $method, 'rejected', 9000, 'DASH-REJECTED');
+
+        $this->actingAs($admin)->getJson('/api/admin/reports/payments?dashboard=1&date_range=all')
+            ->assertOk()->assertJsonPath('total', 3)
+            ->assertJsonPath('kpis.verified_payments', '2000.00')
+            ->assertJsonPath('analytics.cards.0.value', 2000)
+            ->assertJsonPath('analytics.cards.1.value', 1500)
+            ->assertJsonPath('analytics.cards.2.value', 1)
+            ->assertJsonPath('analytics.cards.3.value', 1)
+            ->assertJsonMissingPath('data.0.guest_name')
+            ->assertJsonFragment(['payment_reference' => 'DASH-APPROVED', 'review_status' => 'verified'])
+            ->assertJsonFragment(['payment_reference' => 'DASH-SUBMITTED', 'review_status' => 'awaiting_review']);
+
+        $this->getJson('/api/admin/reports/payments?dashboard=1&date_range=all&payment_status=verified')
+            ->assertOk()->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.payment_reference', 'DASH-APPROVED');
+        $this->getJson('/api/admin/reports/payments/print?dashboard=1&date_range=all&payment_status=verified')
+            ->assertOk()->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.payment_reference', 'DASH-APPROVED');
+        $csv = $this->get('/api/admin/reports/payments/export?dashboard=1&date_range=all&payment_status=verified')
+            ->assertOk()->streamedContent();
+        $this->assertStringContainsString('DASH-APPROVED', $csv);
+        $this->assertStringNotContainsString('DASH-SUBMITTED', $csv);
+        $this->assertStringNotContainsString('DASH-REJECTED', $csv);
+    }
+
     private function account(string $role): User
     {
         return User::factory()->create([

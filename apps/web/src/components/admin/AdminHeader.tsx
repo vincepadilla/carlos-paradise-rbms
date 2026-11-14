@@ -1,5 +1,3 @@
-import { StaffLink as Link } from "./StaffRouting";
-
 import { useAdminSession } from '../auth/RequireAdmin';
 import { Icon } from '../reservations/ReservationUI';
 import { initials } from '../../utils/adminDashboard';
@@ -17,9 +15,6 @@ export default function AdminHeader({ menuOpen, onToggleMenu }: { menuOpen: bool
             <span>Manage reservations, guests, schedules, and daily operations from one place.</span>
         </div>
         <div className='admin-header-tools'>
-            <Link to='/admin/notifications?tab=inbox' className='admin-notification' aria-label='Notifications'>
-                <span aria-hidden='true'>●</span>
-            </Link>
             <span className='admin-avatar' aria-hidden='true'>{initials(user.name)}</span>
             <div className='admin-profile'><b>{user.name}</b><small>{role}</small></div>
         </div>

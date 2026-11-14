@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useSearchParams } from "react-router";
-import ReservationReport, { type ReservationReportActions } from "../../components/admin/reports/ReservationReport";
-import PaymentReport from "../../components/admin/reports/PaymentReport";
+import InteractiveReport, { type InteractiveReportActions } from "../../components/admin/reports/InteractiveReport";
 import "./admin-reports.css";
 
 const TABS = [
@@ -21,7 +20,8 @@ export default function AdminReportsPage() {
     const [params, setParams] = useSearchParams();
     const suppliedTab = params.get("tab");
     const activeTab = validTab(suppliedTab);
-    const reportActions = useRef<ReservationReportActions>(null);
+    const reportActions = useRef<InteractiveReportActions>(null);
+    const tabState = useRef<Record<Tab, string>>({ reservation: '', guest: '', payment: '', queue: '' });
     const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const [actionBusy, setActionBusy] = useState(false);
 
@@ -33,8 +33,13 @@ export default function AdminReportsPage() {
         }
     }, [activeTab, params, setParams, suppliedTab]);
 
+    useEffect(() => {
+        tabState.current[activeTab] = params.toString();
+    }, [activeTab, params]);
+
     const selectTab = (tab: Tab, replace = false) => {
-        const next = new URLSearchParams(params);
+        tabState.current[activeTab] = params.toString();
+        const next = new URLSearchParams(tabState.current[tab] || '');
         next.set("tab", tab);
         setParams(next, { replace });
     };
@@ -54,10 +59,11 @@ export default function AdminReportsPage() {
     return <main className="admin-reports-page">
         <header className="admin-reports-header">
             <div><h1>Reports</h1><p>Review reservation, guest, payment, and queue activity.</p></div>
-            {(activeTab === "reservation" || activeTab === "guest" || activeTab === "payment") && <div className="admin-report-actions">
-                <button type="button" className="report-print-button" disabled={actionBusy} onClick={() => reportActions.current?.print()}>Print</button>
+            <div className="admin-report-actions">
+                <button type="button" className="report-print-button" disabled={actionBusy} onClick={() => reportActions.current?.print('summary')}>Print Summary</button>
+                <button type="button" className="report-print-button" disabled={actionBusy} onClick={() => reportActions.current?.print('detailed')}>Print Detailed</button>
                 <button type="button" className="report-export-button" disabled={actionBusy} onClick={() => reportActions.current?.exportCsv()}>Export</button>
-            </div>}
+            </div>
         </header>
 
         <div className="admin-report-tabs" role="tablist" aria-label="Report types">
@@ -83,11 +89,7 @@ export default function AdminReportsPage() {
             aria-labelledby={`report-tab-${tab.value}`}
             hidden={activeTab !== tab.value}
             tabIndex={0}
-        >{tab.value === "reservation" || tab.value === "guest"
-                ? activeTab === tab.value && <ReservationReport ref={reportActions} reportType={tab.value} params={params} setParams={setParams} onBusyChange={setActionBusy} />
-                : tab.value === "payment"
-                    ? activeTab === "payment" && <PaymentReport ref={reportActions} params={params} setParams={setParams} onBusyChange={setActionBusy} />
-                : activeTab === tab.value && <section className="report-coming-soon"><h2>{tab.label}</h2><p>Coming soon</p></section>}
+        >{activeTab === tab.value && <InteractiveReport ref={reportActions} kind={tab.value} params={params} setParams={setParams} onBusyChange={setActionBusy} />}
         </div>)}
     </main>;
 }
