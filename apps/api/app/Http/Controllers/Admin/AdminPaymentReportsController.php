@@ -18,11 +18,11 @@ class AdminPaymentReportsController extends Controller
     {
         $filters = $this->validatedFilters($request, $report);
         $pagination = $request->validate([
-            'per_page' => 'sometimes|integer|min:1|max:100',
+            'per_page' => 'sometimes|integer|min:1|max:5',
         ]);
         $dashboard = $request->boolean('dashboard');
         $records = ($dashboard ? $report->dashboardQuery($filters) : $report->query($filters))
-            ->paginate((int) ($pagination['per_page'] ?? 15));
+            ->paginate((int) ($pagination['per_page'] ?? 5));
         $records->setCollection($dashboard
             ? $report->presentDashboardCollection($records->getCollection())
             : $report->presentCollection($records->getCollection()));

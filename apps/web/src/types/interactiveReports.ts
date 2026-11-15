@@ -1,6 +1,6 @@
-export type ReportKind = 'reservation' | 'guest' | 'payment' | 'queue';
+export type ReportKind = 'reservation' | 'guest' | 'payment' | 'queue' | 'ocular';
 
-export type ChartDatum = { key: string; label: string; value: number };
+export type ChartDatum = { key: string; label: string; value: number; unit?: string };
 export type ReportCardDatum = {
     key: string;
     label: string;
@@ -46,6 +46,8 @@ export type DashboardReport = {
         scope_label: string;
         status?: ChartDatum[];
         trend?: ChartDatum[];
+        availability?: ChartDatum[];
+        availability_period?: { start: string; end: string };
         classification?: ChartDatum[];
         frequency?: ChartDatum[];
         distribution?: ChartDatum[];

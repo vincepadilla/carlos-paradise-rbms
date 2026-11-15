@@ -564,6 +564,11 @@ class ReservationWorkflow
                     'submitted_at' => CarbonImmutable::parse($payment->submitted_at, 'Asia/Manila')->toIso8601String(),
                     'reviewed_at' => $review ? CarbonImmutable::parse($review->reviewed_at, 'Asia/Manila')->toIso8601String() : null,
                     'reviewed_by' => $review?->reviewed_by,
+                    'submitted_by' => $payment->submitted_by,
+                    'staff_notes' => $payment->staff_notes ?? null,
+                    'revision' => (int) ($payment->staff_revision ?? 0),
+                    'staff_recorded' => DB::table('users as submitter')->join('roles as submitter_role', 'submitter_role.id', '=', 'submitter.role_id')
+                        ->where('submitter.id', $payment->submitted_by)->whereIn('submitter_role.name', ['admin', 'owner'])->exists(),
                 ];
             });
 
@@ -596,6 +601,10 @@ class ReservationWorkflow
                 : null,
             'id' => $reservation->id,
             'user_id' => $reservation->user_id,
+            'created_by' => $reservation->created_by,
+            'creation_source' => $reservation->creation_source,
+            'revision' => (int) $reservation->admin_revision,
+            'staff_editable' => app(StaffDepositReviewEditing::class)->eligible($reservation),
             'reference' => $reservation->booking_reference,
             'type' => $reservation->type,
             'status' => $reservation->status,
@@ -647,6 +656,11 @@ class ReservationWorkflow
             'adults' => $reservation->adults,
             'children' => $reservation->children,
             'pets' => $reservation->pets,
+            'bonfire_qty' => (int) $reservation->bonfire_qty,
+            'charcoal_qty' => (int) $reservation->charcoal_qty,
+            'liquor_qty' => (int) $reservation->liquor_qty,
+            'partial_payment_authorized' => (bool) $reservation->partial_payment_authorized,
+            'partial_payment_terms' => $reservation->partial_payment_terms,
 
             'notes' => $reservation->special_requests,
             'payments' => $payments,

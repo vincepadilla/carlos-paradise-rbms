@@ -70,7 +70,7 @@ class OwnerSettingsController extends Controller
 
     public function paymentMethods()
     {
-        return response()->json(['payment_methods' => DB::table('payment_methods')->orderBy('id')->get()]);
+        return response()->json(['payment_methods' => DB::table('payment_methods')->where('name', '!=', 'Cash')->orderBy('id')->get()]);
     }
 
     public function savePaymentMethod(Request $request, OwnerAudit $audit)
@@ -81,6 +81,10 @@ class OwnerSettingsController extends Controller
             'account_number' => ['required', 'string', 'max:255'], 'instructions' => ['nullable', 'string', 'max:5000'],
             'is_active' => ['required', 'boolean'],
         ]);
+        if (mb_strtolower(trim($data['name'])) === 'cash'
+            || (! empty($data['id']) && DB::table('payment_methods')->where('id', $data['id'])->where('name', 'Cash')->exists())) {
+            throw ValidationException::withMessages(['name' => 'Cash is a system payment method and has no receiving-account details.']);
+        }
         DB::transaction(function () use ($data, $request, $audit) {
             $duplicate = DB::table('payment_methods')->where('name', $data['name'])->where('account_number', $data['account_number']);
             if (!empty($data['id'])) $duplicate->where('id', '!=', $data['id']);

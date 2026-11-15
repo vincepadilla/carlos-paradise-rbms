@@ -17,8 +17,8 @@ class AdminQueueReportsController extends Controller
     {
         $filters = $this->filters($request, $report);
         $records = $report->query($filters)->paginate((int) ($request->validate([
-            'per_page' => 'sometimes|integer|min:1|max:100',
-        ])['per_page'] ?? 15));
+            'per_page' => 'sometimes|integer|min:1|max:5',
+        ])['per_page'] ?? 5));
         $records->setCollection($report->present($records->getCollection()));
         return response()->json([
             ...$records->toArray(), 'filters' => ['applied' => $filters, 'statuses' => QueueReport::STATUSES],

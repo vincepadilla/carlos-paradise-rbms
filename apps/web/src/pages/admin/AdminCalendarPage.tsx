@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router";
 import AdminPageHeader from "../../components/admin/AdminPageHeader";
 import CalendarControls from "../../components/admin/calendar/CalendarControls";
 import CalendarGrid from "../../components/admin/calendar/CalendarGrid";
@@ -15,8 +16,10 @@ import "../../components/admin/calendar/calendar.css";
 type Modal = { type: 'ocular-create' } | { type: 'ocular-details'; visitId: number } | { type: "block"; block?: AvailabilityBlock; details?: boolean } | null;
 
 export default function AdminCalendarPage() {
+    const [searchParams] = useSearchParams();
+    const requestedDate = searchParams.get('date');
     const [view, setView] = useState<CalendarView>("Month");
-    const [cursor, setCursor] = useState(manilaDate);
+    const [cursor, setCursor] = useState(() => requestedDate && /^\d{4}-\d{2}-\d{2}$/.test(requestedDate) ? requestedDate : manilaDate());
     const [now, setNow] = useState(Date.now);
     const [modal, setModal] = useState<Modal>(null);
     const [notice, setNotice] = useState("");

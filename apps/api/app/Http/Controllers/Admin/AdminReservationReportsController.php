@@ -18,9 +18,9 @@ class AdminReservationReportsController extends Controller
     {
         $filters = $this->validatedFilters($request, $report);
         $pagination = $request->validate([
-            'per_page' => 'sometimes|integer|min:1|max:100',
+            'per_page' => 'sometimes|integer|min:1|max:5',
         ]);
-        $perPage = (int) ($pagination['per_page'] ?? 15);
+        $perPage = (int) ($pagination['per_page'] ?? 5);
         $records = $report->query($filters)->paginate($perPage);
         $records->setCollection($report->presentCollection($records->getCollection()));
 
@@ -40,7 +40,7 @@ class AdminReservationReportsController extends Controller
     {
         if (! $request->boolean('dashboard')) return $this->index($request, $report, $kpis);
         $filters = $this->validatedFilters($request, $report);
-        $perPage = (int) ($request->validate(['per_page' => 'sometimes|integer|min:1|max:100'])['per_page'] ?? 15);
+        $perPage = (int) ($request->validate(['per_page' => 'sometimes|integer|min:1|max:5'])['per_page'] ?? 5);
         $records = $report->guestQuery($filters)->paginate($perPage);
         $records->setCollection($report->presentGuestCollection($records->getCollection()));
         return response()->json([

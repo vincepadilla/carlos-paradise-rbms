@@ -8,6 +8,7 @@ const TABS = [
     { value: "guest", label: "Guest Report" },
     { value: "payment", label: "Payment Report" },
     { value: "queue", label: "Reservation Queue Report" },
+    { value: "ocular", label: "Ocular Visit Report" },
 ] as const;
 
 type Tab = typeof TABS[number]["value"];
@@ -21,7 +22,7 @@ export default function AdminReportsPage() {
     const suppliedTab = params.get("tab");
     const activeTab = validTab(suppliedTab);
     const reportActions = useRef<InteractiveReportActions>(null);
-    const tabState = useRef<Record<Tab, string>>({ reservation: '', guest: '', payment: '', queue: '' });
+    const tabState = useRef<Record<Tab, string>>({ reservation: '', guest: '', payment: '', queue: '', ocular: '' });
     const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
     const [actionBusy, setActionBusy] = useState(false);
 
@@ -58,7 +59,7 @@ export default function AdminReportsPage() {
 
     return <main className="admin-reports-page">
         <header className="admin-reports-header">
-            <div><h1>Reports</h1><p>Review reservation, guest, payment, and queue activity.</p></div>
+            <div><h1>Reports</h1><p>Review reservation, guest, payment, queue, and ocular visit activity.</p></div>
             <div className="admin-report-actions">
                 <button type="button" className="report-print-button" disabled={actionBusy} onClick={() => reportActions.current?.print('summary')}>Print Summary</button>
                 <button type="button" className="report-print-button" disabled={actionBusy} onClick={() => reportActions.current?.print('detailed')}>Print Detailed</button>

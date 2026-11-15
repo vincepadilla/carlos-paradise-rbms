@@ -2,7 +2,16 @@ import type { AdminReservation, Paginated } from "./admin";
 import type { Payment } from "./reservation";
 
 export type ReceiptMetadata = { available: boolean; mime: string | null };
-export type PaymentReviewData = { reservation: AdminReservation; receipts: Record<string, ReceiptMetadata> };
+export type PaymentReviewData = {
+    reservation: AdminReservation;
+    receipts: Record<string, ReceiptMetadata>;
+    payment_methods: string[];
+    can_approve_payments: boolean;
+    editing: null | {
+        pricing: Record<'base' | 'holiday_fee' | 'extra_fee' | 'cleaning_fee' | 'bonfire' | 'charcoal' | 'liquor' | 'other', string>;
+        discount: { type: 'none' | 'percentage' | 'fixed'; value: string; justification: string | null };
+    };
+};
 export type PendingPaymentReview = { reservation: AdminReservation; payment: Payment };
 export type DepositPaymentStatus = "verified" | "not_paid" | "awaiting_review" | "rejected";
 export type DepositPaymentRecord = {

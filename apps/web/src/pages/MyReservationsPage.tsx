@@ -989,6 +989,7 @@ export default function MyReservationsPage({
                                             ? "Day Tour"
                                             : "Overnight Stay"}
                                     </Information>
+                                    {reservation.partial_payment_authorized && <Information label="Partial-payment terms">{reservation.partial_payment_terms}</Information>}
                                 </div>
                                 <div className="space-y-4 px-4 pt-[15px] pb-6 md:px-6">
                                     {reservation.status === "awaiting_deposit" && (

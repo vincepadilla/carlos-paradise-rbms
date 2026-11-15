@@ -59,6 +59,26 @@
 .admin-payment-review .payment-empty { padding:20px; margin:0; }
 .admin-payment-review .payment-success { padding:14px 16px; background:var(--sage-pale); color:var(--sage); border:1px solid var(--sage); border-radius:8px; }
 .admin-payment-review .payment-error { padding:14px 16px; background:#f7e6e3; color:#a44b45; border-radius:8px; }
+.admin-payment-review .panel-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:7px; }
+.admin-payment-review .btn.compact { min-height:32px; padding:0 11px; border:1px solid var(--line); background:var(--paper); color:var(--brown); font-size:9px; }
+.staff-edit-form { max-height:min(68vh,650px); overflow:auto; padding:2px; }
+.staff-edit-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+.staff-edit-grid label { min-width:0; display:flex; flex-direction:column; gap:6px; color:var(--muted); font-size:10px; font-weight:700; }
+.staff-edit-grid input:not([type='checkbox']), .staff-edit-grid select, .staff-edit-grid textarea { width:100%; min-height:40px; padding:8px 10px; border:1px solid var(--line); border-radius:7px; background:var(--cream); color:var(--ink); font:inherit; }
+.staff-edit-grid textarea { min-height:72px; resize:vertical; }
+.staff-edit-grid .staff-edit-wide, .staff-edit-grid h3 { grid-column:1/-1; }
+.staff-edit-grid h3 { margin:5px 0 0; font-size:13px; font-weight:700; }
+.staff-edit-grid .staff-edit-check { grid-column:1/-1; flex-direction:row; align-items:center; }
+.staff-edit-grid small { font-weight:400; }
+.staff-edit-grid .cash-receiver { padding:10px 12px; border:1px solid var(--line); border-radius:7px; background:var(--cream); display:flex; flex-direction:column; gap:5px; color:var(--muted); font-size:10px; }
+.staff-edit-grid .cash-receiver b { color:var(--ink); font-size:12px; }
+.staff-edit-grid .cash-acknowledgment { flex-direction:row; align-items:center; padding:11px; border:1px solid var(--line); border-radius:7px; color:var(--ink); }
+.staff-edit-confirm dl { max-height:45vh; overflow:auto; margin:0 0 16px; border:1px solid var(--line); border-radius:8px; }
+.staff-edit-confirm dl > div { padding:9px 11px; border-bottom:1px solid var(--line); }
+.staff-edit-confirm dl > div:last-child { border-bottom:0; }
+.staff-edit-confirm dt { margin-bottom:5px; color:var(--muted); font-size:9px; font-weight:700; }
+.staff-edit-confirm dd { margin:0; display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:7px; font-size:10px; overflow-wrap:anywhere; }
+.staff-edit-confirm del { color:#8d5c57; }.staff-edit-confirm ins { color:#386247; text-decoration:none; font-weight:700; }
 .payment-rejection-reason { display:flex; flex-direction:column; gap:8px; font-size:12px; margin-bottom:18px; }
 .payment-rejection-reason textarea { width:100%; min-height:110px; padding:12px; border:1px solid var(--line); border-radius:8px; background:var(--cream); color:var(--ink); resize:vertical; }
 .admin-reservation-tabs { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:20px; border-bottom:1px solid var(--admin-line); padding-bottom:12px; }
@@ -117,4 +137,6 @@
     .admin-payment-review .panel-head { align-items:flex-start; flex-wrap:wrap; }
     .admin-payment-review .receipt-preview { margin:14px; padding:14px; }
     .admin-payment-review .page-head h1 { font-size:27px; }
+    .staff-edit-grid { grid-template-columns:minmax(0,1fr); }
+    .staff-edit-grid .staff-edit-wide, .staff-edit-grid h3 { grid-column:auto; }
 }

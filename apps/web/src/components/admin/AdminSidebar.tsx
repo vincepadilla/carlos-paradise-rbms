@@ -15,12 +15,11 @@ export const adminNavigation: { path: string; label: string; icon: IconName; mob
 ];
 
 const ownerNavigation: typeof adminNavigation = [
-    ...adminNavigation.slice(0, 5),
-    { path: "database", label: "Database", icon: "shield" },
-    adminNavigation[5],
-    { path: "settings", label: "System Settings", icon: "shield" },
+    ...adminNavigation,
     { path: "admin-management", label: "Admin Management", icon: "people" },
     { path: "audit-trail", label: "Audit Trail", icon: "clock" },
+    { path: "settings", label: "System Settings", icon: "shield" },
+    { path: "database", label: "Database", icon: "shield" },
 ];
 
 export function AdminNavLinks({ mobile = false, onNavigate }: { mobile?: boolean; onNavigate?: () => void }) {

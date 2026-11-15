@@ -392,6 +392,174 @@ class AdminPaymentReviewTest extends TestCase
         $this->getJson('/api/admin/payment-reviews?scope=all&status=confirmed')->assertUnprocessable();
     }
 
+    public function test_expanded_edits_require_both_staff_creation_source_and_a_staff_creator(): void
+    {
+        [$id, $payment] = $this->fixture();
+        $admin = $this->account('admin');
+        $this->actingAs($admin)->patchJson($this->page($id).'/deposit-terms', [
+            'revision' => 0, 'reason' => 'Correct contract terms.', 'required_deposit' => 6000,
+            'deadline' => now('Asia/Manila')->addHours(12)->toIso8601String(),
+            'partial_payment_authorized' => true, 'partial_payment_terms' => 'Two installments before the deadline.',
+        ])->assertForbidden();
+
+        DB::table('reservations')->where('id', $id)->update(['creation_source' => 'staff_portal']);
+        $this->patchJson($this->page($id).'/deposit-terms', [
+            'revision' => 0, 'reason' => 'Correct contract terms.', 'required_deposit' => 6000,
+            'deadline' => now('Asia/Manila')->addHours(12)->toIso8601String(),
+            'partial_payment_authorized' => true, 'partial_payment_terms' => 'Two installments before the deadline.',
+        ])->assertForbidden();
+
+        DB::table('reservations')->where('id', $id)->update(['created_by' => $admin->id]);
+        $this->patchJson($this->page($id).'/deposit-terms', [
+            'revision' => 0, 'reason' => 'Correct contract terms.', 'required_deposit' => 6000,
+            'deadline' => now('Asia/Manila')->addHours(12)->toIso8601String(),
+            'partial_payment_authorized' => true, 'partial_payment_terms' => 'Two installments before the deadline.',
+        ])->assertOk()->assertJsonPath('reservation.deposit', '6000.00')->assertJsonPath('reservation.partial_payment_authorized', true);
+        $this->assertDatabaseHas('reservation_status_history', ['reservation_id' => $id, 'changed_by' => $admin->id, 'event' => 'staff_deposit_terms_corrected']);
+        $this->assertDatabaseHas('reservation_opportunities', ['reservation_id' => $id, 'status' => 'active']);
+        $this->patchJson($this->page($id).'/deposit-terms', [
+            'revision' => 0, 'reason' => 'Stale duplicate request.', 'required_deposit' => 6500,
+            'deadline' => now('Asia/Manila')->addHours(13)->toIso8601String(),
+            'partial_payment_authorized' => false,
+        ])->assertConflict();
+        $this->assertDatabaseHas('reservations', ['id' => $id, 'required_deposit' => 6000]);
+    }
+
+    public function test_staff_payment_corrections_are_audited_but_guest_and_verified_payments_remain_immutable(): void
+    {
+        [$id, $payment] = $this->fixture();
+        $admin = $this->account('admin');
+        DB::table('reservations')->where('id', $id)->update(['creation_source' => 'staff_portal', 'created_by' => $admin->id]);
+        $url = '/api/admin/reservations/'.$id.'/payments/'.$payment.'/edit';
+        $payload = ['revision' => 0, 'payment_revision' => 0, 'reason' => 'Correct staff entry.', 'amount' => 5250,
+            'method' => 'GCash', 'reference' => 'STAFF-CORRECTED-5250', 'payment_date' => now('Asia/Manila')->toDateString(), 'notes' => 'Matched bank ledger.'];
+
+        $this->actingAs($admin)->post($url, $payload, ['Accept' => 'application/json'])->assertForbidden();
+        DB::table('payments')->where('id', $payment)->update(['submitted_by' => $admin->id]);
+        $this->post($url, $payload, ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('reservation.payments.0.amount', '5250.00')->assertJsonPath('reservation.payments.0.status', 'submitted')
+            ->assertJsonPath('reservation.status', 'payment_review');
+        $this->assertDatabaseHas('payment_adjustments', ['payment_id' => $payment, 'adjusted_by' => $admin->id, 'reason' => 'Correct staff entry.']);
+        $this->assertDatabaseHas('reservation_status_history', ['reservation_id' => $id, 'event' => 'staff_payment_corrected']);
+        $this->assertDatabaseHas('payments', ['id' => $payment, 'amount' => 5250, 'status' => 'submitted', 'staff_revision' => 1]);
+
+        DB::table('payments')->where('id', $payment)->update(['status' => 'approved']);
+        $this->post($url, [...$payload, 'revision' => 1, 'payment_revision' => 1, 'amount' => 6000], ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->assertDatabaseHas('payments', ['id' => $payment, 'amount' => 5250, 'status' => 'approved']);
+        $this->assertDatabaseCount('payment_adjustments', 1);
+    }
+
+    public function test_staff_reservation_edit_recalculates_price_and_rejects_conflicting_schedule(): void
+    {
+        [$id] = $this->fixture();
+        $admin = $this->account('admin');
+        DB::table('reservations')->where('id', $id)->update(['creation_source' => 'staff_portal', 'created_by' => $admin->id]);
+        $record = DB::table('reservations')->where('id', $id)->first();
+        $start = \Carbon\CarbonImmutable::parse($record->starts_at, 'Asia/Manila');
+        $end = \Carbon\CarbonImmutable::parse($record->ends_at, 'Asia/Manila');
+        $payload = [
+            'revision' => 0, 'reason' => 'Guest requested corrected details.', 'contact_name' => 'Corrected Staff Guest',
+            'contact_email' => 'corrected@example.test', 'contact_phone' => '09171234567', 'type' => 'overnight',
+            'checkin' => $start->toDateString(), 'checkout' => $end->toDateString(), 'checkin_time' => $start->format('H:i'), 'checkout_time' => $end->format('H:i'),
+            'adults' => 3, 'children' => 1, 'pets' => 0, 'bonfire_qty' => 1, 'charcoal_qty' => 2, 'liquor_qty' => 0, 'notes' => 'Late arrival.',
+            'pricing' => ['base' => 16000, 'holiday_fee' => 1000, 'extra_fee' => 500, 'cleaning_fee' => 0, 'bonfire' => 500, 'charcoal' => 200, 'liquor' => 0, 'other' => 0],
+            'discount' => ['type' => 'fixed', 'value' => 1000, 'justification' => 'Approved staff promotion.'],
+        ];
+        $this->actingAs($admin)->patchJson($this->page($id).'/reservation', $payload)->assertOk()
+            ->assertJsonPath('reservation.total', '17200.00')->assertJsonPath('reservation.contact_name', 'Corrected Staff Guest')
+            ->assertJsonPath('reservation.bonfire_qty', 1)->assertJsonPath('reservation.revision', 1);
+        $this->assertDatabaseHas('reservation_status_history', ['reservation_id' => $id, 'event' => 'staff_reservation_corrected', 'changed_by' => $admin->id]);
+
+        DB::table('availability_blocks')->insert(['villa_id' => 1, 'starts_on' => $start->addDays(2)->toDateString(), 'ends_on' => $start->addDays(3)->toDateString(),
+            'reason' => 'Maintenance', 'created_by' => $admin->id, 'created_at' => now(), 'updated_at' => now()]);
+        $this->patchJson($this->page($id).'/reservation', [...$payload, 'revision' => 1, 'checkin' => $start->addDays(2)->toDateString(), 'checkout' => $start->addDays(3)->toDateString()])
+            ->assertUnprocessable();
+        $this->assertDatabaseHas('reservations', ['id' => $id, 'quoted_total' => 17200, 'admin_revision' => 1]);
+    }
+
+    public function test_admin_records_and_approves_cash_without_bank_details_or_required_attachment_idempotently(): void
+    {
+        [$id, $oldPayment] = $this->fixture();
+        $admin = $this->account('admin');
+        DB::table('payments')->where('id', $oldPayment)->delete();
+        DB::table('reservations')->where('id', $id)->update(['status' => 'awaiting_deposit', 'creation_source' => 'staff_portal', 'created_by' => $admin->id]);
+        $received = now('Asia/Manila')->subMinutes(5)->format('Y-m-d\TH:i');
+        $payload = ['revision' => 0, 'request_key' => (string) Str::uuid(), 'amount' => 6000, 'received_at' => $received,
+            'receipt_number' => 'CASH-OR-1001', 'notes' => 'Received at front desk.', 'confirmed_received' => '1'];
+        $url = '/api/admin/reservations/'.$id.'/payment-review/cash-payments';
+
+        $response = $this->actingAs($admin)->post($url, $payload, ['Accept' => 'application/json'])->assertOk()
+            ->assertJsonPath('reservation.status', 'confirmed')->assertJsonPath('reservation.deposit_paid', '6000.00')
+            ->assertJsonPath('reservation.amount_due', '10000.00')->assertJsonPath('reservation.payments.0.method', 'Cash')
+            ->assertJsonPath('reservation.payments.0.status', 'approved');
+        $payment = $response->json('reservation.payments.0.id');
+        $method = DB::table('payment_methods')->where('name', 'Cash')->sole();
+        $this->assertNull($method->account_name);
+        $this->assertNull($method->account_number);
+        $this->assertFalse((bool) $method->is_active);
+        $this->assertDatabaseHas('payments', ['id' => $payment, 'amount' => 6000, 'status' => 'approved', 'receipt_storage_path' => null, 'reference_number' => 'CASH-OR-1001']);
+        $this->assertDatabaseHas('payment_reviews', ['payment_id' => $payment, 'reviewed_by' => $admin->id, 'decision' => 'approved']);
+        $this->assertDatabaseHas('reservation_status_history', ['reservation_id' => $id, 'changed_by' => $admin->id, 'event' => 'staff_cash_payment_recorded']);
+
+        $this->post($url, $payload, ['Accept' => 'application/json'])->assertOk()->assertJsonCount(1, 'reservation.payments');
+        $this->assertDatabaseCount('payments', 1);
+        $this->assertDatabaseCount('payment_reviews', 1);
+    }
+
+    public function test_cash_underpayment_requires_authorized_partial_terms_and_separate_cash_records_accumulate(): void
+    {
+        [$id, $oldPayment] = $this->fixture();
+        $admin = $this->account('admin');
+        DB::table('payments')->where('id', $oldPayment)->delete();
+        DB::table('reservations')->where('id', $id)->update(['status' => 'awaiting_deposit', 'creation_source' => 'staff_portal', 'created_by' => $admin->id]);
+        $url = '/api/admin/reservations/'.$id.'/payment-review/cash-payments';
+        $base = ['revision' => 0, 'request_key' => (string) Str::uuid(), 'amount' => 2000, 'received_at' => now('Asia/Manila')->subMinute()->format('Y-m-d\TH:i'),
+            'receipt_number' => 'CASH-PART-1', 'notes' => null, 'confirmed_received' => '1'];
+        $this->actingAs($admin)->post($url, $base, ['Accept' => 'application/json'])->assertUnprocessable();
+        $this->assertDatabaseCount('payments', 0);
+
+        DB::table('reservations')->where('id', $id)->update(['partial_payment_authorized' => true, 'partial_payment_terms' => 'Two cash installments.']);
+        $this->post($url, $base, ['Accept' => 'application/json'])->assertOk()->assertJsonPath('reservation.status', 'awaiting_deposit')
+            ->assertJsonPath('reservation.deposit_paid', '2000.00')->assertJsonCount(1, 'reservation.payments');
+        $this->post($url, [...$base, 'revision' => 1, 'request_key' => (string) Str::uuid(), 'amount' => 3500, 'receipt_number' => 'CASH-PART-2'], ['Accept' => 'application/json'])
+            ->assertOk()->assertJsonPath('reservation.status', 'confirmed')->assertJsonPath('reservation.deposit_paid', '5500.00')->assertJsonCount(2, 'reservation.payments');
+        $this->assertDatabaseCount('payments', 2);
+        $this->assertDatabaseCount('payment_reviews', 2);
+    }
+
+    public function test_cash_for_guest_booking_or_queued_staff_booking_is_rejected_and_non_approver_is_queued_for_review(): void
+    {
+        [$id, $oldPayment] = $this->fixture();
+        DB::table('payments')->where('id', $oldPayment)->delete();
+        DB::table('reservations')->where('id', $id)->update(['status' => 'awaiting_deposit']);
+        $admin = $this->account('admin');
+        $payload = ['revision' => 0, 'request_key' => (string) Str::uuid(), 'amount' => 5000, 'received_at' => now('Asia/Manila')->subMinute()->format('Y-m-d\TH:i'),
+            'receipt_number' => 'CASH-AUTH-1', 'confirmed_received' => '1'];
+        $this->actingAs($admin)->post('/api/admin/reservations/'.$id.'/payment-review/cash-payments', $payload, ['Accept' => 'application/json'])->assertForbidden();
+        $this->assertDatabaseCount('payments', 0);
+
+        $owner = $this->account('owner');
+        DB::table('reservations')->where('id', $id)->update(['creation_source' => 'staff_portal', 'created_by' => $owner->id]);
+        config(['reservations.payment_approval_roles' => ['admin']]);
+        try {
+            $cashPayment = $this->actingAs($owner)->post('/api/owner/operations/reservations/'.$id.'/payment-review/cash-payments', $payload, ['Accept' => 'application/json'])
+                ->assertOk()->assertJsonPath('can_approve_payments', false)->assertJsonPath('reservation.status', 'payment_review')
+                ->assertJsonPath('reservation.payments.0.status', 'submitted')->json('reservation.payments.0.id');
+            $this->assertDatabaseCount('payment_reviews', 0);
+            $this->actingAs($admin)->postJson($this->review($id, $cashPayment), $this->decision())->assertOk()
+                ->assertJsonPath('reservation.status', 'confirmed')->assertJsonPath('reservation.deposit_paid', '5000.00');
+            $this->assertDatabaseHas('payments', ['id' => $cashPayment, 'status' => 'approved', 'receipt_storage_path' => null]);
+        } finally {
+            config(['reservations.payment_approval_roles' => ['admin', 'owner']]);
+        }
+
+        [$queued, $queuedPayment] = $this->fixture(['status' => 'queued', 'creation_source' => 'staff_portal', 'created_by' => $admin->id]);
+        DB::table('payments')->where('id', $queuedPayment)->delete();
+        DB::table('reservation_opportunities')->where('reservation_id', $queued)->delete();
+        $this->actingAs($admin)->post('/api/admin/reservations/'.$queued.'/payment-review/cash-payments', [...$payload, 'request_key' => (string) Str::uuid(), 'receipt_number' => 'CASH-QUEUE-1'], ['Accept' => 'application/json'])
+            ->assertUnprocessable();
+    }
+
     private function fixture(array $reservation = [], array $payment = []): array
     {
         $guest = $this->account('guest');

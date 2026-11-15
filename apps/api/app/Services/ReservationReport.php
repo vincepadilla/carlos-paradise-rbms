@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\DB;
 
 class ReservationReport
 {
+    public function __construct(private ReservationAvailability $availability) {}
+
     public const DATE_RANGES = ['all', 'this_month', 'last_month', 'this_year', 'custom'];
 
     public const STATUSES = [
@@ -136,12 +138,47 @@ class ReservationReport
     public function analytics(array $filters): array
     {
         $records = $this->query([...$filters, 'status' => '', 'period' => ''])->get();
+        [$availabilityStart, $availabilityEnd] = $this->availabilityBounds($filters);
         return [
             'scope_label' => 'Base search and reservation check-in date scope',
-            'status' => $records->groupBy('status')->map->count()->sortDesc()
-                ->map(fn ($value, $key) => ['key' => $key, 'label' => ucwords(str_replace('_', ' ', $key)), 'value' => $value])->values()->all(),
+            'status' => collect(self::STATUSES)->map(fn ($status) => [
+                'key' => $status,
+                'label' => ucwords(str_replace('_', ' ', $status)),
+                'value' => $records->where('status', $status)->count(),
+            ])->all(),
+            'availability' => [
+                ['key' => 'available_nights', 'label' => 'Available Nights', 'value' => $this->availability->availableNights($availabilityStart, $availabilityEnd), 'unit' => 'nights'],
+                ['key' => 'completed_reservations', 'label' => 'Completed Reservations', 'value' => $records->where('status', 'completed')->count(), 'unit' => 'reservations'],
+            ],
+            'availability_period' => [
+                'start' => $availabilityStart->toDateString(),
+                'end' => $availabilityEnd->toDateString(),
+            ],
             'trend' => $this->trend($records, $filters),
         ];
+    }
+
+    /** @return array{CarbonImmutable, CarbonImmutable} */
+    private function availabilityBounds(array $filters): array
+    {
+        if ($filters['start_date'] && $filters['end_date']) {
+            return [
+                CarbonImmutable::createFromFormat('!Y-m-d', $filters['start_date'], 'Asia/Manila'),
+                CarbonImmutable::createFromFormat('!Y-m-d', $filters['end_date'], 'Asia/Manila'),
+            ];
+        }
+
+        $reservationStart = DB::table('reservations')->where('villa_id', 1)->min('check_in_date');
+        $reservationEnd = DB::table('reservations')->where('villa_id', 1)->max('check_out_date');
+        $blockStart = DB::table('availability_blocks')->where('villa_id', 1)->whereNull('released_at')->min('starts_on');
+        $blockEnd = DB::table('availability_blocks')->where('villa_id', 1)->whereNull('released_at')->max('ends_on');
+        $today = CarbonImmutable::now('Asia/Manila')->startOfDay();
+        $starts = collect([$reservationStart, $blockStart])->filter()->map(fn ($date) => CarbonImmutable::parse($date, 'Asia/Manila'));
+        $ends = collect([$reservationEnd, $blockEnd])->filter()->map(fn ($date) => CarbonImmutable::parse($date, 'Asia/Manila')->subDay());
+        $start = $starts->isEmpty() ? $today : $starts->sort()->first();
+        $end = $ends->isEmpty() ? $today : $ends->sort()->last();
+
+        return [$start, $end->lt($start) ? $start : $end];
     }
 
     public function guestQuery(array $filters): Builder

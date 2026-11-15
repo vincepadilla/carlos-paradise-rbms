@@ -6,8 +6,8 @@ import { DetailPanel } from "../reservation-details/DetailPrimitives";
 
 type ReceiptState = { status: "loading" | "missing" } | { status: "error"; message: string } | { status: "ready"; url: string; mime: string };
 
-export default function ReceiptPreview({ reservationId, paymentId, receipt, onReady }: {
-    reservationId: number; paymentId: number; receipt?: ReceiptMetadata; onReady: (ready: boolean) => void;
+export default function ReceiptPreview({ reservationId, paymentId, receipt, cash = false, onReady }: {
+    reservationId: number; paymentId: number; receipt?: ReceiptMetadata; cash?: boolean; onReady: (ready: boolean) => void;
 }) {
     const [state, setState] = useState<ReceiptState>({ status: "loading" });
     const [attempt, setAttempt] = useState(0);
@@ -16,7 +16,7 @@ export default function ReceiptPreview({ reservationId, paymentId, receipt, onRe
         const controller = new AbortController();
         let objectUrl: string | undefined;
         onReady(false);
-        if (!receipt?.available) { setState({ status: "missing" }); return; }
+        if (!receipt?.available) { setState({ status: "missing" }); onReady(cash); return; }
         setState({ status: "loading" });
         void (async () => {
             try {
@@ -39,12 +39,12 @@ export default function ReceiptPreview({ reservationId, paymentId, receipt, onRe
             }
         })();
         return () => { controller.abort(); if (objectUrl) URL.revokeObjectURL(objectUrl); };
-    }, [reservationId, paymentId, receipt?.available, attempt, revalidate, onReady]);
+    }, [reservationId, paymentId, receipt?.available, cash, attempt, revalidate, onReady]);
 
-    return <DetailPanel title="Payment Receipt / Proof" copy="Inspect the uploaded receipt and verify the transfer against the receiving account.">
+    return <DetailPanel title="Payment Receipt / Proof" copy={cash ? "Cash records do not require bank or receiving-account proof." : "Inspect the uploaded receipt and verify the transfer against the receiving account."}>
         <div className="receipt-preview">
             {state.status === "loading" && <p role="status">Loading payment receipt…</p>}
-            {state.status === "missing" && <p>No payment receipt submitted.</p>}
+            {state.status === "missing" && <p>{cash ? "Cash received — recorded by admin or owner" : "No payment receipt submitted."}</p>}
             {state.status === "error" && <div role="alert"><p>{state.message}</p><button className="btn secondary" onClick={() => setAttempt(value => value + 1)}>Retry receipt</button></div>}
             {state.status === "ready" && <>
                 {state.mime === "application/pdf" ? <div className="pdf-receipt"><b>PDF payment receipt</b><p>Open the uploaded PDF to inspect the payment proof.</p></div>

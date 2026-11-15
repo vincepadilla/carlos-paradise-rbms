@@ -466,7 +466,10 @@ class BookingPaymentsController extends Controller
         );
         abort_unless($reservation->price_agreed, 422, 'The reservation total must be agreed before confirming payment.');
         abort_unless(CarbonImmutable::parse($reservation->ends_at)->gt($this->flow->now()), 422, 'An ended reservation cannot be confirmed.');
-        $receipt = $this->receipts->describe($payment);
-        abort_unless($receipt['available'] && in_array($receipt['mime'], PaymentReceiptStorage::PREVIEW_TYPES, true), 422, 'A valid uploaded receipt is required before approval.');
+        $cash = DB::table('payment_methods')->where('id', $payment->payment_method_id)->where('name', 'Cash')->exists();
+        if (! $cash) {
+            $receipt = $this->receipts->describe($payment);
+            abort_unless($receipt['available'] && in_array($receipt['mime'], PaymentReceiptStorage::PREVIEW_TYPES, true), 422, 'A valid uploaded receipt is required before approval.');
+        }
     }
 }

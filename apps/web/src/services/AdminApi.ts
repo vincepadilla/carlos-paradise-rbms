@@ -26,15 +26,15 @@ export const AdminApi = {
     dashboardSummary: (signal?: AbortSignal) =>
         reservationApi<DashboardSummary>('/admin/dashboard/summary', 'GET', undefined, signal),
     dashboardReport: (kind: import('../types/interactiveReports').ReportKind, query: URLSearchParams, signal?: AbortSignal) => {
-        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : 'queue';
+        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : kind === 'queue' ? 'queue' : 'ocular-visits';
         return reservationApi<import('../types/interactiveReports').DashboardReport>(`/admin/reports/${resource}?${query}`, 'GET', undefined, signal);
     },
     dashboardReportPrint: (kind: import('../types/interactiveReports').ReportKind, query: URLSearchParams, signal?: AbortSignal) => {
-        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : 'queue';
+        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : kind === 'queue' ? 'queue' : 'ocular-visits';
         return reservationApi<import('../types/interactiveReports').DashboardReport>(`/admin/reports/${resource}/print?${query}`, 'GET', undefined, signal);
     },
     exportDashboardReport: async (kind: import('../types/interactiveReports').ReportKind, query: URLSearchParams): Promise<{ blob: Blob; filename: string }> => {
-        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : 'queue';
+        const resource = kind === 'reservation' ? 'reservations' : kind === 'guest' ? 'guests' : kind === 'payment' ? 'payments' : kind === 'queue' ? 'queue' : 'ocular-visits';
         const response = await fetch(`${operationalApiUrl('/admin')}/reports/${resource}/export?${query}`, {
             credentials: 'include', headers: { Accept: 'text/csv', 'X-Requested-With': 'XMLHttpRequest' },
         });
@@ -142,6 +142,14 @@ export const AdminApi = {
         readRecord<PaymentReviewData>(`/admin/reservations/${encodeURIComponent(id)}/payment-review`, "Reservation not found.", signal),
     reviewPayment: (reservationId: number, paymentId: number, decision: "approved" | "rejected", note: string) =>
         reservationApi(`/admin/reservations/${reservationId}/payments/${paymentId}/review`, "POST", { decision, note }),
+    updatePaymentReviewReservation: (reservationId: number, data: Record<string, unknown>) =>
+        reservationApi<PaymentReviewData>(`/admin/reservations/${reservationId}/payment-review/reservation`, 'PATCH', data),
+    updateDepositTerms: (reservationId: number, data: Record<string, unknown>) =>
+        reservationApi<PaymentReviewData>(`/admin/reservations/${reservationId}/payment-review/deposit-terms`, 'PATCH', data),
+    updateStaffPayment: (reservationId: number, paymentId: number, data: FormData) =>
+        reservationApi<PaymentReviewData>(`/admin/reservations/${reservationId}/payments/${paymentId}/edit`, 'POST', data),
+    recordCashPayment: (reservationId: number, data: FormData) =>
+        reservationApi<PaymentReviewData>(`/admin/reservations/${reservationId}/payment-review/cash-payments`, 'POST', data),
     createOcularVisit: (data: OcularVisitInput) =>
         reservationApi<{ ocular_visit: OcularVisit }>('/admin/ocular-visits', 'POST', data),
     ocularVisit: (id: number, signal?: AbortSignal) =>

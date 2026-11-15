@@ -19,6 +19,10 @@ export type Payment = {
     submitted_at?: string | null;
     reviewed_at?: string | null;
     reviewed_by?: number | null;
+    submitted_by?: number;
+    staff_notes?: string | null;
+    revision?: number;
+    staff_recorded?: boolean;
 };
 export type SavedReservation = {
     id: number;
@@ -41,6 +45,15 @@ export type SavedReservation = {
     damage_total?: string;
     amount_due?: string | null;
     credit_balance?: string | null;
+    revision?: number;
+    created_by?: number | null;
+    creation_source?: 'guest_portal' | 'staff_portal';
+    staff_editable?: boolean;
+    bonfire_qty?: number;
+    charcoal_qty?: number;
+    liquor_qty?: number;
+    partial_payment_authorized?: boolean;
+    partial_payment_terms?: string | null;
 };
 export type Quote = {
     base: number;

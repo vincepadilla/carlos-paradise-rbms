@@ -3,6 +3,7 @@ import type { SetURLSearchParams } from 'react-router';
 import { AdminApi } from '../../../services/AdminApi';
 import type { ChartDatum, DashboardReport, ReportCardDatum, ReportKind } from '../../../types/interactiveReports';
 import { useStaffNavigate as useNavigate } from '../StaffRouting';
+import OcularVisitManagementDialog from '../calendar/OcularVisitManagementDialog';
 
 export type InteractiveReportActions = {
     print: (mode: 'summary' | 'detailed') => void;
@@ -24,12 +25,13 @@ const DATE_RANGES = [
 const RESERVATION_STATUSES = ['pending', 'queued', 'awaiting_deposit', 'payment_review', 'confirmed', 'ongoing', 'completed', 'cancelled', 'rejected', 'expired'];
 const PAYMENT_STATUSES = ['awaiting_review', 'verified', 'rejected'];
 const QUEUE_STATUSES = ['queued', 'awaiting_deposit', 'payment_review', 'confirmed', 'expired', 'cancelled', 'rejected'];
+const OCULAR_STATUSES = ['pending_review', 'approved', 'cancelled'];
 const COLORS = ['#6f4c3a', '#b9855d', '#d7b98f', '#58705a', '#9a5d54', '#776a8b', '#b59e6d', '#496b78'];
 
 type Filters = { search: string; date_range: string; status: string; start_date: string; end_date: string; period: string; guest_type: string; frequency: string; category: string; card: string };
 
 function title(kind: ReportKind) {
-    return kind === 'reservation' ? 'Reservation Report' : kind === 'guest' ? 'Guest Report' : kind === 'payment' ? 'Payment Report' : 'Reservation Queue Report';
+    return kind === 'reservation' ? 'Reservation Report' : kind === 'guest' ? 'Guest Report' : kind === 'payment' ? 'Payment Report' : kind === 'queue' ? 'Reservation Queue Report' : 'Ocular Visit Report';
 }
 
 function label(value: string) {
@@ -48,7 +50,7 @@ function filtersFrom(params: URLSearchParams): Filters {
 }
 
 function queryFrom(kind: ReportKind, filters: Filters, page?: number) {
-    const query = new URLSearchParams({ dashboard: '1', date_range: filters.date_range });
+    const query = new URLSearchParams({ dashboard: '1', date_range: filters.date_range, per_page: '5' });
     if (filters.search) query.set('search', filters.search);
     if (filters.status) query.set(kind === 'payment' ? 'payment_status' : 'status', filters.status);
     if (filters.period) query.set('period', filters.period);
@@ -73,6 +75,13 @@ function date(value: unknown, withTime = false) {
     const raw = String(value);
     const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? new Date(`${raw}T00:00:00+08:00`) : new Date(raw);
     return new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'medium', ...(withTime ? { timeStyle: 'short' as const } : {}) }).format(parsed);
+}
+
+function time(value: unknown) {
+    const match = String(value ?? '').match(/^(\d{2}):(\d{2})/);
+    if (!match) return '—';
+    const parsed = new Date(2000, 0, 1, Number(match[1]), Number(match[2]));
+    return new Intl.DateTimeFormat('en-PH', { hour: 'numeric', minute: '2-digit' }).format(parsed);
 }
 
 function activate(event: KeyboardEvent<SVGElement>, action: () => void) {
@@ -143,11 +152,31 @@ function TrendChart({ title: chartTitle, data, selected, onSelect, currency = fa
     </article>;
 }
 
+function AvailabilityCompletedChart({ data, completedSelected, onAvailable, onCompleted }: {
+    data: ChartDatum[]; completedSelected: boolean; onAvailable: () => void; onCompleted: () => void;
+}) {
+    const available = data.find(item => item.key === 'available_nights');
+    const completed = data.find(item => item.key === 'completed_reservations');
+    return <article className='report-chart-card availability-completed-chart'>
+        <header><h3>Availability &amp; Completed Stays</h3><span>Separate measures for the selected period</span></header>
+        <div className='availability-measures'>
+            <button type='button' onClick={onAvailable} aria-label={`Open Calendar for ${available?.value ?? 0} available nights`}>
+                <span>Available Nights</span><b>{(available?.value ?? 0).toLocaleString()}</b><small>nights · open Calendar</small>
+            </button>
+            <button type='button' className={completedSelected ? 'selected' : ''} aria-pressed={completedSelected} onClick={onCompleted}>
+                <span>Completed Reservations</span><b>{(completed?.value ?? 0).toLocaleString()}</b><small>reservations · filter table</small>
+            </button>
+        </div>
+        <p>Night availability follows booking, active opportunity, and date-block rules. The measures do not share a percentage total.</p>
+    </article>;
+}
+
 const HEADINGS: Record<ReportKind, string[]> = {
     reservation: ['Reservation', 'Stay & Guests', 'Guest', 'Status', 'Saved Pricing'],
     guest: ['Guest', 'Reservations', 'Stay History', 'Associated Reservation'],
     payment: ['Reservation', 'Payment Reference', 'Amount & Method', 'Payment Dates', 'Review Status'],
     queue: ['Reservation', 'Requested Stay', 'Queue Position', 'Queue Status', 'Event & Deadline'],
+    ocular: ['Visit Reference', 'Visitor Name', 'Visit Date', 'Time', 'Status', 'Assigned Staff'],
 };
 
 function textCells(kind: ReportKind, row: Record<string, unknown>): string[] {
@@ -173,6 +202,14 @@ function textCells(kind: ReportKind, row: Record<string, unknown>): string[] {
         `${money(row.amount)} · ${row.method ?? '—'} · ${label(String(row.payment_kind ?? ''))}`,
         `Paid ${date(row.payment_date)} · Submitted ${date(row.submitted_at, true)} · Reviewed ${date(row.reviewed_at, true)}`,
         label(String(row.review_status)),
+    ];
+    if (kind === 'ocular') return [
+        String(row.visit_reference ?? '—'),
+        String(row.visitor_name ?? '—'),
+        date(row.visit_date),
+        `${time(row.start_time)} – ${time(row.end_time)}`,
+        label(String(row.status)),
+        String(row.assigned_staff ?? '—'),
     ];
     return [
         String(row.booking_reference ?? '—'), `${date(row.check_in_date)} – ${date(row.check_out_date)}`,
@@ -244,8 +281,9 @@ const InteractiveReport = forwardRef<InteractiveReportActions, Props>(function I
     const [error, setError] = useState('');
     const [retry, setRetry] = useState(0);
     const [action, setAction] = useState<'' | 'print' | 'export'>('');
+    const [selectedVisitId, setSelectedVisitId] = useState<number | null>(null);
     const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
-    const statuses = kind === 'payment' ? PAYMENT_STATUSES : kind === 'queue' ? QUEUE_STATUSES : RESERVATION_STATUSES;
+    const statuses = kind === 'payment' ? PAYMENT_STATUSES : kind === 'queue' ? QUEUE_STATUSES : kind === 'ocular' ? OCULAR_STATUSES : RESERVATION_STATUSES;
 
     useEffect(() => setDraft(applied), [applied]);
 
@@ -330,17 +368,21 @@ const InteractiveReport = forwardRef<InteractiveReportActions, Props>(function I
 
     useImperativeHandle(ref, () => ({ print, exportCsv, busy: action !== '' }), [action, exportCsv, print]);
 
-    const openReservation = (row: Record<string, unknown>) => {
+    const openRow = (row: Record<string, unknown>) => {
         const id = Number(row.id ?? row.reservation_id ?? row.associated_reservation_id);
         if (!id) return;
+        if (kind === 'ocular') {
+            setSelectedVisitId(id);
+            return;
+        }
         const returnTo = `/admin/reports?${params.toString()}`;
         navigate(`/admin/reservations/${id}?returnTo=${encodeURIComponent(returnTo)}`);
     };
 
     const firstChart = report?.analytics.status ?? report?.analytics.classification ?? report?.analytics.distribution ?? [];
     const secondChart = report?.analytics.trend ?? report?.analytics.frequency ?? [];
-    const statusTitle = kind === 'reservation' ? 'Reservation Status' : kind === 'guest' ? 'New vs Returning Guests' : kind === 'payment' ? 'Payment / Review Status' : 'Queue Status';
-    const trendTitle = kind === 'reservation' ? 'Reservation Volume' : kind === 'guest' ? 'Reservation Frequency' : kind === 'payment' ? 'Verified Payment Amount' : 'Queue Activity';
+    const statusTitle = kind === 'reservation' ? 'Reservation Status' : kind === 'guest' ? 'New vs Returning Guests' : kind === 'payment' ? 'Payment / Review Status' : kind === 'queue' ? 'Queue Status' : 'Visit Status';
+    const trendTitle = kind === 'reservation' ? 'Reservation Volume' : kind === 'guest' ? 'Reservation Frequency' : kind === 'payment' ? 'Verified Payment Amount' : kind === 'queue' ? 'Queue Activity' : 'Visit Volume';
     const chartStatusSelection = kind === 'guest' ? '' : applied.status;
     const reportCards = report ? cardsFor(kind, report) : [];
     const selectedCard = reportCards.find(card => card.key === applied.card);
@@ -372,7 +414,7 @@ const InteractiveReport = forwardRef<InteractiveReportActions, Props>(function I
             }
             updateUrl({ ...draft, period: '', guest_type: '', frequency: '', category: '', card: '' });
         }}>
-            <label className='report-search'><span>Search</span><input value={draft.search} onChange={event => setDraft(current => ({ ...current, search: event.target.value }))} placeholder={kind === 'payment' ? 'Reservation or payment reference' : kind === 'queue' ? 'Reservation reference' : 'Guest or reservation reference'} /></label>
+            <label className='report-search'><span>Search</span><input value={draft.search} onChange={event => setDraft(current => ({ ...current, search: event.target.value }))} placeholder={kind === 'payment' ? 'Reservation or payment reference' : kind === 'queue' ? 'Reservation reference' : kind === 'ocular' ? 'Visit reference, visitor, or staff' : 'Guest or reservation reference'} /></label>
             <label><span>Date Range</span><select value={draft.date_range} onChange={event => setDraft(current => ({ ...current, date_range: event.target.value }))}>{DATE_RANGES.map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
             {draft.date_range === 'custom' && <>
                 <label><span>Start Date</span><input type='date' value={draft.start_date} onChange={event => setDraft(current => ({ ...current, start_date: event.target.value }))} /></label>
@@ -412,13 +454,19 @@ const InteractiveReport = forwardRef<InteractiveReportActions, Props>(function I
         {error && <div className='report-error' role='alert'><span>{error}</span><button type='button' onClick={() => setRetry(value => value + 1)}>Retry</button></div>}
 
         {report && <><p className='chart-scope'>{report.analytics.scope_label}. Chart totals remain based on this scope while drill-down filters the details below.</p>
-            <div className='report-charts'>
+            <div className={`report-charts${kind === 'reservation' ? ' report-charts-reservation' : ''}`}>
                 {kind === 'queue'
                     ? <BarChart title={statusTitle} data={firstChart} selected={chartStatusSelection} horizontal onSelect={item => drill('status', item.key)} />
                     : <DonutChart title={statusTitle} data={firstChart} selected={kind === 'guest' ? applied.guest_type : chartStatusSelection} onSelect={item => drill(kind === 'guest' ? 'guest_type' : 'status', item.key)} />}
-                {kind === 'guest'
+                {kind === 'reservation' && <AvailabilityCompletedChart data={report.analytics.availability ?? []} completedSelected={applied.status === 'completed'}
+                    onAvailable={() => {
+                        const period = report.analytics.availability_period;
+                        navigate(`/admin/calendar${period ? `?date=${encodeURIComponent(period.start)}&end=${encodeURIComponent(period.end)}` : ''}`);
+                    }}
+                    onCompleted={() => drill('status', 'completed')} />}
+                <div className={kind === 'reservation' ? 'report-chart-wide' : undefined}>{kind === 'guest'
                     ? <BarChart title={trendTitle} data={secondChart} selected={applied.frequency} onSelect={item => drill('frequency', item.key)} />
-                    : <TrendChart title={trendTitle} data={secondChart} selected={applied.period} currency={kind === 'payment'} onSelect={item => drill('period', item.key)} />}
+                    : <TrendChart title={trendTitle} data={secondChart} selected={applied.period} currency={kind === 'payment'} onSelect={item => drill('period', item.key)} />}</div>
             </div></>}
 
         <div ref={tableRef} className='report-table-anchor'>
@@ -429,10 +477,10 @@ const InteractiveReport = forwardRef<InteractiveReportActions, Props>(function I
                     <tbody>{report.data.map((row, index) => {
                         const id = Number(row.id ?? row.reservation_id ?? row.associated_reservation_id);
                         return <tr key={String(row.payment_id ?? row.user_id ?? id ?? index)} role={id ? 'link' : undefined} tabIndex={id ? 0 : undefined}
-                            aria-label={id ? `Open reservation ${row.booking_reference ?? row.associated_booking_reference}` : undefined}
-                            onClick={() => openReservation(row)} onKeyDown={event => { if (event.key === 'Enter') openReservation(row); }}>
+                            aria-label={id ? kind === 'ocular' ? `Open ocular visit ${row.visit_reference}` : `Open reservation ${row.booking_reference ?? row.associated_booking_reference}` : undefined}
+                            onClick={() => openRow(row)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openRow(row); } }}>
                             {textCells(kind, row).map((cell, cellIndex) => <td key={HEADINGS[kind][cellIndex]}>
-                                {cellIndex === 0 || (kind === 'guest' && cellIndex === 3) ? <strong>{cell}</strong> : ((kind === 'reservation' && cellIndex === 3) || (kind === 'payment' && cellIndex === 4) || (kind === 'queue' && cellIndex === 3)) ? <span className={`report-status report-status-${row.status ?? row.review_status}`}>{cell}</span> : cell}
+                                {cellIndex === 0 || (kind === 'guest' && cellIndex === 3) ? <strong>{cell}</strong> : ((kind === 'reservation' && cellIndex === 3) || (kind === 'payment' && cellIndex === 4) || (kind === 'queue' && cellIndex === 3) || (kind === 'ocular' && cellIndex === 4)) ? <span className={`report-status report-status-${row.status ?? row.review_status}`}>{cell}</span> : cell}
                             </td>)}
                         </tr>;
                     })}</tbody>
@@ -443,6 +491,9 @@ const InteractiveReport = forwardRef<InteractiveReportActions, Props>(function I
             <span>Showing {report.from ?? 0}–{report.to ?? 0} of {report.total}</span>
             <nav aria-label={`${title(kind)} pages`}><button type='button' disabled={page <= 1 || loading} onClick={() => updateUrl(applied, page - 1)}>Previous</button><span aria-current='page'>Page {page} of {report.last_page ?? 1}</span><button type='button' disabled={page >= (report.last_page ?? 1) || loading} onClick={() => updateUrl(applied, page + 1)}>Next</button></nav>
         </footer>}
+        {selectedVisitId !== null && <OcularVisitManagementDialog visitId={selectedVisitId}
+            onClose={() => setSelectedVisitId(null)}
+            onChanged={() => setRetry(value => value + 1)} />}
     </section>;
 });
 

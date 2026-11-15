@@ -129,6 +129,7 @@ class AdminReservationCreationController extends Controller
                 'booking_reference' => $bookings->nextBookingReference($requestedAt),
                 'user_id' => $guest['id'],
                 'created_by' => $request->user()->id,
+                'creation_source' => 'staff_portal',
                 'villa_id' => 1,
                 'contact_name' => trim($data['contact_name']),
                 'contact_email' => mb_strtolower(trim($data['contact_email'])),

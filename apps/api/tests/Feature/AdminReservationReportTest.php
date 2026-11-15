@@ -139,10 +139,12 @@ class AdminReservationReportTest extends TestCase
         }
 
         $this->actingAs($admin)
-            ->getJson('/api/admin/reports/reservations?per_page=5')
+            ->getJson('/api/admin/reports/reservations')
             ->assertOk()
             ->assertJsonPath('total', 18)
             ->assertJsonCount(5, 'data');
+
+        $this->getJson('/api/admin/reports/reservations?per_page=6')->assertUnprocessable();
 
         $this->getJson('/api/admin/reports/reservations/print')
             ->assertOk()

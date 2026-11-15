@@ -63,7 +63,7 @@ export function DepositAccessControls({ reservation: r, details, busy, agreedDea
             <input id="agreed-extension" type="date" disabled={busy || !allowed} value={agreedDeadline} onChange={event => onDeadline(event.target.value)} /><small>Actual deadline changes only after request approval.</small></label>
             <div><span>Deadline Extension Request Access</span><b>{access?.enabled ? "Granted" : access?.consumed_at ? "Consumed" : access?.revoked_at ? "Revoked" : "Not granted"}</b>
                 <div className="button-row"><button className="btn" disabled={busy || !allowed || !agreedDeadline} onClick={onGrant}>Grant Access</button><button className="btn secondary" disabled={busy || !allowed || !access?.enabled || Boolean(access.consumed_at)} onClick={onRevoke}>Revoke</button></div></div>
-            <div><span>Partial Deposit Payments</span><b>Full deposit required</b><Link className="btn secondary" to={`/admin/reservations/${r.id}/payment-review`}>Manage in Deposit Review</Link></div>
+            <div><span>Partial Deposit Payments</span><b>{r.partial_payment_authorized ? "Authorized" : "Full deposit required"}</b>{r.partial_payment_authorized && <small>{r.partial_payment_terms}</small>}<Link className="btn secondary" to={`/admin/reservations/${r.id}/payment-review`}>Manage in Deposit Review</Link></div>
         </div><p className="detail-note"><b>Current Deposit Deadline · </b>{r.deadline ? dateTime(r.deadline) : "Not started"}</p>
         {!allowed && <p className="detail-note">Extension access requires an active unpaid deposit opportunity without a pending extension request. Partial deposits are not supported by the current payment policy.</p>}
     </DetailPanel>

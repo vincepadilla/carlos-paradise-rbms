@@ -393,6 +393,11 @@ export default function PaymentPage({
                                     {money(reservation.deposit)}
                                 </strong>
                             </div>
+                            {reservation.partial_payment_authorized && (
+                                <p className="mb-5 rounded-lg border border-[#c9d8d3] bg-[#e6efed] p-4 text-xs leading-relaxed text-[#386247]">
+                                    <b>Authorized partial-payment terms:</b>{" "}{reservation.partial_payment_terms}
+                                </p>
+                            )}
                             {!canPay && (
                                 <p
                                     role="status"
