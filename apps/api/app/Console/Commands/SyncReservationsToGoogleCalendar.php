@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\GoogleCalendarService;
+use App\Services\CalendarSyncState;
 use Carbon\CarbonImmutable;
 use Google\Service\Calendar;
 use Google\Service\Calendar\Event;
@@ -19,17 +20,6 @@ class SyncReservationsToGoogleCalendar extends Command
 
     protected $description =
         'Create, update, and remove Google Calendar reservation events';
-
-    private const ACTIVE_STATUSES = [
-        'confirmed',
-        'reserved',
-        'completed',
-    ];
-
-    private const TERMINAL_STATUSES = [
-        'cancelled',
-        'expired',
-    ];
 
     private const REMOVED_HASH = 'removed';
 
@@ -58,12 +48,12 @@ class SyncReservationsToGoogleCalendar extends Command
                 ->where('villa_id', 1)
                 ->where(function ($query) {
                     $query
-                        ->whereIn('status', self::ACTIVE_STATUSES)
+                        ->whereIn('status', CalendarSyncState::RESERVATION_PUBLISH_STATUSES)
                         ->orWhere(function ($terminal) {
                             $terminal
                                 ->whereIn(
                                     'status',
-                                    self::TERMINAL_STATUSES
+                                    CalendarSyncState::RESERVATION_REMOVE_STATUSES
                                 )
                                 ->whereNotNull('google_event_id')
                                 ->where(function ($pending) {
@@ -95,7 +85,7 @@ class SyncReservationsToGoogleCalendar extends Command
 
                                 $action = in_array(
                                     $row->status,
-                                    self::TERMINAL_STATUSES,
+                                    CalendarSyncState::RESERVATION_REMOVE_STATUSES,
                                     true
                                 ) ? 'Removed event for' : 'Synced';
 
@@ -148,7 +138,7 @@ class SyncReservationsToGoogleCalendar extends Command
 
         if (in_array(
             $row->status,
-            self::TERMINAL_STATUSES,
+            CalendarSyncState::RESERVATION_REMOVE_STATUSES,
             true
         )) {
             return $this->removeEvent(
@@ -160,7 +150,7 @@ class SyncReservationsToGoogleCalendar extends Command
 
         if (! in_array(
             $row->status,
-            self::ACTIVE_STATUSES,
+            CalendarSyncState::RESERVATION_PUBLISH_STATUSES,
             true
         )) {
             return false;

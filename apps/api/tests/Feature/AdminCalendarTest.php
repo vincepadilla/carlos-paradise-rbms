@@ -65,7 +65,10 @@ class AdminCalendarTest extends TestCase
         DB::table('reservations')->insert($this->reservation($admin, $day, $day->copy()->addDay(), 'cancelled', 'CANCELLED'));
 
         $this->actingAs($admin)->getJson('/api/admin/calendar?start='.$day->toDateString().'&end='.$day->copy()->addDays(2)->toDateString())
-            ->assertOk()->assertJsonCount(501, 'reservations')->assertJsonCount(0, 'blocks');
+            ->assertOk()->assertJsonCount(501, 'reservations')->assertJsonCount(0, 'blocks')
+            ->assertJsonPath('reservations.0.google_sync.state', 'pending')
+            ->assertJsonPath('google_calendar.direction', 'one_way')
+            ->assertJsonPath('google_calendar.schedule', 'every_minute');
     }
 
     public function test_block_creation_persists_reason_notes_and_exclusive_end_for_real_availability(): void
@@ -78,7 +81,8 @@ class AdminCalendarTest extends TestCase
         ])->assertCreated()->assertJsonPath('block.ends_on', $day->copy()->addDay()->toDateString())->json('block.id');
 
         $this->assertDatabaseHas('availability_blocks', ['id' => $id, 'reason' => $reason, 'created_by' => $admin->id, 'released_at' => null]);
-        $this->getJson('/api/admin/calendar?start='.$day->toDateString().'&end='.$day->copy()->addDays(2)->toDateString())->assertOk()->assertJsonPath('blocks.0.id', $id);
+        $this->getJson('/api/admin/calendar?start='.$day->toDateString().'&end='.$day->copy()->addDays(2)->toDateString())
+            ->assertOk()->assertJsonPath('blocks.0.id', $id)->assertJsonPath('blocks.0.google_sync.state', 'pending');
         $this->postJson('/api/admin/availability-blocks', ['date' => $day->toDateString(), 'reason' => 'Duplicate'])->assertUnprocessable();
 
         $this->actingAs($this->account('guest'))->postJson('/api/quote', [
@@ -149,11 +153,20 @@ class AdminCalendarTest extends TestCase
             ->assertOk()->assertJsonPath('ocular_visit.status', 'approved')->assertJsonPath('ocular_visit.revision', 3);
         $this->assertDatabaseHas('ocular_visits', ['id' => $id, 'guest_name' => 'Maria Updated', 'status' => 'approved', 'revision' => 3]);
 
+        DB::table('ocular_visits')->where('id', $id)->update([
+            'google_event_id' => 'cpotestmapping', 'google_calendar_id' => 'test-calendar',
+            'google_sync_hash' => str_repeat('a', 64), 'google_synced_at' => now()->addSecond(),
+        ]);
+
         $this->actingAs($admin)->getJson('/api/admin/calendar?start='.$day.'&end='.now('Asia/Manila')->addDays(22)->toDateString())
-            ->assertOk()->assertJsonPath('ocular_visits.0.visit_date', $nextDay);
+            ->assertOk()->assertJsonPath('ocular_visits.0.visit_date', $nextDay)
+            ->assertJsonPath('ocular_visits.0.google_sync.state', 'synced')
+            ->assertJsonMissingPath('ocular_visits.0.google_event_id');
+        $this->actingAs($owner)->getJson('/api/owner/operations/calendar?start='.$day.'&end='.now('Asia/Manila')->addDays(22)->toDateString())
+            ->assertOk()->assertJsonPath('ocular_visits.0.google_sync.state', 'synced');
         $this->postJson('/api/admin/ocular-visits/'.$id.'/cancel', ['revision' => 3])
             ->assertOk()->assertJsonPath('ocular_visit.status', 'cancelled')->assertJsonPath('ocular_visit.revision', 4);
-        $this->getJson('/api/admin/calendar?start='.$day.'&end='.now('Asia/Manila')->addDays(22)->toDateString())
+        $this->actingAs($admin)->getJson('/api/admin/calendar?start='.$day.'&end='.now('Asia/Manila')->addDays(22)->toDateString())
             ->assertOk()->assertJsonCount(0, 'ocular_visits');
         $this->assertDatabaseHas('ocular_visits', ['id' => $id, 'status' => 'cancelled']);
         $this->postJson('/api/admin/ocular-visits/'.$id.'/cancel', ['revision' => 4])->assertUnprocessable();

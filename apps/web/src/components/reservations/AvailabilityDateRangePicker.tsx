@@ -57,7 +57,7 @@ export default function AvailabilityDateRangePicker({
     const [draftCheckin, setDraftCheckin] = useState(initialCheckin);
     const [draftCheckout, setDraftCheckout] = useState(initialCheckout);
     const [selecting, setSelecting] = useState<SelectionTarget>(
-        initialSelection === 'checkout' && initialCheckin ? 'checkout' : 'checkin',
+        reservationType === 'overnight' && initialSelection === 'checkout' && initialCheckin ? 'checkout' : 'checkin',
     );
     const [hovered, setHovered] = useState('');
     const [baseMonth, setBaseMonth] = useState(() => {
@@ -124,8 +124,12 @@ export default function AvailabilityDateRangePicker({
         if (loading || error || availability[date] === 'blocked') return;
         if (selecting === 'checkin') {
             setDraftCheckin(date);
-            setDraftCheckout('');
-            setSelecting('checkout');
+            if (reservationType === 'day_tour') {
+                setDraftCheckout(date);
+            } else {
+                setDraftCheckout('');
+                setSelecting('checkout');
+            }
         } else {
             setDraftCheckout(date);
         }
@@ -159,7 +163,9 @@ export default function AvailabilityDateRangePicker({
                     <div>
                         <h2 id="date-range-title" className="text-lg font-extrabold text-[#2d261f]">Select reservation dates</h2>
                         <p className="mt-1 text-sm text-[#776f65]">
-                            {selecting === 'checkin' ? 'Choose a check-in date.' : 'Now choose a valid check-out date.'}
+                            {reservationType === 'day_tour'
+                                ? 'Choose a date for your day tour.'
+                                : selecting === 'checkin' ? 'Choose a check-in date.' : 'Now choose a valid check-out date.'}
                         </p>
                     </div>
                 </div>

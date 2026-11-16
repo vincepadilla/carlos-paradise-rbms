@@ -17,6 +17,10 @@ Schedule::command('calendar:sync-blocks')
     ->everyMinute()
     ->withoutOverlapping(60);
 
+Schedule::command('calendar:sync-ocular-visits')
+    ->everyMinute()
+    ->withoutOverlapping(60);
+
 Schedule::call(fn () => app(AdminNotificationService::class)->syncOngoingStays())
     ->name('notifications:sync-ongoing-stays')
     ->everyMinute()

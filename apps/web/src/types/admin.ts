@@ -6,6 +6,7 @@ export type AdminReservation = SavedReservation & {
     children: number;
     pets: number;
     notes: string | null;
+    google_sync?: import('./calendar').GoogleSync;
     opportunity: { id: number; status: string } | null;
     extension_status: string | null;
     extension_reason: string | null;
@@ -87,6 +88,7 @@ export type AvailabilityBlock = {
     starts_on: string;
     ends_on: string;
     reason: string;
+    google_sync?: import('./calendar').GoogleSync;
 };
 
 export type Paginated<T> = {
