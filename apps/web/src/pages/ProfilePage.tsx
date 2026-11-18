@@ -12,6 +12,7 @@ type Props = {
     onDashboard: () => void;
     onReservations: () => void;
     onMakeReservation: () => void;
+    onHelp: () => void;
 };
 const input =
     "min-h-12 w-full min-w-0 rounded-lg border border-[#e3d9cb] bg-white px-4 py-3 text-sm text-[#2d261f] outline-none focus:border-[#b08a52] focus:ring-2 focus:ring-[#b08a52]/20 disabled:bg-[#f6f1e7] disabled:text-[#776f65] read-only:bg-[#f6f1e7]";
@@ -41,6 +42,7 @@ export default function ProfilePage({
     onDashboard,
     onReservations,
     onMakeReservation,
+    onHelp,
 }: Props) {
     const [profile, setProfile] = useState<User | null>(null);
     const [name, setName] = useState(user.name);
@@ -166,6 +168,7 @@ export default function ProfilePage({
                 onDashboard={onDashboard}
                 onReservations={onReservations}
                 onMakeReservation={onMakeReservation}
+                onHelp={onHelp}
             />
             <main className="mx-auto max-w-[1200px] px-4 py-8 md:px-8 md:py-10">
                 <div className="mb-7">

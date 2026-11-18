@@ -17,7 +17,7 @@ import {
     type SignupValues,
 } from "../components/auth/AuthValidation";
 import { normalizeContactNumber } from "../utils/contactNumber";
-import { readVerification, savePendingVerification } from "../services/EmailVerification";
+import { readVerification } from "../services/EmailVerification";
 
 const apiBaseUrl = (
     import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -229,7 +229,6 @@ export default function SignupPage() {
                 return;
             }
 
-            savePendingVerification(verification);
             setValues((current) => ({
                 ...current,
                 password: "",

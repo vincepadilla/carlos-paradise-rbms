@@ -1,11 +1,16 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Auth\SessionAuthController;
+use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\Auth\GoogleAuthController;
-use App\Http\Controllers\GuestProfileController;
 use App\Http\Controllers\Auth\GoogleCalendarController;
+use App\Http\Controllers\Auth\RegisterController;
+use App\Http\Controllers\Auth\SessionAuthController;
+use App\Http\Controllers\GuestProfileController;
+use App\Http\Controllers\ReservationAvailabilityController;
+use App\Http\Controllers\ReservationQuoteController;
+use App\Http\Controllers\ReservationSettingsController;
 use App\Http\Middleware\RequireVerifiedGuestEmail;
+use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
     return view('welcome');
@@ -20,6 +25,18 @@ Route::get('/auth/user', [SessionAuthController::class, 'current'])
 Route::post('/auth/logout', [SessionAuthController::class, 'logout'])
     ->middleware('throttle:20,1');
 
+Route::post('/api/register', [RegisterController::class, 'store'])
+    ->middleware('throttle:5,1');
+
+Route::prefix('api/email-verification')->group(function () {
+    Route::post('/status', [EmailVerificationController::class, 'status'])
+        ->middleware('throttle:60,1');
+    Route::post('/verify', [EmailVerificationController::class, 'verify'])
+        ->middleware('throttle:10,1');
+    Route::post('/resend', [EmailVerificationController::class, 'resend'])
+        ->middleware('throttle:5,1');
+});
+
 Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect'])
     ->middleware('throttle:10,1');
 
@@ -29,7 +46,7 @@ Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback'])
 Route::get(
     '/api/settings',
     [
-        \App\Http\Controllers\ReservationSettingsController::class,
+        ReservationSettingsController::class,
         'index',
     ]
 );
@@ -43,7 +60,7 @@ Route::get('/api/csrf', function () {
 Route::post(
     '/api/quote',
     [
-        \App\Http\Controllers\ReservationQuoteController::class,
+        ReservationQuoteController::class,
         'quote',
     ]
 )->middleware(['auth', RequireVerifiedGuestEmail::class]);
@@ -51,7 +68,7 @@ Route::post(
 Route::get(
     '/api/settings',
     [
-        \App\Http\Controllers\ReservationSettingsController::class,
+        ReservationSettingsController::class,
         'index',
     ]
 );
@@ -65,7 +82,7 @@ Route::get('/api/csrf', function () {
 Route::post(
     '/api/quote',
     [
-        \App\Http\Controllers\ReservationQuoteController::class,
+        ReservationQuoteController::class,
         'quote',
     ]
 )->middleware(['auth', RequireVerifiedGuestEmail::class]);
@@ -75,7 +92,7 @@ require __DIR__.'/admin.php';
 require __DIR__.'/owner.php';
 
 Route::get('/api/availability', [
-    \App\Http\Controllers\ReservationAvailabilityController::class,
+    ReservationAvailabilityController::class,
     'index',
 ])->middleware(['auth', RequireVerifiedGuestEmail::class, 'throttle:60,1']);
 

@@ -1,6 +1,6 @@
 import { loginDestination } from "../types/auth";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import type { Settings, User } from "../api";
 import ReservationPage from "./ReservationPage";
 
@@ -34,9 +34,14 @@ const previewSettings: Settings = {
 export default function ReservationRoute({
     initialPage = "reservation",
 }: {
-    initialPage?: "reservation" | "dashboard";
+    initialPage?: "reservation" | "dashboard" | "reservations" | "profile";
 }) {
     const navigate = useNavigate();
+    const location = useLocation();
+    const requestedView = new URLSearchParams(location.search).get("view");
+    const selectedPage = requestedView === "reservations" || requestedView === "profile"
+        ? requestedView
+        : initialPage;
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
@@ -120,7 +125,7 @@ export default function ReservationRoute({
                 <ReservationPage
                     user={user}
                     settings={previewSettings}
-                    initialPage={initialPage}
+                    initialPage={selectedPage}
                 />
             ) : (
                 <p className="p-10 text-center">

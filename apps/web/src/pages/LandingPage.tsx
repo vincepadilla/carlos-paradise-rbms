@@ -16,7 +16,12 @@ type IconName =
     | "sparkle"
     | "menu"
     | "close"
-    | "user";
+    | "user"
+    | "chevron"
+    | "calendar"
+    | "reservations"
+    | "dashboard"
+    | "logout";
 
 const apiBaseUrl = (
     import.meta.env.VITE_API_URL || "http://localhost:8000"
@@ -258,6 +263,38 @@ function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
                 <path d="M4 21v-2a8 8 0 0 1 16 0v2" />
             </>
         ),
+
+        chevron: <path d="m7 10 5 5 5-5" />,
+
+        calendar: (
+            <>
+                <rect x="3" y="5" width="18" height="16" rx="2" />
+                <path d="M16 3v4M8 3v4M3 10h18M9 15h6" />
+            </>
+        ),
+
+        reservations: (
+            <>
+                <path d="M6 3h12a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2-3-2V5a2 2 0 0 1 2-2Z" />
+                <path d="M9 8h6M9 12h6" />
+            </>
+        ),
+
+        dashboard: (
+            <>
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+            </>
+        ),
+
+        logout: (
+            <>
+                <path d="M10 17l5-5-5-5M15 12H3" />
+                <path d="M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5" />
+            </>
+        ),
     };
 
     return (
@@ -392,6 +429,7 @@ export default function LandingPage() {
     const [logoutError, setLogoutError] = useState("");
     const accountPanelRef = useRef<HTMLDivElement>(null);
     const accountButtonRef = useRef<HTMLButtonElement>(null);
+    const accountMenuRef = useRef<HTMLDivElement>(null);
     const sessionRequestRef = useRef<AbortController | null>(null);
     const isLoggingOutRef = useRef(false);
     const mountedRef = useRef(false);
@@ -454,6 +492,42 @@ export default function LandingPage() {
             document.removeEventListener("keydown", closeWithEscape);
         };
     }, [accountOpen]);
+
+    function focusAccountMenuItem(position: "first" | "last") {
+        window.requestAnimationFrame(() => {
+            const items = accountMenuRef.current?.querySelectorAll<HTMLButtonElement>(
+                '[role="menuitem"]:not(:disabled)',
+            );
+            if (!items?.length) return;
+            items[position === "first" ? 0 : items.length - 1]?.focus();
+        });
+    }
+
+    function handleAccountMenuKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
+        const items = Array.from(
+            accountMenuRef.current?.querySelectorAll<HTMLButtonElement>(
+                '[role="menuitem"]:not(:disabled)',
+            ) ?? [],
+        );
+        if (!items.length) return;
+
+        const currentIndex = items.indexOf(document.activeElement as HTMLButtonElement);
+        let nextIndex: number | null = null;
+        if (event.key === "ArrowDown") nextIndex = (currentIndex + 1) % items.length;
+        if (event.key === "ArrowUp") nextIndex = (currentIndex - 1 + items.length) % items.length;
+        if (event.key === "Home") nextIndex = 0;
+        if (event.key === "End") nextIndex = items.length - 1;
+        if (nextIndex === null) return;
+
+        event.preventDefault();
+        items[nextIndex]?.focus();
+    }
+
+    function openAccountDestination(destination: string) {
+        setAccountOpen(false);
+        setMenuOpen(false);
+        navigateTo(destination);
+    }
 
     async function logout() {
         if (isLoggingOutRef.current) return;
@@ -599,44 +673,94 @@ export default function LandingPage() {
                             </button>
                         ) : accountUser ? (
                             <div ref={accountPanelRef} className="relative">
-                                <button type="button"
+                                <button
+                                    type="button"
                                     ref={accountButtonRef}
-                                    aria-label={`Account: ${accountUser.name}`}
+                                    aria-label={`Account menu for ${accountUser.name}`}
+                                    aria-haspopup="menu"
                                     aria-expanded={accountOpen}
                                     aria-controls="landing-account-panel"
                                     title={accountUser.name}
                                     onClick={() => {
                                         setMenuOpen(false);
+                                        setLogoutError("");
                                         setAccountOpen((open) => !open);
                                     }}
-                                    className="inline-flex size-11 cursor-pointer items-center justify-center rounded-full border border-paper/30 bg-paper text-brown transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold">
-                                    <Icon name="user" size={22} />
+                                    onKeyDown={(event) => {
+                                        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+                                        event.preventDefault();
+                                        setMenuOpen(false);
+                                        setAccountOpen(true);
+                                        focusAccountMenuItem(event.key === "ArrowDown" ? "first" : "last");
+                                    }}
+                                    className="inline-flex min-h-11 max-w-[210px] cursor-pointer items-center gap-2 rounded-full border border-[#e3d9cb] bg-paper px-3 text-brown shadow-[0_3px_10px_rgba(25,18,13,.08)] transition hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold max-[430px]:max-w-[145px]"
+                                >
+                                    <Icon name="user" size={21} />
+                                    <span className="min-w-0 flex-1 truncate text-xs font-bold">
+                                        {accountUser.name}
+                                    </span>
+                                    <span
+                                        className={`shrink-0 transition-transform duration-200 motion-reduce:transition-none ${accountOpen ? "rotate-180" : ""}`}
+                                    >
+                                        <Icon name="chevron" size={16} />
+                                    </span>
                                 </button>
                                 {accountOpen && (
-                                    <div id="landing-account-panel"
-                                        className="absolute right-0 top-[calc(100%+12px)] z-50 w-[min(272px,calc(100vw-36px))] rounded-2xl border border-line bg-paper p-4 text-ink shadow-[0_16px_45px_rgba(25,18,13,.25)]">
-                                        <p className="truncate font-bold text-brown">{accountUser.name}</p>
-                                        <p className="mt-1 break-all text-xs text-muted">{accountUser.email}</p>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setAccountOpen(false);
-                                                setMenuOpen(false);
-                                                navigateTo("/dashboard");
-                                            }}
-                                            className="mt-4 inline-flex min-h-11 w-full cursor-pointer items-center justify-center rounded-[10px] border border-line bg-brown px-4 text-sm font-bold text-white transition hover:bg-[#664936] focus-visible:outline-2 focus-visible:outline-gold"
-                                        >
-                                            Dashboard
-                                        </button>
-                                        <button type="button"
-                                            disabled={isLoggingOut}
-                                            onClick={() => void logout()}
-                                            className="mt-2 inline-flex min-h-11 w-full cursor-pointer items-center justify-center rounded-[10px] border border-line bg-cream px-4 text-sm font-bold text-brown transition hover:bg-sage-pale focus-visible:outline-2 focus-visible:outline-gold disabled:cursor-wait disabled:opacity-60">
-                                            {isLoggingOut ? "Logging out…" : "Log Out"}
-                                        </button>
-                                        {logoutError && (
-                                            <p role="alert" className="mt-3 text-xs text-[#a44b45]">{logoutError}</p>
-                                        )}
+                                    <div
+                                        id="landing-account-panel"
+                                        ref={accountMenuRef}
+                                        role="menu"
+                                        aria-label="Guest account navigation"
+                                        onKeyDown={handleAccountMenuKeyDown}
+                                        className="absolute right-0 top-[calc(100%+12px)] z-[60] max-h-[calc(100svh-100px)] w-[min(320px,calc(100vw-24px))] overflow-y-auto rounded-2xl border border-[#e3d9cb] bg-[#fffdf8] p-2.5 text-ink shadow-[0_18px_50px_rgba(25,18,13,.2)] max-[1100px]:fixed max-[1100px]:right-3 max-[760px]:top-[76px] min-[761px]:max-[1100px]:top-[88px]"
+                                    >
+                                        <div className="px-3 pb-3 pt-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-[.16em] text-muted">
+                                                Signed in as
+                                            </p>
+                                            <p className="mt-1 truncate text-sm font-bold text-brown">
+                                                {accountUser.name}
+                                            </p>
+                                            <p className="mt-0.5 text-xs text-muted">Guest</p>
+                                        </div>
+
+                                        <div className="border-t border-[#e3d9cb] pt-2">
+                                            {([
+                                                ["Dashboard", "dashboard", "/dashboard"],
+                                                ["Make a Reservation", "calendar", "/make-reservation"],
+                                                ["My Reservations", "reservations", "/dashboard?view=reservations"],
+                                                ["Profile", "user", "/dashboard?view=profile"],
+                                            ] as const).map(([label, icon, destination]) => (
+                                                <button
+                                                    key={label}
+                                                    type="button"
+                                                    role="menuitem"
+                                                    onClick={() => openAccountDestination(destination)}
+                                                    className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold text-brown transition hover:bg-[#f3ecdf] focus-visible:bg-[#f3ecdf] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold"
+                                                >
+                                                    <Icon name={icon} size={19} />
+                                                    <span>{label}</span>
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        <div className="mt-2 border-t border-[#e3d9cb] pt-2">
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                disabled={isLoggingOut}
+                                                onClick={() => void logout()}
+                                                className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-xl px-3 text-left text-sm font-bold text-brown transition hover:bg-[#f3ecdf] focus-visible:bg-[#f3ecdf] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold disabled:cursor-wait disabled:opacity-60"
+                                            >
+                                                <Icon name="logout" size={19} />
+                                                <span>{isLoggingOut ? "Signing out…" : "Sign Out"}</span>
+                                            </button>
+                                            {logoutError && (
+                                                <p role="alert" className="px-3 pb-1 pt-2 text-xs text-[#a44b45]">
+                                                    {logoutError}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                 )}
                             </div>

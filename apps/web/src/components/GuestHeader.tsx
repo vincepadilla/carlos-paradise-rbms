@@ -10,16 +10,20 @@ export default function GuestHeader({
     activePage = "request",
     onDashboard,
     onProfile,
+    onHelp,
 }: {
     user: User;
     onReservations?: () => void;
     onMakeReservation?: () => void;
-    activePage?: "dashboard" | "request" | "reservations" | "profile";
+    activePage?: "dashboard" | "request" | "reservations" | "profile" | "help";
     onDashboard?: () => void;
     onProfile?: () => void;
+    onHelp?: () => void;
 }) {
     const activeLabel =
-        activePage === "profile"
+        activePage === "help"
+            ? "Help & Support"
+            : activePage === "profile"
             ? "Profile"
             : activePage === "dashboard"
                 ? "Dashboard"
@@ -31,6 +35,7 @@ export default function GuestHeader({
         else if (label === "Profile" && onProfile) onProfile();
         else if (label === "Make a Reservation") onMakeReservation?.();
         else if (label === "My Reservations") onReservations?.();
+        else if (label === "Help & Support") onHelp?.();
         else setNotice(`Open ${label} from the main site navigation.`);
     }
     const [notice, setNotice] = useState("");
@@ -103,9 +108,9 @@ export default function GuestHeader({
     ];
     return (
         <>
-            <header className="sticky top-0 z-30 grid min-h-[78px] w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-visible border-b border-[#e3d9cb] bg-[#fffdf8] px-3 shadow-[0_6px_24px_rgba(63,47,33,0.05)] sm:gap-3 sm:px-4 min-[1100px]:gap-7 min-[1100px]:px-[3vw]">
+            <header className="sticky top-0 z-30 grid min-h-[78px] w-full max-w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 overflow-visible border-b border-[#493b30] bg-[#33291f] px-3 text-white shadow-[0_10px_30px_rgba(25,18,13,.22)] sm:gap-3 sm:px-4 min-[1100px]:gap-7 min-[1100px]:px-[3vw]">
                 <a
-                    className="inline-flex items-center gap-2.5 text-left text-[#4c3425] no-underline [&>span:last-child]:flex [&>span:last-child]:flex-col [&>span:last-child]:leading-none [&_b]:font-serif [&_b]:text-[17px] [&_b]:font-normal [&_strong]:mt-1 [&_strong]:text-[11px] [&_strong]:uppercase [&_strong]:tracking-[0.15em]"
+                    className="inline-flex items-center gap-2.5 text-left text-white no-underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold [&>span:last-child]:flex [&>span:last-child]:flex-col [&>span:last-child]:leading-none [&_b]:font-serif [&_b]:text-[17px] [&_b]:font-normal [&_strong]:mt-1 [&_strong]:text-[11px] [&_strong]:uppercase [&_strong]:tracking-[0.15em]"
                     href="/"
                     aria-label="Carlos Paradise home"
                 >
@@ -118,7 +123,7 @@ export default function GuestHeader({
                     </span>
                 </a>
                 <nav
-                    className="hidden min-w-0 items-center justify-center gap-[3px] min-[1100px]:flex [&>button]:flex [&>button]:min-h-10 [&>button]:items-center [&>button]:gap-1.5 [&>button]:rounded-lg [&>button]:border-0 [&>button]:bg-[#fffdf8] [&>button]:px-2.5 [&>button]:text-[10px] [&>button]:font-bold [&>button]:whitespace-nowrap [&>button]:text-[#776f65] [&>button:hover]:bg-[#f6f1e7] [&>button:hover]:text-[#4c3425]"
+                    className="hidden min-w-0 items-center justify-center gap-[3px] min-[1100px]:flex [&>button]:flex [&>button]:min-h-10 [&>button]:items-center [&>button]:gap-1.5 [&>button]:rounded-full [&>button]:border-0 [&>button]:bg-transparent [&>button]:px-2.5 [&>button]:text-[10px] [&>button]:font-bold [&>button]:whitespace-nowrap [&>button]:text-[#d7cabf] [&>button]:transition [&>button:hover]:bg-white/[.07] [&>button:hover]:text-white [&>button:focus-visible]:outline-2 [&>button:focus-visible]:outline-gold"
                     aria-label="Guest navigation"
                 >
                     {links.map(([label, icon]) => (
@@ -126,7 +131,7 @@ export default function GuestHeader({
                             type="button"
                             key={label}
                             className={
-                                label === activeLabel ? "bg-[#e8eee5]! text-[#4c3425]!" : ""
+                                label === activeLabel ? "bg-[#5a514b]! text-white! shadow-[inset_0_0_0_1px_rgba(255,255,255,.08)]" : ""
                             }
                             aria-current={label === activeLabel ? "page" : undefined}
                             onClick={() => openPage(label)}
@@ -137,7 +142,7 @@ export default function GuestHeader({
                     ))}
                     <button
                         type="button"
-                        className="text-[#4c3425]! [&>svg]:rotate-180"
+                        className="text-[#d7cabf]! hover:text-white! [&>svg]:rotate-180"
                         onClick={() => window.location.assign("/")}
                     >
                         <Icon name="arrow" size={16} />
@@ -147,7 +152,7 @@ export default function GuestHeader({
                 <div ref={accountRef} className="relative justify-self-end">
                     <button
                         type="button"
-                        className="flex items-center gap-[9px] whitespace-nowrap rounded-lg border-0 bg-transparent p-1 text-left text-[#4c3425] hover:bg-[#f6f1e7]"
+                        className="flex items-center gap-[9px] whitespace-nowrap rounded-lg border border-transparent bg-transparent p-1 text-left text-white transition hover:bg-white/[.07] focus-visible:outline-2 focus-visible:outline-gold"
                         aria-label="Open guest account menu"
                         aria-haspopup="menu"
                         aria-expanded={accountMenu}
@@ -156,7 +161,7 @@ export default function GuestHeader({
                             setLogoutError("");
                         }}
                     >
-                        <span className="grid size-9 place-items-center rounded-full bg-[#e8eee5] text-[11px] font-extrabold">
+                        <span className="grid size-9 place-items-center rounded-full bg-paper text-[11px] font-extrabold text-brown">
                             {user.name
                                 .split(" ")
                                 .filter(Boolean)
@@ -166,7 +171,7 @@ export default function GuestHeader({
                         </span>
                         <span className="hidden flex-col text-[10px] sm:flex">
                             <b>{user.name}</b>
-                            <small className="text-[#776f65]">Guest</small>
+                            <small className="text-[#d7cabf]">Guest</small>
                         </span>
                     </button>
                     {accountMenu && (
@@ -179,7 +184,7 @@ export default function GuestHeader({
                                 role="menuitem"
                                 disabled={loggingOut}
                                 onClick={() => void logout()}
-                                className="flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2.5 text-left text-xs font-semibold text-[#a44b45] hover:bg-[#f7e6e3] disabled:cursor-wait disabled:opacity-60"
+                                className="flex w-full items-center gap-2 rounded-md border-0 bg-transparent px-3 py-2.5 text-left text-xs font-semibold text-brown transition hover:bg-[#f3ecdf] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-gold disabled:cursor-wait disabled:opacity-60"
                             >
                                 <Icon name="arrow" size={15} />
                                 {loggingOut ? "Logging out..." : "Log out"}
@@ -198,7 +203,7 @@ export default function GuestHeader({
                 <button
                     ref={menuButtonRef}
                     type="button"
-                    className="grid size-11 shrink-0 place-items-center rounded-lg border border-[#e3d9cb] bg-[#f6f1e7] text-[#4c3425] outline-none hover:bg-[#eee5d8] focus-visible:ring-2 focus-visible:ring-[#b08a52] focus-visible:ring-offset-2 min-[1100px]:hidden"
+                    className="grid size-11 shrink-0 place-items-center rounded-full border border-white/15 bg-white/[.06] text-[#e8dfd6] transition hover:bg-white/[.12] hover:text-white focus-visible:outline-2 focus-visible:outline-gold min-[1100px]:hidden"
                     aria-label={menu ? "Close guest navigation" : "Open guest navigation"}
                     aria-expanded={menu}
                     aria-controls="guest-mobile-navigation"
@@ -210,14 +215,14 @@ export default function GuestHeader({
             {menu && (
                 <nav
                     id="guest-mobile-navigation"
-                    className="relative z-20 grid w-full max-w-full grid-cols-1 gap-1 overflow-x-hidden border-b border-[#e3d9cb] bg-[#fffdf8] p-3 shadow-[0_10px_24px_rgba(63,47,33,0.08)] min-[1100px]:hidden [&>a]:min-h-11 [&>a]:w-full [&>a]:items-center [&>a]:gap-3 [&>a]:rounded-lg [&>a]:px-4 [&>a]:text-sm [&>a]:font-bold [&>a]:text-[#4c3425] [&>a]:no-underline [&>button]:min-h-11 [&>button]:w-full [&>button]:items-center [&>button]:gap-3 [&>button]:rounded-lg [&>button]:border-0 [&>button]:bg-transparent [&>button]:px-4 [&>button]:text-left [&>button]:text-sm [&>button]:font-bold [&>button]:text-[#4c3425] [&>button]:outline-none [&>button:hover]:bg-[#f6f1e7] [&>button:focus-visible]:ring-2 [&>button:focus-visible]:ring-[#b08a52] [&>button:focus-visible]:ring-offset-1"
+                    className="relative z-20 grid w-full max-w-full grid-cols-1 gap-1 overflow-x-hidden border-b border-[#493b30] bg-[#2d241d] p-3 shadow-[0_20px_55px_rgba(25,18,13,.35)] min-[1100px]:hidden [&>a]:min-h-11 [&>a]:w-full [&>a]:items-center [&>a]:gap-3 [&>a]:rounded-xl [&>a]:px-4 [&>a]:text-sm [&>a]:font-bold [&>a]:text-[#e8dfd6] [&>a]:no-underline [&>button]:min-h-11 [&>button]:w-full [&>button]:items-center [&>button]:gap-3 [&>button]:rounded-xl [&>button]:border [&>button]:border-white/10 [&>button]:bg-transparent [&>button]:px-4 [&>button]:text-left [&>button]:text-sm [&>button]:font-bold [&>button]:text-[#e8dfd6] [&>button]:transition [&>button:hover]:bg-white/[.08] [&>button:hover]:text-white [&>button:focus-visible]:outline-2 [&>button:focus-visible]:outline-gold"
                     aria-label="Guest navigation"
                 >
                     {links.map(([label, icon]) => (
                         <button
                             type="button"
                             key={label}
-                            className={`flex ${label === activeLabel ? "bg-[#e8eee5]!" : ""}`}
+                            className={`flex ${label === activeLabel ? "bg-[#5a514b]! text-white!" : ""}`}
                             aria-current={label === activeLabel ? "page" : undefined}
                             onClick={() => {
                                 setMenu(false);
@@ -228,7 +233,7 @@ export default function GuestHeader({
                             {label}
                         </button>
                     ))}
-                    <a className="flex outline-none hover:bg-[#f6f1e7] focus-visible:ring-2 focus-visible:ring-[#b08a52] focus-visible:ring-offset-1" href="/" onClick={() => setMenu(false)}>
+                    <a className="flex border border-transparent transition hover:bg-white/[.08] hover:text-white focus-visible:outline-2 focus-visible:outline-gold" href="/" onClick={() => setMenu(false)}>
                         <Icon name="arrow" size={18} />
                         Back to Main Site
                     </a>

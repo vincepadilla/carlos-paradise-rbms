@@ -10,7 +10,7 @@ export default function ReservationPage({
 }: {
     user?: User | null;
     settings?: Settings | null;
-    initialPage?: "reservation" | "dashboard";
+    initialPage?: "reservation" | "dashboard" | "reservations" | "profile";
 }) {
     const [configuration, setConfiguration] = useState<SettingsResponse | null>(
         null,

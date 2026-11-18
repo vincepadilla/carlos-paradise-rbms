@@ -160,10 +160,12 @@ export default function DashboardPage({
     onReservations,
     onSelect,
     onProfile,
+    onHelp,
     navigationError = "",
 }: {
     user: User;
     onProfile?: () => void;
+    onHelp?: () => void;
     navigationError?: string;
     onMakeReservation: () => void;
     onReservations: () => void;
@@ -269,6 +271,7 @@ export default function DashboardPage({
                 onMakeReservation={onMakeReservation}
                 onReservations={onReservations}
                 onProfile={onProfile}
+                onHelp={onHelp}
             />
             <main
                 className="mx-auto max-w-[1280px] space-y-5 px-4 py-7 md:px-8"
@@ -286,7 +289,7 @@ export default function DashboardPage({
                         hand.
                     </p>
                     <button className={primary} type="button" onClick={onMakeReservation}>
-                        New Reservation Request <Icon name="arrow" size={15} />
+                        Make a Reservation <Icon name="arrow" size={15} />
                     </button>
                 </section>
                 {(error || navigationError) && (
@@ -475,20 +478,13 @@ export default function DashboardPage({
                         </div>
                     </>
                 ) : (
-                    <section className={`${card} p-8 text-center`}>
-                        <h2 className="mb-3 font-serif text-2xl">
-                            Your next stay starts here
+                    <section className={`${card} px-6 py-6 text-center sm:px-8`}>
+                        <h2 className="mb-2 font-serif text-2xl">
+                            No upcoming stays
                         </h2>
-                        <p className="mb-6 text-sm text-[#776f65]">
-                            You have no upcoming or ongoing reservation requests.
+                        <p className="m-0 text-sm text-[#776f65]">
+                            Your upcoming and ongoing reservations will appear here.
                         </p>
-                        <button
-                            className={primary}
-                            type="button"
-                            onClick={onMakeReservation}
-                        >
-                            Plan Your Stay <Icon name="arrow" size={15} />
-                        </button>
                     </section>
                 )}
                 {bookings !== null && (

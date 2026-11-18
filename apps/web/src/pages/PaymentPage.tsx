@@ -123,6 +123,13 @@ export default function PaymentPage({
     const [paymentAmount, setPaymentAmount] = useState(
         () => String(Number(initialReservation.deposit) || 5000),
     );
+    const requiredDeposit = Number(reservation.deposit);
+    const enteredPaymentAmount = Number(paymentAmount);
+    const amountBelowRequired =
+        !reservation.partial_payment_authorized &&
+        paymentAmount.trim() !== "" &&
+        Number.isFinite(enteredPaymentAmount) &&
+        enteredPaymentAmount < requiredDeposit;
     const method = methods.find((account) => String(account.id) === methodId);
     const deadline = reservation.deadline
         ? new Date(reservation.deadline).getTime()
@@ -247,6 +254,10 @@ export default function PaymentPage({
             setSubmitError("Enter a valid payment amount.");
             return;
         }
+        if (!reservation.partial_payment_authorized && amount < requiredDeposit) {
+            setSubmitError(`Amount Paid must be at least ${money(requiredDeposit)}.`);
+            return;
+        }
         const receipt = data.get("receipt");
         if (!(receipt instanceof File) || !receipt.size) {
             setSubmitError("Choose your payment receipt.");
@@ -257,9 +268,9 @@ export default function PaymentPage({
             return;
         }
         if (
-            !["image/jpeg", "image/png", "application/pdf"].includes(receipt.type)
+            !["image/jpeg", "image/png"].includes(receipt.type)
         ) {
-            setSubmitError("Choose a JPG, PNG or PDF receipt.");
+            setSubmitError("Choose a JPG or PNG receipt.");
             return;
         }
         data.set("amount", amount.toFixed(2));
@@ -489,21 +500,29 @@ export default function PaymentPage({
                                         <Field label="Amount Paid">
                                             <input
                                                 aria-label="Amount Paid"
-                                                className={input}
+                                                aria-invalid={amountBelowRequired}
+                                                aria-describedby={`payment-amount-help-${reservation.id}`}
+                                                className={`${input} ${amountBelowRequired ? "border-[#a44b45] focus:border-[#a44b45] focus:ring-[#a44b45]/15" : ""}`}
                                                 name="amount"
                                                 type="number"
-                                                min="1"
+                                                min={reservation.partial_payment_authorized ? "1" : String(requiredDeposit)}
                                                 max="99999999"
                                                 step="0.01"
                                                 inputMode="decimal"
                                                 value={paymentAmount}
-                                                onChange={(event) =>
-                                                    setPaymentAmount(event.target.value)
-                                                }
+                                                onChange={(event) => {
+                                                    setPaymentAmount(event.target.value);
+                                                    setSubmitError("");
+                                                }}
                                                 required
                                             />
-                                            <small className="text-[9px] leading-relaxed text-[#776f65]">
-                                                Enter the amount shown on your payment receipt.
+                                            <small
+                                                id={`payment-amount-help-${reservation.id}`}
+                                                className={`text-[9px] leading-relaxed ${amountBelowRequired ? "font-semibold text-[#a44b45]" : "text-[#776f65]"}`}
+                                            >
+                                                {amountBelowRequired
+                                                    ? `Amount Paid must be at least ${money(requiredDeposit)}.`
+                                                    : "Enter the amount shown on your payment receipt."}
                                             </small>
                                         </Field>
                                         <Field label="Payment Reference Number">
@@ -532,14 +551,22 @@ export default function PaymentPage({
                                                 type="file"
                                                 name="receipt"
                                                 aria-label="Upload Payment Receipt"
-                                                accept="image/jpeg,image/png,application/pdf"
-                                                onChange={(event) =>
-                                                    setReceiptName(event.target.files?.[0]?.name || "")
-                                                }
+                                                accept="image/jpeg,image/png"
+                                                onChange={(event) => {
+                                                    const receipt = event.target.files?.[0];
+                                                    if (receipt && !["image/jpeg", "image/png"].includes(receipt.type)) {
+                                                        event.target.value = "";
+                                                        setReceiptName("");
+                                                        setSubmitError("Choose a JPG or PNG receipt.");
+                                                        return;
+                                                    }
+                                                    setSubmitError("");
+                                                    setReceiptName(receipt?.name || "");
+                                                }}
                                                 required
                                             />
                                             <small className="text-[9px] font-normal text-[#776f65]">
-                                                {receiptName || "JPG, PNG or PDF · Up to 5 MB"}
+                                                {receiptName || "JPG or PNG · Up to 5 MB"}
                                             </small>
                                         </Field>
                                     </div>
@@ -565,7 +592,7 @@ export default function PaymentPage({
                                     <button
                                         className={`${primary} w-full`}
                                         type="submit"
-                                        disabled={busy || !canPay || !method}
+                                        disabled={busy || !canPay || !method || amountBelowRequired}
                                     >
                                         {busy
                                             ? "Submitting receipt…"

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import AuthLayout from "../components/auth/AuthLayout";
 import { AuthHeading } from "../components/auth/AuthFields";
+import { fetchAuthenticatedUser } from "../services/AuthSession";
 import {
-    clearPendingVerification, loadPendingVerification, readVerification,
-    savePendingVerification, verificationRequest, type PendingVerification,
+    readVerification, verificationRequest, type PendingVerification,
 } from "../services/EmailVerification";
 
 const emptyCode = () => Array<string>(6).fill("");
@@ -21,26 +21,45 @@ function ShieldIcon() {
 }
 
 function SuccessState() {
-    return <section className="text-center">
+    return <section className="text-center" role="status">
         <div aria-hidden="true" className="mx-auto mb-6 grid size-[68px] place-items-center rounded-full bg-sage-pale text-[32px] text-[#4f7b5d]">✓</div>
         <AuthHeading eyebrow="Verification Complete" title="Account Verified Successfully"
-            description="Your account has been verified successfully." />
-        <Link to="/login" className="mt-8 inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] border border-brown bg-brown px-5 font-bold text-white shadow-[0_8px_20px_rgba(76,52,37,.18)] transition hover:-translate-y-px">
-            Continue to Login
+            description="You are signed in. Taking you to the Carlos Paradise home page…" />
+        <Link to="/" replace className="mt-8 inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] border border-brown bg-brown px-5 font-bold text-white shadow-[0_8px_20px_rgba(76,52,37,.18)] transition hover:-translate-y-px focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold">
+            Continue to Home
         </Link>
     </section>;
 }
 
 export default function EmailVerificationPage() {
-    const [pending, setPending] = useState<PendingVerification | null>(loadPendingVerification);
+    const navigate = useNavigate();
+    const [pending, setPending] = useState<PendingVerification | null>(null);
+    const [loading, setLoading] = useState(true);
     const [digits, setDigits] = useState(emptyCode);
-    const [remaining, setRemaining] = useState(() => pending ? secondsUntil(pending.expires_at) : 0);
-    const [resendRemaining, setResendRemaining] = useState(() => pending ? secondsUntil(pending.resend_available_at) : 0);
+    const [remaining, setRemaining] = useState(0);
+    const [resendRemaining, setResendRemaining] = useState(0);
     const [error, setError] = useState("");
     const [notice, setNotice] = useState("");
     const [busy, setBusy] = useState<"verify" | "resend" | null>(null);
     const [complete, setComplete] = useState(false);
+    const [needsLoginRecovery, setNeedsLoginRecovery] = useState(false);
     const refs = useRef<Array<HTMLInputElement | null>>([]);
+
+    useEffect(() => {
+        let stopped = false;
+        void verificationRequest("status")
+            .then(({ response, data }) => {
+                const next = readVerification(data?.verification);
+                if (!stopped && response.ok && next) setPending(next);
+            })
+            .catch(() => {
+                if (!stopped) setError("Could not restore the verification session. Check your connection and try again.");
+            })
+            .finally(() => {
+                if (!stopped) setLoading(false);
+            });
+        return () => { stopped = true; };
+    }, []);
 
     useEffect(() => {
         if (!pending || complete) return;
@@ -58,18 +77,20 @@ export default function EmailVerificationPage() {
         let stopped = false;
         const poll = async () => {
             try {
-                const { response, data } = await verificationRequest("status", { token: pending.token });
+                const { response, data } = await verificationRequest("status");
                 const next = readVerification(data?.verification);
-                if (!stopped && response.ok && next) {
-                    savePendingVerification(next);
-                    setPending(next);
-                }
+                if (!stopped && response.ok && next) setPending(next);
             } catch { /* Polling retries without blocking code entry. */ }
         };
-        void poll();
         const timer = window.setInterval(poll, 2500);
         return () => { stopped = true; window.clearInterval(timer); };
     }, [pending, complete]);
+
+    useEffect(() => {
+        if (!complete) return;
+        const timer = window.setTimeout(() => navigate("/", { replace: true }), 1400);
+        return () => window.clearTimeout(timer);
+    }, [complete, navigate]);
 
     function updateDigit(index: number, raw: string) {
         const digit = raw.replace(/\D/g, "").slice(-1);
@@ -93,46 +114,72 @@ export default function EmailVerificationPage() {
         const code = digits.join("");
         if (code.length !== 6) return setError("Enter all six digits.");
         if (remaining === 0) return setError("This verification code has expired. Request a new code.");
-        setBusy("verify"); setError(""); setNotice("");
+        setBusy("verify");
+        setError("");
+        setNotice("");
+        setNeedsLoginRecovery(false);
         try {
-            const { response, data } = await verificationRequest("verify", { token: pending.token, code });
+            const { response, data } = await verificationRequest("verify", { code });
             if (response.ok) {
-                clearPendingVerification();
-                sessionStorage.removeItem("carlos-paradise:signup-draft");
-                setComplete(true);
+                try {
+                    const user = await fetchAuthenticatedUser();
+                    if (!user || user.role !== "guest") throw new Error("The verified guest session was not available.");
+                    sessionStorage.removeItem("carlos-paradise:signup-draft");
+                    setComplete(true);
+                } catch {
+                    setNeedsLoginRecovery(true);
+                    setError("Your email is verified, but we could not confirm your signed-in session. Please sign in to continue; you will not need to verify again.");
+                }
                 return;
             }
             const message = typeof data?.message === "string" ? data.message : "";
-            if (response.status === 410) setError("This verification code has expired. Request a new code.");
+            if (data?.verified === true) {
+                setNeedsLoginRecovery(true);
+                setError(message || "Your email is verified, but automatic sign-in failed. Please sign in to continue.");
+            } else if (response.status === 410) setError("This verification code has expired. Request a new code.");
             else if (response.status === 422) setError(message || "The verification code is incorrect.");
             else if (response.status === 429) setError(message || "Too many attempts. Request a new code.");
             else setError(message || "Verification is unavailable right now. Please try again.");
-        } catch { setError("Could not verify the code. Check your connection and try again."); }
-        finally { setBusy(null); }
+        } catch {
+            setError("Could not verify the code. Check your connection and try again.");
+        } finally {
+            setBusy(null);
+        }
     }
 
     async function resend() {
         if (!pending || busy || resendRemaining > 0) return;
-        setBusy("resend"); setError(""); setNotice("");
+        setBusy("resend");
+        setError("");
+        setNotice("");
         try {
-            const { response, data } = await verificationRequest("resend", { token: pending.token });
+            const { response, data } = await verificationRequest("resend");
             const next = readVerification(data?.verification);
             if (response.ok && next) {
-                savePendingVerification(next); setPending(next); setDigits(emptyCode());
-                setNotice("A new verification code is being sent."); refs.current[0]?.focus();
+                setPending(next);
+                setDigits(emptyCode());
+                setNotice("A new verification code is being sent.");
+                refs.current[0]?.focus();
                 return;
             }
             const message = typeof data?.message === "string" ? data.message : "";
             setError(response.status === 429 ? message || "Please wait before requesting another code."
                 : message || "We could not send a new code. Please try again.");
-        } catch { setError("We could not send a new code. Check your connection and try again."); }
-        finally { setBusy(null); }
+        } catch {
+            setError("We could not send a new code. Check your connection and try again.");
+        } finally {
+            setBusy(null);
+        }
     }
 
     return <AuthLayout>
-        {complete ? <SuccessState /> : !pending ? <section className="text-center">
+        {complete ? <SuccessState /> : loading ? <section className="text-center" role="status">
+            <AuthHeading eyebrow="Email Verification" title="Loading verification"
+                description="Confirming your secure verification session…" />
+        </section> : !pending ? <section className="text-center">
             <AuthHeading eyebrow="Email Verification" title="Verification session unavailable"
                 description="Sign in with your email and password to resume verification." />
+            {error && <p role="alert" className="mt-4 text-sm text-[#a44b45]">{error}</p>}
             <Link to="/login" className="mt-8 inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] bg-brown px-5 font-bold text-white">Continue to Login</Link>
         </section> : <section className="text-center">
             <div aria-hidden="true" className="mx-auto mb-5 grid size-[60px] place-items-center rounded-full bg-cream text-gold"><ShieldIcon /></div>
@@ -152,7 +199,7 @@ export default function EmailVerificationPage() {
                             else if (event.key === "ArrowLeft" && index > 0) refs.current[index - 1]?.focus();
                             else if (event.key === "ArrowRight" && index < 5) refs.current[index + 1]?.focus();
                         }} inputMode="numeric" pattern="[0-9]*" autoComplete={index === 0 ? "one-time-code" : "off"}
-                        maxLength={1} disabled={busy !== null}
+                        maxLength={1} disabled={busy !== null || needsLoginRecovery}
                         className="aspect-square min-w-0 rounded-[9px] border border-line bg-white text-center text-[22px] font-extrabold outline-none focus:border-gold focus:ring-[3px] focus:ring-gold/15 disabled:opacity-60" />)}
                 </div>
                 <p id="verification-expiry" className={`mb-5 rounded-lg border p-3 ${remaining === 0 ? "border-[#e7c4bf] bg-[#f7e6e3] text-[#a44b45]" : "border-line bg-cream text-muted"}`}>
@@ -162,14 +209,19 @@ export default function EmailVerificationPage() {
                 {pending.delivery_status === "failed" && <p role="alert" className="mb-4 text-sm text-[#a44b45]">We could not send the email. Please use Resend Code.</p>}
                 {error && <p id="verification-error" role="alert" className="mb-4 text-sm text-[#a44b45]">{error}</p>}
                 {notice && <p role="status" className="mb-4 text-sm text-[#4f7b5d]">{notice}</p>}
-                <button type="submit" disabled={busy !== null || remaining === 0}
-                    className="inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] border border-brown bg-brown px-5 font-bold text-white shadow-[0_8px_20px_rgba(76,52,37,.18)] transition hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60">
-                    {busy === "verify" ? "Verifying…" : "Verify OTP"}
-                </button>
-                <button type="button" onClick={resend} disabled={busy !== null || resendRemaining > 0}
-                    className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] border border-brown bg-transparent px-5 font-bold text-brown transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-50">
-                    {busy === "resend" ? "Sending…" : resendRemaining > 0 ? `Resend Code (${resendRemaining}s)` : "Resend Code"}
-                </button>
+                {needsLoginRecovery ? <Link to="/login"
+                    className="inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] border border-brown bg-brown px-5 font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold">
+                    Sign In to Continue
+                </Link> : <>
+                    <button type="submit" disabled={busy !== null || remaining === 0}
+                        className="inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] border border-brown bg-brown px-5 font-bold text-white shadow-[0_8px_20px_rgba(76,52,37,.18)] transition hover:-translate-y-px disabled:cursor-not-allowed disabled:opacity-60">
+                        {busy === "verify" ? "Verifying…" : "Verify OTP"}
+                    </button>
+                    <button type="button" onClick={resend} disabled={busy !== null || resendRemaining > 0}
+                        className="mt-3 inline-flex min-h-[48px] w-full items-center justify-center rounded-[10px] border border-brown bg-transparent px-5 font-bold text-brown transition hover:bg-cream disabled:cursor-not-allowed disabled:opacity-50">
+                        {busy === "resend" ? "Sending…" : resendRemaining > 0 ? `Resend Code (${resendRemaining}s)` : "Resend Code"}
+                    </button>
+                </>}
             </form>
         </section>}
     </AuthLayout>;

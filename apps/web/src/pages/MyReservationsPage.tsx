@@ -701,12 +701,14 @@ export default function MyReservationsPage({
     onSelect,
     onDashboard,
     onProfile,
+    onHelp,
     focusReservationId,
 }: {
     user: User;
     focusReservationId?: number | null;
     onDashboard?: () => void;
     onProfile?: () => void;
+    onHelp?: () => void;
     rows: SavedReservation[];
     error: string;
     onReservations: () => void;
@@ -806,6 +808,7 @@ export default function MyReservationsPage({
                 onMakeReservation={onMakeReservation}
                 onDashboard={onDashboard}
                 onProfile={onProfile}
+                onHelp={onHelp}
             />
             <main className="mx-auto max-w-[1356px] px-4 py-7 md:px-[34px]">
                 <div className="mb-7">

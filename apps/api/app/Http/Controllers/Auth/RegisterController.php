@@ -5,14 +5,15 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\Role;
 use App\Models\User;
+use App\Services\EmailVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
-use App\Services\EmailVerificationService;
 
 class RegisterController extends Controller
 {
@@ -43,10 +44,10 @@ class RegisterController extends Controller
         $captchaResponse = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
             'secret' => env('RECAPTCHA_SECRET_KEY'),
             'response' => $validated['captcha_token'],
-            'remoteip' => $request->ip()
+            'remoteip' => $request->ip(),
         ]);
 
-        if (!$captchaResponse->json('success')) {
+        if (! $captchaResponse->json('success')) {
             throw ValidationException::withMessages([
                 'captcha_token' => ['CAPTCHA verification failed. Please try again.'],
             ]);
@@ -55,7 +56,7 @@ class RegisterController extends Controller
         $guestRole = Role::where('name', 'guest')->firstOrFail();
 
         $user = DB::transaction(function () use ($validated, $guestRole) {
-            $user = new User();
+            $user = new User;
             $user->name = $validated['name'];
             $user->email = $validated['email'];
             $user->phone = $validated['phone'] ?? null;
@@ -64,10 +65,15 @@ class RegisterController extends Controller
             $user->is_active = true;
             $user->role()->associate($guestRole);
             $user->save();
+
             return $user;
         });
 
-        $verification = $verificationService->issue($user);
+        // Registration creates only a restricted pending-verification session.
+        Auth::guard('web')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+        $verification = $verificationService->beginPending($request, $user);
 
         return response()->json([
             'message' => 'Account created. Verify your email to continue.',

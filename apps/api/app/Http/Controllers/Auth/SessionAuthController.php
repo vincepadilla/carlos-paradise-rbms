@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Services\EmailVerificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
-use App\Services\EmailVerificationService;
 use Illuminate\Validation\ValidationException;
 
 class SessionAuthController extends Controller
@@ -32,10 +32,10 @@ class SessionAuthController extends Controller
         $captchaResponse = Http::asForm()->post('https://www.google.com/recaptcha/api/siteverify', [
             'secret' => env('RECAPTCHA_SECRET_KEY'),
             'response' => $validated['captcha_token'],
-            'remoteip' => $request->ip()
+            'remoteip' => $request->ip(),
         ]);
 
-        if (!$captchaResponse->json('success')) {
+        if (! $captchaResponse->json('success')) {
             throw ValidationException::withMessages([
                 'captcha_token' => ['CAPTCHA verification failed. Please try again.'],
             ]);
@@ -60,12 +60,17 @@ class SessionAuthController extends Controller
         }
 
         if ($candidate->role?->name === 'guest' && ! $candidate->email_verified_at) {
+            $guard->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
             return response()->json([
                 'message' => 'Email verification is required.',
-                'verification' => $verificationService->resume($candidate),
+                'verification' => $verificationService->beginPending($request, $candidate, false),
             ], 409);
         }
 
+        $verificationService->clearPending($request);
         $guard->login($candidate, $request->boolean('remember'));
         $request->session()->regenerate();
 
@@ -99,6 +104,7 @@ class SessionAuthController extends Controller
             Auth::guard('web')->logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();
+
             return response()->json(['message' => 'Email verification is required.'], 403);
         }
 

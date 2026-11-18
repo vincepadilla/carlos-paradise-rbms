@@ -21,6 +21,7 @@ import {
 import MyReservationsPage from "./MyReservationsPage";
 import DashboardPage from "./DashboardPage";
 import ProfilePage from "./ProfilePage";
+import HelpSupportPage from "./HelpSupportPage";
 import ReservationStatusPanel from "./PaymentPage";
 import {
     isValidContactNumber,
@@ -40,10 +41,11 @@ export default function MakeReservationPage({
     onUserUpdated?: (user: User) => void;
     settings: Settings;
     paymentMethods: PaymentMethod[];
-    initialPage?: "reservation" | "dashboard";
+    initialPage?: "reservation" | "dashboard" | "reservations" | "profile";
 }) {
     const [user, setUser] = useState(initialUser);
-    const [profileOpen, setProfileOpen] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(initialPage === "profile");
+    const [helpOpen, setHelpOpen] = useState(false);
     useEffect(() => setUser(initialUser), [initialUser]);
     const [step, setStep] = useState(1);
     const [showList, setShowList] = useState(false);
@@ -83,6 +85,9 @@ export default function MakeReservationPage({
     const [liquorNote, setLiquorNote] = useState("");
     const [special, setSpecial] = useState("");
     const [agreed, setAgreed] = useState(false);
+    const [policiesOpen, setPoliciesOpen] = useState(false);
+    const policiesDialogRef = useRef<HTMLDialogElement>(null);
+    const policiesTriggerRef = useRef<HTMLButtonElement>(null);
     const [error, setError] = useState("");
     const [waitAcknowledged, setWaitAcknowledged] = useState(false);
     const [saved, setSaved] = useState<SavedReservation | null>(null);
@@ -92,10 +97,24 @@ export default function MakeReservationPage({
     const [datePickerTarget, setDatePickerTarget] = useState<'checkin' | 'checkout' | null>(null);
     const availabilitySequence = useRef(0);
     const busyRef = useRef(false);
+    const initialReservationsLoadedRef = useRef(false);
     const requestKey = useRef<{ fingerprint: string; key: string } | null>(null);
     const [serverResult, setServerResult] = useState<
         (QuoteResponse & { fingerprint: string }) | null
     >(null);
+    useEffect(() => {
+        const dialog = policiesDialogRef.current;
+        if (!dialog) return;
+
+        if (policiesOpen && !dialog.open) dialog.showModal();
+        if (!policiesOpen && dialog.open) dialog.close();
+    }, [policiesOpen]);
+
+    function closePolicies(returnFocus = true) {
+        setPoliciesOpen(false);
+        if (returnFocus) requestAnimationFrame(() => policiesTriggerRef.current?.focus());
+    }
+
     const todayString = new Intl.DateTimeFormat("en-CA", {
         timeZone: "Asia/Manila",
         year: "numeric",
@@ -428,7 +447,18 @@ export default function MakeReservationPage({
         setUser(nextUser);
         onUserUpdated?.(nextUser);
     }
+    function openHelp() {
+        if (busyRef.current) return;
+        setHelpOpen(true);
+        setProfileOpen(false);
+        setDashboardOpen(false);
+        setShowList(false);
+        setSaved(null);
+        setError("");
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    }
     function openProfile() {
+        setHelpOpen(false);
         if (busyRef.current) return;
         setProfileOpen(true);
         setDashboardOpen(false);
@@ -438,6 +468,7 @@ export default function MakeReservationPage({
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
     function openDashboard() {
+        setHelpOpen(false);
         setProfileOpen(false);
         if (busyRef.current) return;
         setDashboardOpen(true);
@@ -447,6 +478,7 @@ export default function MakeReservationPage({
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
     function showForm() {
+        setHelpOpen(false);
         setProfileOpen(false);
         if (busyRef.current) return;
         setDashboardOpen(false);
@@ -456,6 +488,7 @@ export default function MakeReservationPage({
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
     function showConfirmedReservation(reservation: SavedReservation) {
+        setHelpOpen(false);
         setProfileOpen(false);
         setRows((previous) => [
             { ...reservation, user_id: user.id },
@@ -469,6 +502,7 @@ export default function MakeReservationPage({
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
     function openReservation(reservation: SavedReservation) {
+        setHelpOpen(false);
         setProfileOpen(false);
         if (reservation.status === "confirmed") {
             showConfirmedReservation(reservation);
@@ -480,6 +514,7 @@ export default function MakeReservationPage({
         window.scrollTo({ top: 0, behavior: "smooth" });
     }
     async function showReservations() {
+        setHelpOpen(false);
         if (busyRef.current) return;
         busyRef.current = true;
         setBusy(true);
@@ -503,6 +538,23 @@ export default function MakeReservationPage({
             setBusy(false);
         }
     }
+    useEffect(() => {
+        if (initialPage !== "reservations" || initialReservationsLoadedRef.current) return;
+        initialReservationsLoadedRef.current = true;
+        void showReservations();
+        // oxlint-disable-next-line react-hooks/exhaustive-deps -- this runs once only for the route-selected initial view.
+    }, [initialPage]);
+    if (helpOpen) {
+        return (
+            <HelpSupportPage
+                user={user}
+                onDashboard={openDashboard}
+                onReservations={() => void showReservations()}
+                onMakeReservation={showForm}
+                onProfile={openProfile}
+            />
+        );
+    }
     if (profileOpen) {
         return (
             <ProfilePage
@@ -511,6 +563,7 @@ export default function MakeReservationPage({
                 onDashboard={openDashboard}
                 onReservations={() => void showReservations()}
                 onMakeReservation={showForm}
+                onHelp={openHelp}
             />
         );
     }
@@ -518,6 +571,7 @@ export default function MakeReservationPage({
         return (
             <DashboardPage
                 onProfile={openProfile}
+                onHelp={openHelp}
                 user={user}
                 navigationError={error}
                 onMakeReservation={showForm}
@@ -530,6 +584,7 @@ export default function MakeReservationPage({
         return (
             <MyReservationsPage
                 onProfile={openProfile}
+                onHelp={openHelp}
                 focusReservationId={focusReservationId}
                 user={user}
                 rows={rows}
@@ -546,6 +601,7 @@ export default function MakeReservationPage({
             <div className="min-h-screen bg-[#f6f1e7] font-sans text-sm text-[#2d261f]">
                 <ReservationHeader
                     onProfile={openProfile}
+                    onHelp={openHelp}
                     user={user}
                     onReservations={() => void showReservations()}
                     onMakeReservation={showForm}
@@ -575,6 +631,7 @@ export default function MakeReservationPage({
         <div className="min-h-screen bg-[#f6f1e7] font-sans text-sm leading-normal text-[#2d261f] [&_*]:box-border [&_svg]:shrink-0 [&_button]:cursor-pointer [&_button:disabled]:cursor-default [&_button:focus-visible]:outline-2 [&_button:focus-visible]:outline-offset-4 [&_button:focus-visible]:outline-[#b08a52] [&_p]:leading-relaxed [&_p]:text-[#776f65]">
             <ReservationHeader
                 onProfile={openProfile}
+                onHelp={openHelp}
                 user={user}
                 onReservations={() => void showReservations()}
                 onMakeReservation={showForm}
@@ -632,8 +689,9 @@ export default function MakeReservationPage({
                                             </span>
                                             <h2>Who is requesting the stay?</h2>
                                             <p>
-                                                Your saved profile information has been added. You can
-                                                edit it below.
+                                                Your saved profile details are filled in below. Booking
+                                                for someone else? Enter their name, contact number, and
+                                                email address instead.
                                             </p>
                                         </div>
                                     </div>
@@ -1367,13 +1425,7 @@ export default function MakeReservationPage({
                                                     Changes within 2 weeks incur ₱2,000.
                                                 </span>
                                             </div>
-                                            <button
-                                                type="button"
-                                                className="border-0 bg-transparent p-0 text-xs font-bold text-[#4c3425] underline"
-                                                onClick={() => setStep(3)}
-                                            >
-                                                View Full Policies
-                                            </button>
+
                                         </section>
                                     </div>
                                     <div className="my-[18px] overflow-hidden rounded-[9px] border border-[#e3d9cb] [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:gap-3 [&>div]:border-t [&>div]:border-[#e3d9cb] [&>div]:px-5 [&>div]:py-[11px] [&_span]:flex [&_span]:flex-col [&_span]:gap-1 [&_span]:text-[#776f65] [&_small]:text-[9px]">
@@ -1492,7 +1544,12 @@ export default function MakeReservationPage({
                                             I have read and agree to the Carlos Paradise reservation,
                                             cancellation, rescheduling, guest capacity, pet, towel,
                                             parking, and payment policies.
-                                            <button type="button" onClick={() => setStep(3)}>
+                                            <button
+                                                ref={policiesTriggerRef}
+                                                type="button"
+                                                aria-haspopup="dialog"
+                                                onClick={() => setPoliciesOpen(true)}
+                                            >
                                                 View Full Policies
                                             </button>
                                         </span>
@@ -1616,6 +1673,79 @@ export default function MakeReservationPage({
                     )}
                 </div>
             </div>
+            <dialog
+                ref={policiesDialogRef}
+                aria-labelledby="reservation-policies-title"
+                aria-describedby="reservation-policies-description"
+                className="m-auto max-h-[min(86vh,760px)] w-[min(92vw,680px)] overflow-y-auto rounded-xl border border-[#e3d9cb] bg-[#fffdf8] p-0 text-[#2d261f] shadow-2xl backdrop:bg-black/45"
+                onCancel={(event) => {
+                    event.preventDefault();
+                    closePolicies();
+                }}
+                onClose={() => {
+                    if (policiesOpen) setPoliciesOpen(false);
+                }}
+                onClick={(event) => {
+                    if (event.target === event.currentTarget) closePolicies();
+                }}
+            >
+                <div className="p-5 sm:p-7">
+                    <div className="flex items-start justify-between gap-5 border-b border-[#e3d9cb] pb-4">
+                        <div>
+                            <span className="mb-2 block text-[11px] font-extrabold uppercase tracking-[0.16em] text-[#b08a52]">
+                                Carlos Paradise
+                            </span>
+                            <h2 id="reservation-policies-title" className="m-0 text-xl font-semibold text-[#4c3425]">
+                                Reservation Policies
+                            </h2>
+                            <p id="reservation-policies-description" className="mt-2 mb-0 text-xs text-[#776f65]">
+                                Review the policies without leaving your reservation request.
+                            </p>
+                        </div>
+                        <button
+                            type="button"
+                            autoFocus
+                            aria-label="Close reservation policies"
+                            className="grid size-9 shrink-0 place-items-center rounded-full border border-[#e3d9cb] bg-white text-xl leading-none text-[#4c3425] hover:bg-[#f6ecd7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b08a52]"
+                            onClick={() => closePolicies()}
+                        >
+                            ×
+                        </button>
+                    </div>
+                    <div className="mt-5 space-y-5 text-sm leading-relaxed text-[#776f65] [&_h3]:m-0 [&_h3]:text-base [&_h3]:font-semibold [&_h3]:text-[#4c3425] [&_p]:mt-1.5 [&_p]:mb-0">
+                        <section>
+                            <h3>Check-in &amp; Check-out</h3>
+                            <p>Requested dates and times are checked for conflicts. Day Tour schedules require Admin or Owner agreement.</p>
+                        </section>
+                        <section>
+                            <h3>Guest Pricing</h3>
+                            <p>Standard pricing covers {settings.standard_guests} chargeable guests. Each additional chargeable guest is {money(settings.extra_guest_fee)}. Existing cleaning fee policies continue to apply.</p>
+                        </section>
+                        <section>
+                            <h3>Guest, pet, towel &amp; parking policies</h3>
+                            <p>The private villa is pet-friendly. Pets must wear diapers at all times. The Master’s Bedroom includes 2 towels only; other guests should bring their own. Parking includes 1 van and 1 SUV in the driveway and 5–6 vehicles at the rear. Additional vehicles may park in front of the villa.</p>
+                        </section>
+                        <section>
+                            <h3>Cancellation &amp; refunds</h3>
+                            <p>Cancel 1 month before check-in for a 100% refund, 3 weeks before for a 50% refund, or 2 weeks or less before for no refund.</p>
+                        </section>
+                        <section>
+                            <h3>Rescheduling</h3>
+                            <p>Guests may request to reschedule at least 3 weeks before the reservation. Later requests may not be accommodated. Changes made within 2 weeks incur a ₱2,000 penalty fee.</p>
+                        </section>
+                        <section>
+                            <h3>Deposits &amp; payment</h3>
+                            <p>A {money(settings.deposit)} reservation deposit is required only when your reservation opportunity begins. Dates are secured after payment verification and reservation approval. A refundable {money(settings.security_deposit)} security deposit is collected during check-in and returned after inspection if there are no damages or losses.</p>
+                            {settings.payment_instructions && <p>{settings.payment_instructions}</p>}
+                            {settings.payment_deadline_instructions && <p>{settings.payment_deadline_instructions}</p>}
+                        </section>
+                        <section className="rounded-lg bg-[#f6ecd7] p-4">
+                            <h3>Cleaning fee policy</h3>
+                            <p>A {money(settings.cleaning_fee)} cleaning fee applies for {settings.cleaning_threshold} or more chargeable guests.</p>
+                        </section>
+                    </div>
+                </div>
+            </dialog>
             {datePickerTarget && (
                 <AvailabilityDateRangePicker
                     initialCheckin={checkin}
