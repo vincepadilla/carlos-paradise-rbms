@@ -31,6 +31,7 @@ class ReservationAvailabilityController extends Controller
             throw ValidationException::withMessages(['duration_days' => 'The duration does not match the reservation type.']);
         }
         $dates = [];
+        $intervals = [];
         for ($date = $rangeStart; $date->lte($rangeEnd); $date = $date->addDay()) {
             $dateString = $date->toDateString();
             $checkoutMode = ($data['date_role'] ?? 'checkin') === 'checkout';
@@ -48,8 +49,10 @@ class ReservationAvailabilityController extends Controller
 
                 continue;
             }
-            $dates[$dateString] = $availability->forInterval($stayStart, $stayEnd)['availability'];
+            $dates[$dateString] = 'blocked';
+            $intervals[$dateString] = ['start' => $stayStart, 'end' => $stayEnd];
         }
+        $dates = array_replace($dates, $availability->forCalendar($intervals));
 
         return response()->json(['dates' => $dates]);
     }

@@ -2,16 +2,57 @@
 
 namespace App\Services;
 
+use App\Services\Algorithms\ReservationAvailabilityShadow;
 use Carbon\CarbonImmutable;
+use Closure;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Collection;
+use Throwable;
 
 class ReservationAvailability
 {
+    public function __construct(
+        private readonly ?ReservationAvailabilityShadow $shadow = null,
+        private readonly ?Closure $calendar = null,
+    ) {}
+
+    /**
+     * Calendar endpoint only. Quotes and all writes continue to use their existing SQL paths.
+     *
+     * @param  array<string, array{start: CarbonImmutable, end: CarbonImmutable}>  $intervals
+     * @return array<string, 'blocked'|'queue'|'available'>
+     */
+    public function forCalendar(array $intervals): array
+    {
+        $sql = function () use ($intervals): array {
+            $dates = [];
+            foreach ($intervals as $key => $interval) {
+                $dates[$key] = $this->forInterval($interval['start'], $interval['end'])['availability'];
+            }
+
+            return $dates;
+        };
+        if ($this->calendar !== null && $intervals !== []) {
+            try {
+                $calendar = ($this->calendar)();
+            } catch (Throwable) {
+                // Includes optional engine initialization failure; original SQL still decides.
+                return $sql();
+            }
+            if ($calendar instanceof CalendarAvailability) {
+                return $calendar->classify($intervals, $sql);
+            }
+        }
+
+        return $sql();
+    }
+
     /** @return array{availability: 'available'|'queue'|'blocked', queue_position: int|null} */
     public function forInterval(CarbonImmutable $start, CarbonImmutable $end): array
     {
+        $observation = $this->shadow?->begin($start, $end);
+
         // Half-open comparisons permit checkout/check-in turnover at the same time.
         $overlapping = DB::table('reservations')->where('villa_id', 1)
             ->where('starts_at', '<', $end->toIso8601String())->where('ends_at', '>', $start->toIso8601String());
@@ -45,13 +86,17 @@ class ReservationAvailability
             })->count() + 1;
         }
 
+        $this->shadow?->observe($observation, $category);
+
         return ['availability' => $category, 'queue_position' => $position];
     }
 
     /** Count individually available overnight dates using the same commitment, opportunity, and block rules. */
     public function availableNights(CarbonImmutable $startDate, CarbonImmutable $endDate): int
     {
-        if ($endDate->lt($startDate)) return 0;
+        if ($endDate->lt($startDate)) {
+            return 0;
+        }
 
         $rangeStart = $startDate->startOfDay()->addHours(14);
         $rangeEnd = $endDate->addDay()->startOfDay()->addHours(12);
@@ -93,8 +138,7 @@ class ReservationAvailability
 
     private function overlapsCommitment(Collection $commitments, CarbonImmutable $start, CarbonImmutable $end): bool
     {
-        return $commitments->contains(fn ($record) =>
-            CarbonImmutable::parse($record->starts_at)->lt($end)
+        return $commitments->contains(fn ($record) => CarbonImmutable::parse($record->starts_at)->lt($end)
             && CarbonImmutable::parse($record->ends_at)->gt($start)
         );
     }
