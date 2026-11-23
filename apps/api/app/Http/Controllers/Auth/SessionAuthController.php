@@ -47,6 +47,7 @@ class SessionAuthController extends Controller
             'is_active' => true,
         ];
 
+        /** @var \Illuminate\Auth\SessionGuard $guard */
         $guard = Auth::guard('web');
         $provider = $guard->getProvider();
         /** @var User|null $candidate */
