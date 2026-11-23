@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Services\Algorithms\ProtectedOpportunity;
 use App\Services\Algorithms\ReservationAvailabilityShadow;
+use App\Services\Algorithms\ReservationIntervalNormalizer;
 use Carbon\CarbonImmutable;
 use Closure;
 use Illuminate\Support\Collection;
@@ -15,6 +17,7 @@ class ReservationAvailability
     public function __construct(
         private readonly ?ReservationAvailabilityShadow $shadow = null,
         private readonly ?Closure $calendar = null,
+        private readonly ?ReservationQueueAllocation $queueAllocation = null,
     ) {}
 
     /**
@@ -23,7 +26,28 @@ class ReservationAvailability
      * @param  array<string, array{start: CarbonImmutable, end: CarbonImmutable}>  $intervals
      * @return array<string, 'blocked'|'queue'|'available'>
      */
-    public function forCalendar(array $intervals): array
+    public function forCalendar(array $intervals, ?string $stayType = null): array
+    {
+        $dates = $this->calendarClassifications($intervals);
+        if ($this->queueAllocation === null || $stayType === null || ! in_array('available', $dates, true)) {
+            return $dates;
+        }
+
+        $pending = $this->queueAllocation->pendingCandidateIntervals(
+            min(array_column($intervals, 'start')),
+            ReservationIntervalNormalizer::queueCalendarEnd(max(array_column($intervals, 'end')), $stayType)
+        );
+        foreach ($intervals as $key => $interval) {
+            $end = ReservationIntervalNormalizer::queueCalendarEnd($interval['end'], $stayType);
+            if ($dates[$key] === 'available' && $pending->hasOverlap($interval['start']->timestamp, $end->timestamp)) {
+                $dates[$key] = 'queue';
+            }
+        }
+
+        return $dates;
+    }
+
+    private function calendarClassifications(array $intervals): array
     {
         $sql = function () use ($intervals): array {
             $dates = [];
@@ -49,7 +73,7 @@ class ReservationAvailability
     }
 
     /** @return array{availability: 'available'|'queue'|'blocked', queue_position: int|null} */
-    public function forInterval(CarbonImmutable $start, CarbonImmutable $end): array
+    public function forInterval(CarbonImmutable $start, CarbonImmutable $end, ?string $stayType = null): array
     {
         $observation = $this->shadow?->begin($start, $end);
 
@@ -57,15 +81,8 @@ class ReservationAvailability
         $overlapping = DB::table('reservations')->where('villa_id', 1)
             ->where('starts_at', '<', $end->toIso8601String())->where('ends_at', '>', $start->toIso8601String());
         $confirmed = (clone $overlapping)->whereIn('status', ['confirmed', 'reserved'])->exists();
-        // An unpaid hold only counts when its opportunity is actually active.
         $opportunity = (clone $overlapping)->where(function ($query) {
-            $query->where('status', 'payment_review')->orWhere(function ($held) {
-                $held->whereIn('status', ['held', 'awaiting_deposit'])->whereExists(function ($active) {
-                    $active->selectRaw('1')->from('reservation_opportunities as opportunity')
-                        ->whereColumn('opportunity.reservation_id', 'reservations.id')->where('opportunity.status', 'active')
-                        ->where('opportunity.deposit_deadline', '>', CarbonImmutable::now('Asia/Manila')->toIso8601String());
-                });
-            });
+            $query->where('status', 'payment_review')->orWhere(ProtectedOpportunity::whereUnreleased(...));
         })->exists();
         $blocked = Schema::hasTable('availability_blocks') && DB::table('availability_blocks')
             ->where('villa_id', 1)->whereNull('released_at')->where('starts_on', '<=', $end->subSecond()->toDateString())
@@ -73,20 +90,21 @@ class ReservationAvailability
         $category = match (true) {
             $confirmed || $blocked => 'blocked', $opportunity => 'queue', default => 'available'
         };
+        $this->shadow?->observe($observation, $category);
+        if ($category === 'available' && $stayType !== null && $this->queueAllocation !== null) {
+            $effectiveEnd = ReservationIntervalNormalizer::queueCalendarEnd($end, $stayType);
+            $pending = $this->queueAllocation->pendingCandidateIntervals($start, $effectiveEnd);
+            if ($pending->hasOverlap($start->timestamp, $effectiveEnd->timestamp)) {
+                $category = 'queue';
+            }
+        }
         $position = null;
         if ($category === 'queue') {
             $position = (clone $overlapping)->where(function ($query) {
-                $query->whereIn('status', ['pending', 'queued', 'payment_review'])->orWhere(function ($held) {
-                    $held->whereIn('status', ['held', 'awaiting_deposit'])->whereExists(function ($active) {
-                        $active->selectRaw('1')->from('reservation_opportunities as opportunity')
-                            ->whereColumn('opportunity.reservation_id', 'reservations.id')->where('opportunity.status', 'active')
-                            ->where('opportunity.deposit_deadline', '>', CarbonImmutable::now('Asia/Manila')->toIso8601String());
-                    });
-                });
+                $query->whereIn('status', ['pending', 'queued', 'payment_review'])
+                    ->orWhere(ProtectedOpportunity::whereUnreleased(...));
             })->count() + 1;
         }
-
-        $this->shadow?->observe($observation, $category);
 
         return ['availability' => $category, 'queue_position' => $position];
     }
@@ -100,22 +118,12 @@ class ReservationAvailability
 
         $rangeStart = $startDate->startOfDay()->addHours(14);
         $rangeEnd = $endDate->addDay()->startOfDay()->addHours(12);
-        $now = CarbonImmutable::now('Asia/Manila')->toIso8601String();
         $commitments = DB::table('reservations')->where('villa_id', 1)
             ->where('starts_at', '<', $rangeEnd->toIso8601String())
             ->where('ends_at', '>', $rangeStart->toIso8601String())
-            ->where(function ($query) use ($now) {
-                $query->whereIn('status', ['confirmed', 'reserved'])
-                    ->orWhere('status', 'payment_review')
-                    ->orWhere(function ($held) use ($now) {
-                        $held->whereIn('status', ['held', 'awaiting_deposit'])
-                            ->whereExists(function ($active) use ($now) {
-                                $active->selectRaw('1')->from('reservation_opportunities as opportunity')
-                                    ->whereColumn('opportunity.reservation_id', 'reservations.id')
-                                    ->where('opportunity.status', 'active')
-                                    ->where('opportunity.deposit_deadline', '>', $now);
-                            });
-                    });
+            ->where(function ($query) {
+                $query->whereIn('status', ['confirmed', 'reserved', 'payment_review'])
+                    ->orWhere(ProtectedOpportunity::whereUnreleased(...));
             })->get(['starts_at', 'ends_at']);
         $blocks = Schema::hasTable('availability_blocks')
             ? DB::table('availability_blocks')->where('villa_id', 1)->whereNull('released_at')

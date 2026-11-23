@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Services\Algorithms\ProtectedOpportunity;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -31,9 +32,9 @@ class ReservationWorkflow
      * Lock the villa while changing reservations or payments.
      * This prevents competing requests from taking the same dates.
      */
-    public function locked(callable $callback)
+    public function locked(callable $callback, bool $expireUnpaid = true)
     {
-        return DB::transaction(function () use ($callback) {
+        return DB::transaction(function () use ($callback, $expireUnpaid) {
             $villa = DB::table('villas')
                 ->where('id', 1)
                 ->lockForUpdate()
@@ -45,7 +46,9 @@ class ReservationWorkflow
                 'The villa has not been configured yet.'
             );
 
-            $this->expireLocked();
+            if ($expireUnpaid) {
+                $this->expireLocked();
+            }
 
             return $callback($villa);
         });
@@ -253,10 +256,6 @@ class ReservationWorkflow
             );
         }
 
-        if ($reservations->isNotEmpty()) {
-            $this->promoteQueuedLocked();
-        }
-
         return $reservations->count();
     }
 
@@ -274,6 +273,31 @@ class ReservationWorkflow
         return $deadline->gte($start)
             ? $start->subMinute()
             : $deadline;
+    }
+
+    /** Staff extend the same protected opportunity under the villa lock. */
+    public function extendUnreleased(object $record, CarbonImmutable $deadline, int $actor, array $extra = []): void
+    {
+        $opportunity = DB::table('reservation_opportunities')->where('reservation_id', $record->id)
+            ->orderByDesc('id')->lockForUpdate()->first();
+        abort_unless(in_array($record->status, ['held', 'awaiting_deposit', 'expired'], true)
+            && $opportunity && in_array($opportunity->status, ['active', 'expired'], true),
+            422, 'Only an unreleased unpaid opportunity can be extended.');
+        abort_unless($deadline->gt($this->now()) && $deadline->gt(CarbonImmutable::parse($opportunity->deposit_deadline, 'Asia/Manila'))
+            && $deadline->lt(CarbonImmutable::parse($record->starts_at, 'Asia/Manila')),
+            422, 'Choose a later deposit deadline before check-in.');
+
+        $previous = $opportunity->deposit_deadline;
+        DB::table('reservation_opportunities')->where('id', $opportunity->id)->update([
+            'status' => 'active', 'closed_at' => null, 'deposit_deadline' => $deadline->toIso8601String(),
+            'updated_at' => $this->stamp(),
+        ]);
+        $this->state($record, 'awaiting_deposit', $actor, 'Staff extended the protected deposit opportunity.', [
+            ...$extra, 'deadline' => $deadline->toIso8601String(), 'processed_by' => $actor,
+            'processed_at' => $this->now()->toIso8601String(),
+        ]);
+        $this->history($record->id, 'awaiting_deposit', 'awaiting_deposit', $actor, 'Staff extended the deposit deadline.',
+            'deposit_deadline_extended', ['from' => $previous, 'to' => $deadline->toIso8601String()]);
     }
 
     public function createOpportunity(
@@ -343,6 +367,7 @@ class ReservationWorkflow
                 if ($includeUnpaid) {
                     $query
                         ->orWhere('status', 'payment_review')
+                        ->orWhere(ProtectedOpportunity::whereUnreleased(...))
                         ->orWhere(function ($held) {
                             $held
                                 ->whereIn('status', [
@@ -403,6 +428,7 @@ class ReservationWorkflow
                         'held',
                         'payment_review',
                     ])
+                    ->orWhere(ProtectedOpportunity::whereUnreleased(...))
                     ->orWhere(function ($queued) use ($reservation) {
                         $queued
                             ->whereIn('status', ['pending', 'queued'])
@@ -427,35 +453,6 @@ class ReservationWorkflow
             ->count();
 
         return $ahead + 1;
-    }
-
-    public function promoteQueuedLocked(): void
-    {
-        $queued = DB::table('reservations')
-            ->where('villa_id', 1)
-            ->whereIn('status', ['pending', 'queued'])
-            ->orderBy('requested_at')
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get();
-
-        foreach ($queued as $reservation) {
-            try {
-                $this->available($reservation);
-            } catch (ValidationException) {
-                continue;
-            }
-
-            $deadline = $this->createOpportunity($reservation);
-
-            $this->state(
-                $reservation,
-                'awaiting_deposit',
-                null,
-                'The next queued reservation received the deposit opportunity.',
-                ['deadline' => $deadline->toIso8601String()]
-            );
-        }
     }
 
     /*
@@ -522,10 +519,11 @@ class ReservationWorkflow
                 ->where('reason', 'like', self::QUEUE_CLOSED_REASON.'%')
                 ->exists();
 
-        $opportunity = DB::table('reservation_opportunities')
-            ->where('reservation_id', $reservation->id)
-            ->orderByDesc('id')
-            ->first();
+        $opportunity = DB::table('reservation_opportunities as o')
+            ->leftJoin('reservation_queue_releases as r', 'r.opportunity_id', '=', 'o.id')
+            ->where('o.reservation_id', $reservation->id)
+            ->orderByDesc('o.id')
+            ->first(['o.id', 'o.status', 'r.id as release_id']);
 
         $payments = DB::table('payments as p')
             ->join(
@@ -583,6 +581,7 @@ class ReservationWorkflow
             ? [
                 'id' => $opportunity->id,
                 'status' => $opportunity->status,
+                'release_id' => $opportunity->release_id,
             ]
             : null,
 

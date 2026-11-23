@@ -57,7 +57,10 @@ function ReservationRow({ reservation, queue }: { reservation: AdminReservation;
         <td><span>{dateRange(reservation.starts_at, reservation.ends_at)}</span><small>{typeLabel(reservation.type)}</small></td>
         {queue ? <>
             <td>{statusLabel(reservation.status)}</td>
-            <td><span>Position: {reservation.queue_position ?? '—'}</span><small>Opportunity: {reservation.opportunity?.status ?? '—'}</small></td>
+            <td><span>Position: {reservation.queue_position ?? '—'}</span>
+                <small>{reservation.opportunity?.release_id ? 'Released · View queue decision'
+                    : reservation.opportunity?.status === 'expired' ? 'Awaiting staff release'
+                    : `Opportunity: ${reservation.opportunity?.status ?? '—'}`}</small></td>
             <td>{reservation.deadline ? dateTime(reservation.deadline) : '—'}</td>
         </> : <>
             <td><span>{guestCount !== null && Number.isFinite(guestCount) ? guestCount : '—'}</span><small>{reservation.adults ?? '—'} adults · {reservation.children ?? '—'} children</small></td>

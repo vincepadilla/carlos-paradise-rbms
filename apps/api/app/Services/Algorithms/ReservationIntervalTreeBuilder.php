@@ -62,14 +62,14 @@ final class ReservationIntervalTreeBuilder
         if ($villaId <= 0) {
             throw new InvalidArgumentException('A positive villa ID is required.');
         }
-        if ($mode === ReservationIntervalMode::Current && $pbl !== null) {
+        if ($mode !== ReservationIntervalMode::Pbl && $pbl !== null) {
             throw new InvalidArgumentException('PBL metadata is only valid in PBL comparison mode.');
         }
         if ($mode === ReservationIntervalMode::Pbl && $pbl === null) {
             throw new InvalidArgumentException('PBL mode requires an explicit cleaning/release policy.');
         }
 
-        $reservations = $this->reservationQuery($villaId, $asOf, $mode, $pbl);
+        $reservations = $this->reservationQuery($villaId, $mode, $pbl);
         $blocks = $this->database->table('availability_blocks')->where('villa_id', $villaId)->whereNull('released_at')
             ->selectRaw("id, NULL AS type, CAST(starts_on AS TEXT) AS starts_at, CAST(ends_on AS TEXT) AS ends_at, 'blocked' AS category, 'block' AS source");
         if ($windowStart !== null && $windowEnd !== null) {
@@ -82,7 +82,7 @@ final class ReservationIntervalTreeBuilder
         }
         $records = $reservations->unionAll($blocks);
 
-        if ($mode === ReservationIntervalMode::Pbl) {
+        if ($mode !== ReservationIntervalMode::Current) {
             $records->unionAll($this->database->table('ocular_visits')->where('villa_id', $villaId)->where('status', 'approved')
                 ->selectRaw("id, NULL AS type, CAST(visit_date AS TEXT) || ' ' || CAST(start_time AS TEXT) AS starts_at,
                     CAST(visit_date AS TEXT) || ' ' || CAST(end_time AS TEXT) AS ends_at, 'blocked' AS category, 'ocular' AS source"));
@@ -95,7 +95,7 @@ final class ReservationIntervalTreeBuilder
                 $record->ends_at,
                 $mode,
                 $record->source === 'reservation' ? $record->type : null,
-                $record->source === 'reservation' && ($pbl?->requiresCleaning((int) $record->id) ?? false),
+                $record->source === 'reservation' && ($mode === ReservationIntervalMode::QueueAllocation || ($pbl?->requiresCleaning((int) $record->id) ?? false)),
             );
         }
 
@@ -104,7 +104,6 @@ final class ReservationIntervalTreeBuilder
 
     private function reservationQuery(
         int $villaId,
-        CarbonImmutable $asOf,
         ReservationIntervalMode $mode,
         ?PblIntervalPolicy $pbl,
     ): Builder {
@@ -112,23 +111,21 @@ final class ReservationIntervalTreeBuilder
             ->selectRaw("id, type, CAST(starts_at AS TEXT) AS starts_at, CAST(ends_at AS TEXT) AS ends_at,
                 CASE WHEN status IN ('confirmed', 'reserved') THEN 'blocked' ELSE 'queue' END AS category,
                 'reservation' AS source")
-            ->where(function (Builder $protected) use ($asOf, $mode, $pbl): void {
-                $protected->whereIn('status', ['confirmed', 'reserved', 'payment_review'])
-                    ->orWhere(function (Builder $held) use ($asOf, $mode, $pbl): void {
-                        $held->whereIn('status', $mode === ReservationIntervalMode::Pbl
-                            ? ['held', 'awaiting_deposit', 'expired'] : ['held', 'awaiting_deposit'])
-                            ->whereExists(function (Builder $opportunity) use ($asOf, $mode, $pbl): void {
+            ->where(function (Builder $protected) use ($mode, $pbl): void {
+                $protected->whereIn('status', ['confirmed', 'reserved', 'payment_review']);
+                if ($mode !== ReservationIntervalMode::Pbl) {
+                    $protected->orWhere(ProtectedOpportunity::whereUnreleased(...));
+                } else {
+                    $protected->orWhere(function (Builder $held) use ($pbl): void {
+                        $held->whereIn('status', ['held', 'awaiting_deposit', 'expired'])
+                            ->whereExists(function (Builder $opportunity) use ($pbl): void {
                                 $opportunity->selectRaw('1')->from('reservation_opportunities AS opportunity')
-                                    ->whereColumn('opportunity.reservation_id', 'reservations.id');
-                                if ($mode === ReservationIntervalMode::Current) {
-                                    $opportunity->where('opportunity.status', 'active')
-                                        ->where('opportunity.deposit_deadline', '>', $asOf->setTimezone('Asia/Manila')->toIso8601String());
-                                } else {
-                                    $opportunity->whereIn('opportunity.status', ['active', 'expired'])
-                                        ->whereNotIn('opportunity.id', $pbl->releasedOpportunityIds());
-                                }
+                                    ->whereColumn('opportunity.reservation_id', 'reservations.id')
+                                    ->whereIn('opportunity.status', ['active', 'expired'])
+                                    ->whereNotIn('opportunity.id', $pbl->releasedOpportunityIds());
                             });
                     });
+                }
             });
     }
 }

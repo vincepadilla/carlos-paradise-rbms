@@ -101,6 +101,8 @@ final class CalendarAvailabilityPostgresTest extends TestCase
         $sqlMs = (hrtime(true) - $sqlStart) / 1e6;
         $sqlQueries = count($database->getQueryLog());
         $this->assertSame(200, $sql->getStatusCode());
+        $releaseRead = fn ($query) => str_contains($query['query'], 'from "reservation_queue_releases"');
+        $this->assertCount(1, array_filter($database->getQueryLog(), $releaseRead));
         $http->app['config']->set('algocom.availability_engine', 'tree');
         $database->flushQueryLog();
         $treeStart = hrtime(true);
@@ -113,6 +115,7 @@ final class CalendarAvailabilityPostgresTest extends TestCase
         $this->assertSame(['blocked', 'queue', 'available'], array_slice(array_values($dates), 0, 3));
         $this->assertCount(1, array_filter($log, fn ($q) => str_contains(strtolower($q['query']), 'union all')));
         $this->assertCount(2, array_filter($log, fn ($q) => str_contains($q['query'], 'pg_current_snapshot')));
+        $this->assertCount(1, array_filter($log, $releaseRead));
         $this->assertCount(0, array_filter($log, fn ($q) => str_starts_with(strtolower($q['query']), 'select exists(select * from "reservations"')));
         $this->assertSame([], $this->environment->logger->events);
         $this->assertReadOnly();

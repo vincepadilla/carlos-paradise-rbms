@@ -8,6 +8,8 @@ use Database\Seeders\ReservationSetupSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 class ReservationQueueTest extends TestCase
@@ -76,7 +78,7 @@ class ReservationQueueTest extends TestCase
         $this->assertDatabaseCount('reservations', 0);
     }
 
-    public function test_cancelling_an_unpaid_opportunity_promotes_the_queue(): void
+    public function test_guest_cancellation_leaves_the_hold_protected_for_staff_release(): void
     {
         $firstGuest = User::factory()->create();
         $secondGuest = User::factory()->create();
@@ -100,13 +102,137 @@ class ReservationQueueTest extends TestCase
 
         $this->assertDatabaseHas('reservations', [
             'id' => $secondId,
-            'status' => 'awaiting_deposit',
+            'status' => 'queued',
         ]);
+        $this->assertDatabaseMissing('reservation_opportunities', ['reservation_id' => $secondId]);
+        $this->assertDatabaseCount('reservation_queue_releases', 0);
+        $this->postJson('/api/quote', $payload)->assertOk()->assertJsonPath('availability', 'queue');
 
-        $this->assertDatabaseHas('reservation_opportunities', [
-            'reservation_id' => $secondId,
-            'status' => 'active',
-        ]);
+        $url = "/api/reservations/$firstId/opportunity/release";
+        $this->postJson($url)->assertForbidden();
+        $this->actingAs($this->staff('admin'))->postJson($url)->assertOk()
+            ->assertJsonPath('selected_reservation_id', $secondId)->assertJsonPath('approval_required', true);
+        $this->assertDatabaseMissing('reservation_opportunities', ['reservation_id' => $secondId]);
+    }
+
+    public function test_staff_approve_one_fifo_candidate_and_new_bookings_cannot_jump_the_queue(): void
+    {
+        $this->recommendation(1)->assertUnauthorized();
+        $payload = $this->reservationPayload();
+        $leader = $this->book($payload);
+        $first = $this->book($payload);
+        $second = $this->book($payload);
+        // Both waiters submitted in the same second. The lower reservation ID wins.
+        DB::table('reservations')->whereIn('id', [$first, $second])
+            ->update(['requested_at' => CarbonImmutable::now('Asia/Manila')->subMinute()->toIso8601String()]);
+        $admin = $this->staff('admin');
+        $owner = $this->staff('owner');
+        $releaseUrl = "/api/reservations/$leader/opportunity/release";
+        $this->actingAs($admin)->postJson("/api/reservations/$first/opportunity")->assertUnprocessable();
+        $release = $this->postJson($releaseUrl)->assertOk()->assertJsonPath('eligible_candidates', 2)
+            ->assertJsonPath('selected_reservation_id', $first)->assertJsonPath('selection_policy', 'FIFO')->json('release_id');
+        $this->getJson("/api/reservations/$leader")->assertOk()->assertJsonPath('reservation.opportunity.release_id', $release);
+        $this->postJson($releaseUrl)->assertOk()->assertJsonPath('release_id', $release);
+        $this->assertDatabaseCount('reservation_queue_releases', 1);
+        $this->assertDatabaseMissing('reservation_opportunities', ['reservation_id' => $first]);
+        $this->assertDatabaseMissing('reservation_opportunities', ['reservation_id' => $second]);
+
+        $guest = User::factory()->create();
+        $this->actingAs($guest)->recommendation($release)->assertForbidden();
+        $this->postJson("/api/reservations/$first/opportunity", ['release_id' => $release])->assertForbidden();
+        $this->postJson('/api/quote', $payload)->assertOk()->assertJsonPath('availability', 'queue');
+        $this->postJson('/api/reservations', $payload)->assertUnprocessable()->assertJsonValidationErrors('dates');
+        $late = $this->book($payload);
+        $this->assertDatabaseHas('reservations', ['id' => $late, 'status' => 'queued']);
+
+        $this->actingAs($owner)->recommendation($release + 1000)->assertNotFound();
+        $certificate = $this->recommendation($release)->assertOk()
+            ->assertJsonPath('operation', 'queue_select')->assertJsonPath('status', 'ok')
+            ->assertJsonPath('approval_required', true)->assertJsonPath('result.release_id', $release)
+            ->assertJsonPath('result.eligible_candidates', 2)->assertJsonPath('result.selected_reservation_id', $first);
+        $this->assertIsNumeric($certificate->json('execution_time_ms'));
+        $this->assertDatabaseMissing('reservation_opportunities', ['reservation_id' => $first]);
+        $this->assertDatabaseHas('reservation_queue_releases', ['id' => $release, 'granted_reservation_id' => null]);
+        $this->postJson("/api/reservations/$second/opportunity", ['release_id' => $release])->assertConflict();
+        $this->postJson("/api/reservations/$first/opportunity", ['release_id' => $release])->assertOk()
+            ->assertJsonPath('reservation.status', 'awaiting_deposit');
+        $this->postJson("/api/reservations/$first/opportunity", ['release_id' => $release])->assertOk();
+        $this->postJson("/api/reservations/$second/opportunity", ['release_id' => $release])->assertConflict();
+        $this->recommendation($release)->assertOk()->assertJsonPath('result.granted_reservation_id', $first);
+        $this->assertSame(1, DB::table('reservation_opportunities')->where('reservation_id', $first)->count());
+        $this->assertDatabaseHas('reservation_queue_releases', ['id' => $release,
+            'released_by' => $admin->id, 'approved_by' => $owner->id, 'granted_reservation_id' => $first]);
+    }
+
+    public function test_grant_rechecks_cleaning_conflicts_and_ignores_waiters_outside_the_released_stay(): void
+    {
+        $short = $this->reservationPayload();
+        $start = CarbonImmutable::parse($short['checkin'], 'Asia/Manila');
+        $leader = $this->book([...$short, 'checkout' => $start->addDays(2)->toDateString()]);
+        $first = $this->book($short);
+        $second = $this->book([...$short, 'checkin' => $start->addDay()->toDateString(), 'checkout' => $start->addDays(2)->toDateString()]);
+        $unrelated = [...$short, 'checkin' => $start->addDays(5)->toDateString(), 'checkout' => $start->addDays(6)->toDateString()];
+        $this->book($unrelated);
+        $unrelatedWaiter = $this->book($unrelated);
+
+        $this->actingAs($this->staff('admin'));
+        $release = $this->postJson("/api/reservations/$leader/opportunity/release")->assertOk()
+            ->assertJsonPath('eligible_candidates', 2)->assertJsonPath('selected_reservation_id', $first)->json('release_id');
+        // First stay ends at 11 AM. A newly approved noon visit conflicts with its cleaning time.
+        $this->postJson('/api/admin/ocular-visits', ['guest_name' => 'Site visit', 'contact_details' => 'Front desk',
+            'visit_date' => $short['checkout'], 'start_time' => '12:00', 'end_time' => '12:30',
+            'status' => 'approved'])->assertCreated();
+        $this->recommendation($release)->assertOk()
+            ->assertJsonPath('result.eligible_candidates', 1)->assertJsonPath('result.selected_reservation_id', $second);
+        $this->postJson("/api/reservations/$first/opportunity", ['release_id' => $release])->assertConflict();
+        $this->postJson("/api/reservations/$unrelatedWaiter/opportunity", ['release_id' => $release])->assertConflict();
+        $this->postJson("/api/reservations/$second/opportunity", ['release_id' => $release])->assertOk();
+        $this->assertDatabaseMissing('reservation_opportunities', ['reservation_id' => $first]);
+    }
+
+    public function test_staff_can_extend_an_expired_unreleased_opportunity_or_release_it_with_no_candidate(): void
+    {
+        $payload = $this->reservationPayload();
+        $leader = $this->book($payload);
+        $opportunity = DB::table('reservation_opportunities')->where('reservation_id', $leader)->value('id');
+        $past = CarbonImmutable::now('Asia/Manila')->subHour()->toIso8601String();
+        DB::table('reservations')->where('id', $leader)->update(['deadline' => $past]);
+        DB::table('reservation_opportunities')->where('id', $opportunity)->update(['deposit_deadline' => $past]);
+        $newDeadline = CarbonImmutable::now('Asia/Manila')->addDay()->format('Y-m-d\TH:i');
+
+        $this->getJson("/api/reservations/$leader")->assertOk()->assertJsonPath('reservation.status', 'expired');
+        $this->postJson('/api/quote', $payload)->assertOk()->assertJsonPath('availability', 'queue');
+        $this->postJson("/api/reservations/$leader/opportunity/extend", ['deadline' => $newDeadline])->assertForbidden();
+        $this->actingAs($this->staff('owner'))->postJson("/api/reservations/$leader/opportunity/extend", ['deadline' => $newDeadline])
+            ->assertOk()->assertJsonPath('reservation.opportunity.status', 'active')->assertJsonPath('reservation.opportunity.id', $opportunity);
+        $this->assertDatabaseCount('reservation_queue_releases', 0);
+        $release = $this->postJson("/api/reservations/$leader/opportunity/release")->assertOk()
+            ->assertJsonPath('selected_reservation_id', null)->assertJsonPath('eligible_candidates', 0)
+            ->assertJsonPath('approval_required', false)->json('release_id');
+        $this->recommendation($release)->assertOk()->assertJsonPath('result.candidate_found', false);
+        $this->postJson("/api/reservations/$leader/opportunity/extend", ['deadline' => $newDeadline])->assertUnprocessable();
+        $this->postJson('/api/quote', $payload)->assertOk()->assertJsonPath('availability', 'available');
+    }
+
+    public function test_waiter_whose_checkin_passes_after_release_does_not_hold_up_the_next_guest(): void
+    {
+        $payload = $this->reservationPayload();
+        $start = CarbonImmutable::parse($payload['checkin'].' 14:00', 'Asia/Manila');
+        $leader = $this->book([...$payload, 'checkout' => $start->addDays(2)->toDateString()]);
+        $earlier = $this->book($payload);
+        $later = $this->book([...$payload, 'checkin' => $start->addDay()->toDateString(),
+            'checkout' => $start->addDays(2)->toDateString()]);
+        $this->actingAs($this->staff('owner'));
+        $release = $this->postJson("/api/reservations/$leader/opportunity/release")
+            ->assertOk()->assertJsonPath('selected_reservation_id', $earlier)->json('release_id');
+
+        CarbonImmutable::withTestNow($start->addMinute(), function () use ($release, $earlier, $later) {
+            $this->postJson("/api/reservations/$earlier/opportunity", ['release_id' => $release])->assertConflict();
+            $this->recommendation($release)->assertOk()
+                ->assertJsonPath('result.eligible_candidates', 1)->assertJsonPath('result.selected_reservation_id', $later);
+            $this->postJson("/api/reservations/$later/opportunity", ['release_id' => $release])->assertOk();
+            $this->assertDatabaseMissing('reservation_opportunities', ['reservation_id' => $earlier]);
+        });
     }
 
     public function test_paid_queue_leader_enters_review_and_cancels_later_queue_positions(): void
@@ -292,6 +418,23 @@ class ReservationQueueTest extends TestCase
             ->postJson('/api/quote', $payload)
             ->assertOk()
             ->assertJsonPath('availability', 'blocked');
+    }
+
+    private function book(array $payload): int
+    {
+        return $this->actingAs(User::factory()->create())->postJson('/api/reservations', [
+            ...$payload, 'queue_acknowledged' => true, 'request_key' => (string) Str::uuid(),
+        ])->assertCreated()->json('reservation.id');
+    }
+
+    private function staff(string $role): User
+    {
+        return User::factory()->create(['role_id' => DB::table('roles')->where('name', $role)->value('id')])->fresh();
+    }
+
+    private function recommendation(int $releaseId): TestResponse
+    {
+        return $this->postJson('/api/v1/algorithm/solve', ['operation' => 'queue_select', 'release_id' => $releaseId]);
     }
 
     private function reservationPayload(): array

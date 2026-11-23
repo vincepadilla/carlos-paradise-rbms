@@ -171,6 +171,13 @@ final class IsolatedAvailabilityHttpApplication
             $table->string('remember_token')->nullable();
         });
         $schema->create('villas', fn (Blueprint $table) => $table->integer('id')->primary());
+        $schema->create('reservation_queue_releases', function (Blueprint $table): void {
+            $table->integer('id')->primary();
+            $table->integer('villa_id');
+            $table->integer('opportunity_id');
+            $table->timestampTz('ends_at');
+            $table->integer('granted_reservation_id')->nullable();
+        });
         $this->fixtures->database->table('roles')->insert([
             ['id' => 1, 'name' => 'guest'], ['id' => 2, 'name' => 'admin'], ['id' => 3, 'name' => 'owner'],
         ]);

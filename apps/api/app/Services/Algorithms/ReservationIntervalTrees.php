@@ -6,7 +6,7 @@ namespace App\Services\Algorithms;
 
 use InvalidArgumentException;
 
-/** Ephemeral conflict classification; never authorizes reservation writes or FIFO decisions. */
+/** Read-only snapshot shared by calendar classification and queue eligibility checks. */
 final class ReservationIntervalTrees
 {
     public readonly AugmentedIntervalTree $blocked;

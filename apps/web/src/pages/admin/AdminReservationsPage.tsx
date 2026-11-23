@@ -92,7 +92,8 @@ function QueueManagement() {
     const waitingOnly = params.get('queue_status') === 'waiting';
     return <AdminResource load={AdminApi.reservations} showRefresh={false}>{({ reservations }) => {
         const queued = reservations
-            .filter(item => waitingOnly ? item.status === 'queued' : ['pending', 'queued', 'awaiting_deposit'].includes(item.status))
+            .filter(item => waitingOnly ? item.status === 'queued' : ['pending', 'queued', 'held', 'awaiting_deposit'].includes(item.status)
+                || item.opportunity?.status === 'expired' || Boolean(item.opportunity?.release_id))
             .sort((left, right) => (left.queue_position ?? Infinity) - (right.queue_position ?? Infinity) || left.id - right.id);
         return <AdminReservationTable queue reservations={queued} total={queued.length} />;
     }}</AdminResource>;

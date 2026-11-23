@@ -8,6 +8,7 @@ use App\Services\Algorithms\ReservationIntervalMode;
 use App\Services\Algorithms\ReservationIntervalTreeBuilder;
 use App\Services\CalendarAvailability;
 use App\Services\ReservationAvailability;
+use App\Services\ReservationQueueAllocation;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\ServiceProvider;
 use Psr\Log\LoggerInterface;
@@ -60,7 +61,7 @@ class AppServiceProvider extends ServiceProvider
                 ? fn () => $app->make(CalendarAvailability::class)
                 : null;
 
-            return new ReservationAvailability($shadow, $calendar);
+            return new ReservationAvailability($shadow, $calendar, $app->make(ReservationQueueAllocation::class));
         });
     }
 

@@ -8,4 +8,5 @@ enum ReservationIntervalMode: string
 {
     case Current = 'current';
     case Pbl = 'pbl';
+    case QueueAllocation = 'queue_allocation';
 }

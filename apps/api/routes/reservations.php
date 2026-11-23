@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\BookingPaymentsController;
 use App\Http\Controllers\BookingReservationsController;
+use App\Http\Controllers\QueueAllocationController;
+use App\Http\Middleware\RequireAdminOrOwner;
 use Illuminate\Support\Facades\Route;
 use App\Http\Middleware\RequireVerifiedGuestEmail;
 
@@ -28,7 +30,13 @@ Route::prefix('api')->middleware(['auth', RequireVerifiedGuestEmail::class])->gr
 
     Route::post('/reservations/{reservation}/opportunity', [
         BookingReservationsController::class, 'opportunity',
-    ])->whereNumber('reservation');
+    ])->whereNumber('reservation')->middleware(RequireAdminOrOwner::class);
+
+    Route::middleware(RequireAdminOrOwner::class)->group(function () {
+        Route::post('/reservations/{reservation}/opportunity/release', [QueueAllocationController::class, 'release'])->whereNumber('reservation');
+        Route::post('/reservations/{reservation}/opportunity/extend', [QueueAllocationController::class, 'extend'])->whereNumber('reservation');
+        Route::post('/v1/algorithm/solve', [QueueAllocationController::class, 'solve']);
+    });
 
     Route::post('/reservations/{reservation}/extension', [
         BookingReservationsController::class, 'requestExtension',

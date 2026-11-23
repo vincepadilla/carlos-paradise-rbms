@@ -113,7 +113,7 @@ final class ReservationIntervalTreeBuilderTest extends TestCase
         $policy = new PblIntervalPolicy([1], $evidence);
         $trees = $this->builder->build(1, CarbonImmutable::parse(Fixtures::NOW), Mode::Pbl, $policy);
         $this->assertSame($expected, $trees->classify('2026-12-01T12:00:00+08:00', '2026-12-01T13:00:00+08:00', 'day_tour'));
-        $this->assertSame('available', $this->builder->build(1, CarbonImmutable::parse(Fixtures::NOW))->classify(Fixtures::START, Fixtures::END, 'day_tour'));
+        $this->assertSame('queue', $this->builder->build(1, CarbonImmutable::parse(Fixtures::NOW))->classify(Fixtures::START, Fixtures::END, 'day_tour'));
     }
 
     public static function releaseCases(): iterable
@@ -314,7 +314,9 @@ final class ReservationIntervalTreeBuilderTest extends TestCase
             $type = $i % 2 === 0 ? 'overnight' : 'day_tour';
             $requiresCleaning = $i % 3 === 0;
             $end = $rawEnd + ($type === 'overnight' && $requiresCleaning ? 7200 : 0);
-            $statement->execute(['start' => $start, 'end' => $end]);
+            $statement->bindValue('start', $start, \PDO::PARAM_INT);
+            $statement->bindValue('end', $end, \PDO::PARAM_INT);
+            $statement->execute();
             $flags = $statement->fetch(\PDO::FETCH_ASSOC);
             $this->assertSame((bool) $flags['blocked'], $trees->blocked->hasOverlap($start, $end), "blocked query $i");
             $this->assertSame((bool) $flags['queue'], $trees->queue->hasOverlap($start, $end), "queue query $i");

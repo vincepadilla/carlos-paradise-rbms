@@ -1,6 +1,6 @@
 import { operationalApi as reservationApi, operationalApiUrl } from "./OperationalApi";
 import { ReservationApiError } from "./ReservationApi";
-import type { AdminGuest, AdminGuestDetails, AdminGuestUpdate, AdminReservation, AdminReservationList, AvailabilityBlock, DashboardSummary, Paginated } from "../types/admin";
+import type { AdminGuest, AdminGuestDetails, AdminGuestUpdate, AdminReservation, AdminReservationList, AvailabilityBlock, DashboardSummary, Paginated, QueueRecommendation } from "../types/admin";
 import type { CalendarData } from "../types/calendar";
 import type { ReservationDetailResponse, ReservationEdit } from "../types/reservationDetails";
 import type { DepositPaymentRecordList, PaymentReviewData, PendingPaymentReview } from "../types/paymentReview";
@@ -180,6 +180,18 @@ export const AdminApi = {
         })}`, "GET", undefined, signal),
     reservation: (id: string, signal: AbortSignal) =>
         readRecord<ReservationDetailResponse>(`/reservations/${encodeURIComponent(id)}`, "Reservation not found.", signal),
+    releaseOpportunity: (id: number) =>
+        reservationApi<QueueRecommendation>(`/reservations/${id}/opportunity/release`, "POST"),
+    queueRecommendation: async (releaseId: number, signal: AbortSignal): Promise<QueueRecommendation> => {
+        const decision = await reservationApi<{ result: Omit<QueueRecommendation, "approval_required">; approval_required: boolean }>(
+            "/v1/algorithm/solve", "POST", { operation: "queue_select", release_id: releaseId }, signal,
+        );
+        return { ...decision.result, approval_required: decision.approval_required };
+    },
+    grantQueueOpportunity: (candidateId: number, releaseId: number) =>
+        reservationApi<{ reservation: AdminReservation }>(`/reservations/${candidateId}/opportunity`, "POST", { release_id: releaseId }),
+    extendHeldOpportunity: (id: number, deadline: string) =>
+        reservationApi(`/reservations/${id}/opportunity/extend`, "POST", { deadline }),
     agreeReservationTotal: (id: number, total: string) =>
         reservationApi(`/reservations/${id}/terms`, "PATCH", { total }),
     reviewExtension: (id: number, decision: "approved" | "rejected") =>

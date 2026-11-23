@@ -42,14 +42,14 @@ final class ReadinessBenchmarkDataset
                 $fixture['reservation_opportunities'][] = ReservationIntervalFixtures::opportunity(['id' => $i + 1, 'reservation_id' => $i + 1]);
             }
         }
-        // Expired opportunities on otherwise empty days: CURRENT must ignore these rows.
+        // Former holds on otherwise empty days have already been released by staff.
         for ($i = 0; $i < intdiv($protected, 10); $i++) {
             $id = $protected + $i + 1;
             $start = $base->addDays(2 * $i + 1);
             $fixture['reservations'][] = ReservationIntervalFixtures::reservation(['id' => $id, 'status' => 'expired',
                 'starts_at' => $start->toIso8601String(), 'ends_at' => $start->addHours(21)->toIso8601String()]);
             $fixture['reservation_opportunities'][] = ReservationIntervalFixtures::opportunity(['id' => $id, 'reservation_id' => $id,
-                'status' => 'expired', 'deposit_deadline' => ReservationIntervalFixtures::NOW, 'closed_at' => ReservationIntervalFixtures::NOW]);
+                'status' => 'revoked', 'deposit_deadline' => ReservationIntervalFixtures::NOW, 'closed_at' => ReservationIntervalFixtures::NOW]);
         }
         $summary = ['checksum' => hash('sha256', json_encode($fixture, JSON_THROW_ON_ERROR)),
             'protected_intervals' => $protected, 'physical_rows' => array_map('count', $fixture),

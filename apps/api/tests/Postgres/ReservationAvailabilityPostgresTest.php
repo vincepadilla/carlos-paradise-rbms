@@ -189,7 +189,7 @@ final class ReservationAvailabilityPostgresTest extends TestCase
         $this->fixture->database->listen(function (QueryExecuted $query) use (&$changed): void {
             if (! $changed && str_contains($query->sql, 'select exists') && str_contains($query->sql, 'reservation_opportunities')) {
                 $changed = true;
-                $this->fixture->writer->table('reservation_opportunities')->update(['status' => 'expired']);
+                $this->fixture->writer->table('reservation_opportunities')->update(['status' => 'revoked']);
             }
         });
         $shadow = $this->shadow();

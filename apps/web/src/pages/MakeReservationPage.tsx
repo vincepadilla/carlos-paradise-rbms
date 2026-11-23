@@ -878,18 +878,12 @@ export default function MakeReservationPage({
                                                     Your selected dates overlap with an existing
                                                     reservation opportunity. You would be position{" "}
                                                     {checked?.queue_position ?? "next"} in the request
-                                                    queue. You may wait for the
-                                                    opportunity to become available if the earlier request
-                                                    is cancelled or expires. Would you like to continue
-                                                    waiting?
+                                                    queue. Staff can offer the next eligible guest a
+                                                    deposit opportunity after they release the dates.
+                                                    Would you like to join the queue?
                                                 </p>
                                                 <small>
-                                                    Selected dates overlap an active reservation
-                                                    opportunity.
-                                                    <br />
-                                                    Waiting does not guarantee the reservation. You cannot
-                                                    submit a deposit while the existing opportunity
-                                                    remains active.
+                                                    Wait for staff approval before submitting a deposit.
                                                 </small>
                                                 <div className="mt-2 flex flex-wrap gap-2">
                                                     <Button

@@ -49,6 +49,9 @@ class GuestAvailabilityTest extends TestCase
 
         DB::table('reservation_opportunities')->where('reservation_id', $reservation)->update(['status' => 'expired']);
         DB::table('reservations')->where('id', $reservation)->update(['status' => 'expired']);
+        $this->getJson($url)->assertExactJson(['dates' => [$day->toDateString() => 'queue']]);
+
+        DB::table('reservation_opportunities')->where('reservation_id', $reservation)->update(['status' => 'revoked']);
         $this->getJson($url)->assertExactJson(['dates' => [$day->toDateString() => 'available']]);
 
         DB::table('reservations')->where('id', $reservation)->update(['status' => 'confirmed']);

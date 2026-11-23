@@ -10,6 +10,7 @@ import { DepositAccessControls, GuestInformation, StayInformation } from "./Rese
 import ReservationPriceSummary from "./ReservationPriceSummary";
 import ReservationDamages from "./ReservationDamages";
 import ReservationPayments from "./ReservationPayments";
+import QueueOpportunityControls from "./QueueOpportunityControls";
 import ReservationPrintSummary from "./ReservationPrintSummary";
 import UnsavedReservationGuard from "./UnsavedReservationGuard";
 import "./reservation-details.css";
@@ -51,6 +52,7 @@ export default function ReservationDetails({ initialData }: { initialData: Reser
         {error && !confirmation && <div className="detail-error" role="alert"><p>{error}</p>{refreshRequired && <button className="btn secondary" disabled={busy} onClick={() => void editor.reload()}>Reload latest details</button>}</div>}
         <div className="admin-detail-grid"><div className="detail-main">
             <GuestInformation {...informationProps} />
+            <QueueOpportunityControls reservation={r} disabled={busy || Boolean(editing) || refreshRequired} reload={editor.reload} />
             <DepositAccessControls reservation={r} details={d} busy={busy || Boolean(editing) || refreshRequired} agreedDeadline={editor.agreedDeadline} onDeadline={editor.setAgreedDeadline} onGrant={() => confirm("grant")} onRevoke={() => confirm("revoke")} onReview={confirm} />
             <StayInformation {...informationProps} />
             <ReservationDamages details={d} total={r.total} draft={draft} setDraft={setDraft} editing={fullEdit} busy={busy} />

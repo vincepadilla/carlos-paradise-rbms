@@ -103,7 +103,7 @@ final class ReservationPblPolicyPostgresTest extends TestCase
         ]);
         $events = $role === null ? [] : [['opportunity_id' => 1, 'actor_role' => $role, 'verified' => $verified]];
         $before = $this->state();
-        $this->compare(Fixtures::START, Fixtures::END, 'overnight', false, [], $events, 'available', $expected);
+        $this->compare(Fixtures::START, Fixtures::END, 'overnight', false, [], $events, 'queue', $expected);
         $this->assertSame($before, $this->state());
     }
 

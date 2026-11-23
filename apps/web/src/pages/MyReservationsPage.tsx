@@ -507,7 +507,7 @@ function ExtensionRequestDialog({
             : reservation.status !== "awaiting_deposit"
               ? "A deposit opportunity must be active before you can request a deadline extension."
               : !deadlineIsActive
-                ? "This deposit deadline has already expired and can no longer be extended."
+                ? "Your payment window has ended. Contact the resort to ask about a staff-approved extension."
                 : earliestDate > latestDate
                   ? "There is no valid extension date before this reservation's check-in time."
                   : "";

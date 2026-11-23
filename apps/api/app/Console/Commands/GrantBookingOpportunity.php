@@ -13,6 +13,7 @@ class GrantBookingOpportunity extends Command
         'reservations:grant
         {reservation : Reservation ID}
         {staff_user_id : Existing admin or owner user ID}
+        {release_id : Verified opportunity release ID}
         {--total= : Staff-agreed total for a day tour}';
 
     protected $description =
@@ -54,7 +55,8 @@ class GrantBookingOpportunity extends Command
 
         $request = Request::create(
             "/api/reservations/{$reservationId}/opportunity",
-            'POST'
+            'POST',
+            ['release_id' => $this->argument('release_id')]
         );
 
         $request->setUserResolver(

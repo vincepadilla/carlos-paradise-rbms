@@ -118,15 +118,23 @@ final class ReservationIntervalTreeCompatibilityTest extends TestCase
         yield 'pending payment with active opportunity' => [['reservations' => [$stay], 'reservation_opportunities' => [$active]], self::START, self::END, 'queue', 2, true];
         yield 'legacy held status with active opportunity' => [['reservations' => [self::reservation('held')], 'reservation_opportunities' => [$active]], self::START, self::END, 'queue', 2, true];
         yield 'payment review survives expired deadline without opportunity' => [['reservations' => [self::reservation('payment_review', ['deadline' => self::NOW])]], self::START, self::END, 'queue', 2, true];
-        yield 'expired but unclosed opportunity is ignored currently' => [['reservations' => [$stay], 'reservation_opportunities' => [self::opportunity(['deposit_deadline' => '2026-11-20T10:00:00+08:00'])]], self::START, self::END, 'available', null, true];
-        yield 'deadline equality is not future' => [['reservations' => [self::reservation('awaiting_deposit', ['deadline' => self::NOW])], 'reservation_opportunities' => [self::opportunity(['deposit_deadline' => self::NOW])]], self::START, self::END, 'available', null, false];
-        yield 'expired reservation status is ignored' => [['reservations' => [self::reservation('expired')], 'reservation_opportunities' => [self::opportunity(['status' => 'expired'])]], self::START, self::END, 'available', null, false];
-        foreach (['cancelled', 'rejected', 'completed', 'pending', 'queued'] as $status) {
+        yield 'overdue opportunity awaits staff release' => [['reservations' => [$stay], 'reservation_opportunities' => [self::opportunity(['deposit_deadline' => '2026-11-20T10:00:00+08:00'])]], self::START, self::END, 'queue', 2, true];
+        yield 'unreleased at exact deadline' => [['reservations' => [self::reservation('awaiting_deposit', ['deadline' => self::NOW])], 'reservation_opportunities' => [self::opportunity(['deposit_deadline' => self::NOW])]], self::START, self::END, 'queue', 2, true];
+        yield 'expired reservation awaits staff release' => [['reservations' => [self::reservation('expired')], 'reservation_opportunities' => [self::opportunity(['status' => 'expired'])]], self::START, self::END, 'queue', 2, true];
+        yield 'cancelled reservation with unreleased hold' => [['reservations' => [self::reservation('cancelled')], 'reservation_opportunities' => [$active]], self::START, self::END, 'queue', 2, true];
+        yield 'staff release supersedes earlier expired opportunity' => [[
+            'reservations' => [self::reservation('expired')],
+            'reservation_opportunities' => [
+                self::opportunity(['id' => 2, 'status' => 'revoked']),
+                self::opportunity(['id' => 1, 'status' => 'expired']),
+            ],
+        ], self::START, self::END, 'available', null, false];
+        foreach (['rejected', 'completed', 'pending', 'queued'] as $status) {
             yield $status.' does not protect dates even with a stale opportunity' => [['reservations' => [self::reservation($status)], 'reservation_opportunities' => [$active]], self::START, self::END, 'available', null, false];
         }
         yield 'unpaid reservation without opportunity differs from workflow' => [['reservations' => [$stay]], self::START, self::END, 'available', null, true];
         yield 'null deadline without opportunity differs from workflow' => [['reservations' => [self::reservation('held', ['deadline' => null])]], self::START, self::END, 'available', null, true];
-        yield 'future opportunity with expired reservation deadline differs from workflow' => [['reservations' => [self::reservation('held', ['deadline' => self::NOW])], 'reservation_opportunities' => [$active]], self::START, self::END, 'queue', 2, false];
+        yield 'future opportunity with expired reservation deadline remains protected' => [['reservations' => [self::reservation('held', ['deadline' => self::NOW])], 'reservation_opportunities' => [$active]], self::START, self::END, 'queue', 2, true];
         yield 'revoked opportunity ignored by calendar but not workflow' => [['reservations' => [$stay], 'reservation_opportunities' => [self::opportunity(['status' => 'revoked', 'closed_at' => self::NOW])]], self::START, self::END, 'available', null, true];
         yield 'calendar does not inspect closed_at on active opportunity' => [['reservations' => [$stay], 'reservation_opportunities' => [self::opportunity(['closed_at' => self::NOW])]], self::START, self::END, 'queue', 2, true];
         yield 'unreleased admin block' => [['availability_blocks' => [self::block()]], self::START, self::END, 'blocked', null, true];
@@ -157,14 +165,14 @@ final class ReservationIntervalTreeCompatibilityTest extends TestCase
         ?string $releaseRole,
         bool $protected,
     ): void {
-        // Release events are test-only PBL evidence; the current schema has no such event.
+        // The comparison uses simulated release evidence without revoking the stored opportunity.
         $fixture = [
             'reservations' => [self::reservation($reservationStatus, ['deadline' => self::NOW])],
             'reservation_opportunities' => [self::opportunity(['status' => $opportunityStatus, 'deposit_deadline' => self::NOW, 'closed_at' => $closedAt])],
             'pbl_release_events' => $releaseRole === null ? [] : [['opportunity_id' => 1, 'actor_role' => $releaseRole]],
         ];
         $this->loadFixture($fixture);
-        $this->assertSame('available', (new ReservationAvailability)->forInterval(CarbonImmutable::parse(self::START), CarbonImmutable::parse(self::END))['availability']);
+        $this->assertSame('queue', (new ReservationAvailability)->forInterval(CarbonImmutable::parse(self::START), CarbonImmutable::parse(self::END))['availability']);
         $intervals = $this->pblOpportunityIntervals($fixture);
         $tree = new AugmentedIntervalTree($intervals);
         $this->assertSame($protected, $tree->hasOverlap(self::epoch(self::START), self::epoch(self::END)));
@@ -396,14 +404,16 @@ final class ReservationIntervalTreeCompatibilityTest extends TestCase
                 'payment_review' => 'queue',
                 default => null,
             };
-            if (in_array($reservation['status'], ['held', 'awaiting_deposit'], true)) {
+            if (in_array($reservation['status'], ['held', 'awaiting_deposit', 'expired', 'cancelled'], true)) {
+                $latest = null;
                 foreach ($fixture['reservation_opportunities'] ?? [] as $opportunity) {
                     if ($opportunity['reservation_id'] === $reservation['id']
-                        && $opportunity['status'] === 'active'
-                        && self::epoch($opportunity['deposit_deadline']) > self::epoch(self::NOW)) {
-                        $category = 'queue';
-                        break;
+                        && ($latest === null || $opportunity['id'] > $latest['id'])) {
+                        $latest = $opportunity;
                     }
+                }
+                if ($latest !== null && in_array($latest['status'], ['active', 'expired'], true)) {
+                    $category = 'queue';
                 }
             }
             if ($category !== null) {
@@ -432,11 +442,10 @@ final class ReservationIntervalTreeCompatibilityTest extends TestCase
                     (:category = 'blocked' AND r.status IN ('confirmed', 'reserved'))
                     OR (:category = 'queue' AND (
                         r.status = 'payment_review'
-                        OR (r.status IN ('held', 'awaiting_deposit') AND EXISTS (
-                            SELECT 1 FROM reservation_opportunities o
-                            WHERE o.reservation_id = r.id AND o.status = 'active'
-                              AND julianday(o.deposit_deadline) > julianday(:now)
-                        ))
+                        OR (r.status IN ('held', 'awaiting_deposit', 'expired', 'cancelled') AND (
+                            SELECT o.status FROM reservation_opportunities o
+                            WHERE o.reservation_id = r.id ORDER BY o.id DESC LIMIT 1
+                        ) IN ('active', 'expired'))
                     ))
                   )
                 UNION ALL
@@ -447,7 +456,7 @@ final class ReservationIntervalTreeCompatibilityTest extends TestCase
             )
             SQL;
         $statement = $this->database->getPdo()->prepare($sql);
-        $statement->execute(['category' => $category, 'start' => $start, 'end' => $end, 'now' => self::NOW]);
+        $statement->execute(['category' => $category, 'start' => $start, 'end' => $end]);
 
         return (bool) $statement->fetchColumn();
     }

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\AdminNotificationService;
+use App\Services\ReservationQueueAllocation;
 use App\Services\ReservationWorkflow;
 use App\Services\ReservationDetailData;
 use Carbon\CarbonImmutable;
@@ -388,66 +389,13 @@ class BookingReservationsController extends Controller
     ) {
         $this->flow->requireStaff($request->user());
 
-        return $this->flow->locked(function () use (
-            $request,
-            $reservation
-        ) {
-            $record = $this->flow->reservation(
-                $reservation,
-                true
-            );
+        $request->validate(['release_id' => ['required', 'integer', 'min:1']]);
 
-            abort_unless(
-                in_array(
-                    $record->status,
-                    ['pending', 'queued'],
-                    true
-                ),
-                422,
-                'Only pending or queued requests can receive an opportunity.'
-            );
+        return $this->flow->locked(function () use ($request, $reservation) {
+            $record = app(ReservationQueueAllocation::class)
+                ->grant($request->integer('release_id'), $reservation, $request->user());
 
-            abort_unless(
-                $record->price_agreed &&
-                (float) $record->required_deposit > 0 &&
-                (float) $record->quoted_total >=
-                    (float) $record->required_deposit,
-                422,
-                'Agree the day-tour price or correct the booking amounts first.'
-            );
-
-            abort_unless(
-                $this->flow->queuePosition($record) === 1,
-                422,
-                'An earlier overlapping reservation is ahead in the queue.'
-            );
-
-            $this->flow->available($record);
-
-            $deadline = $this->flow->createOpportunity(
-                $record,
-                $request->user()->id
-            );
-
-            $this->flow->state(
-                $record,
-                'awaiting_deposit',
-                $request->user()->id,
-                'Staff granted a deposit opportunity.',
-                [
-                    'deadline' => $deadline->toIso8601String(),
-
-                    'processed_by' => $request->user()->id,
-
-                    'processed_at' => $this->flow->now()->toIso8601String(),
-                ]
-            );
-
-            return response()->json([
-                'reservation' => $this->flow->present(
-                    $this->flow->reservation($record->id)
-                ),
-            ]);
+            return response()->json(['reservation' => $this->flow->present($record)]);
         });
     }
 
@@ -591,44 +539,11 @@ class BookingReservationsController extends Controller
             ];
 
             if ($data['decision'] === 'approved') {
-                abort_unless(
-                    $record->status === 'awaiting_deposit',
-                    422,
-                    'The deposit opportunity is no longer active.'
-                );
-
-                $deadline = CarbonImmutable::parse(
-                    $record->extension_date,
-                    'Asia/Manila'
-                )->endOfDay();
-
-                $stayStarts = CarbonImmutable::parse(
-                    $record->starts_at,
-                    'Asia/Manila'
-                );
-
-                abort_unless(
-                    $deadline->gt($this->flow->now()) &&
-                    $deadline->lt($stayStarts),
-                    422,
-                    'The requested payment date is no longer valid.'
-                );
-
-                $updates['deadline'] = $deadline->toIso8601String();
-
-                DB::table('reservation_opportunities')
-                    ->where('reservation_id', $record->id)
-                    ->where('status', 'active')
-                    ->update([
-                        'deposit_deadline' =>
-                            $deadline->toIso8601String(),
-                        'updated_at' => $this->flow->stamp(),
-                    ]);
+                $deadline = CarbonImmutable::parse($record->extension_date, 'Asia/Manila')->endOfDay();
+                $this->flow->extendUnreleased($record, $deadline, $request->user()->id, ['extension_status' => 'approved']);
+            } else {
+                DB::table('reservations')->where('id', $record->id)->update($updates);
             }
-
-            DB::table('reservations')
-                ->where('id', $record->id)
-                ->update($updates);
 
             return response()->json([
                 'reservation' => $this->flow->present(
@@ -686,12 +601,9 @@ class BookingReservationsController extends Controller
                 'Reservation cancelled. Any refund must be arranged separately.'
             );
 
-            $this->flow->closeOpportunity(
-                $record->id,
-                'revoked'
-            );
-
-            $this->flow->promoteQueuedLocked();
+            // A guest can withdraw. Only a verified staff release opens their unpaid hold.
+            $this->flow->closeOpportunity($record->id,
+                in_array($record->status, ['held', 'awaiting_deposit'], true) ? 'expired' : 'revoked');
 
             return response()->json([
                 'reservation' => $this->flow->present(

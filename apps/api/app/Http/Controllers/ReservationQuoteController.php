@@ -222,7 +222,7 @@ class ReservationQuoteController extends Controller
                 2
             );
 
-        $availabilityResult = $this->availabilityService->forInterval($start, $end);
+        $availabilityResult = $this->availabilityService->forInterval($start, $end, $data['type']);
         $availability = $availabilityResult['availability'];
 
         return response()->json([

@@ -32,6 +32,10 @@
 .admin-reservation-detail .detail-main { display:flex; flex-direction:column; gap:15px; min-width:0; }
 .admin-reservation-detail .detail-side { display:flex; flex-direction:column; gap:14px; min-width:0; }
 .admin-reservation-detail .detail-section { overflow:visible; }
+.admin-reservation-detail .queue-decision { display:grid; justify-items:start; gap:12px; padding:18px 20px; }
+.admin-reservation-detail .queue-decision p { margin:0; }
+.reservation-detail-dialog .queue-extension-deadline { display:grid; gap:6px; margin:14px 0; }
+.reservation-detail-dialog .queue-extension-deadline input { padding:10px; border:1px solid var(--line); border-radius:7px; }
 .admin-reservation-detail .data-grid { padding:20px; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; }
 .admin-reservation-detail .data-grid > div { display:flex; flex-direction:column; gap:6px; min-width:0; }
 .admin-reservation-detail .data-grid > div > span { color:var(--muted); font-size:10px; }

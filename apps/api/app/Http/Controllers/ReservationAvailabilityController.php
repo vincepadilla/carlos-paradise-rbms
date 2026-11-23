@@ -52,7 +52,7 @@ class ReservationAvailabilityController extends Controller
             $dates[$dateString] = 'blocked';
             $intervals[$dateString] = ['start' => $stayStart, 'end' => $stayEnd];
         }
-        $dates = array_replace($dates, $availability->forCalendar($intervals));
+        $dates = array_replace($dates, $availability->forCalendar($intervals, $data['type']));
 
         return response()->json(['dates' => $dates]);
     }

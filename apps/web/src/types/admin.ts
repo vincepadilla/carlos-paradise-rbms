@@ -7,13 +7,23 @@ export type AdminReservation = SavedReservation & {
     pets: number;
     notes: string | null;
     google_sync?: import('./calendar').GoogleSync;
-    opportunity: { id: number; status: string } | null;
+    opportunity: { id: number; status: string; release_id?: number | null } | null;
     extension_status: string | null;
     extension_reason: string | null;
     extension_message: string | null;
     extension_date: string | null;
     completed_at?: string | null;
     extension_access?: { enabled: boolean | number; agreed_deadline: string; granted_at: string; revoked_at: string | null; consumed_at: string | null } | null;
+};
+
+export type QueueRecommendation = {
+    release_id: number;
+    eligible_candidates: number;
+    selected_reservation_id: number | null;
+    granted_reservation_id: number | null;
+    candidate_found: boolean;
+    approval_required: boolean;
+    reason: string;
 };
 
 export type AdminGuest = {
