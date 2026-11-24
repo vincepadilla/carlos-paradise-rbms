@@ -78,6 +78,7 @@ foreach (['api/admin' => RequireAdminOrOwner::class, 'api/owner/operations' => R
         Route::get('/outgoing-emails/{outgoingEmail}', [AdminOutgoingEmailsController::class, 'show'])->whereNumber('outgoingEmail');
         Route::post('/outgoing-emails/send', [AdminOutgoingEmailsController::class, 'send'])->middleware('throttle:20,1');
         Route::post('/outgoing-emails/schedule', [AdminOutgoingEmailsController::class, 'schedule'])->middleware('throttle:20,1');
+        Route::get('/ocular-visits/suggested-slot', [AdminOcularVisitsController::class, 'suggestedSlot']);
         Route::post('/ocular-visits', [AdminOcularVisitsController::class, 'store'])->middleware('throttle:20,1');
         Route::get('/ocular-visits/{ocularVisit}', [AdminOcularVisitsController::class, 'show'])->whereNumber('ocularVisit');
         Route::patch('/ocular-visits/{ocularVisit}', [AdminOcularVisitsController::class, 'update'])->whereNumber('ocularVisit')->middleware('throttle:20,1');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
 use App\Services\ReservationWorkflow;
+use App\Services\OcularVisitScheduling;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,18 @@ class AdminOcularVisitsController extends Controller
     private const STATUSES = ['pending_review', 'approved', 'cancelled'];
     private const SOURCES = ['Facebook Messenger', 'TikTok', 'Instagram', 'WhatsApp', 'Phone Call'];
 
-    public function __construct(private ReservationWorkflow $flow) {}
+    public function __construct(private ReservationWorkflow $flow, private OcularVisitScheduling $scheduling) {}
+
+    public function suggestedSlot(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'date' => ['required', 'date_format:Y-m-d', 'after_or_equal:'.$this->flow->now()->toDateString()],
+        ]);
+
+        return $this->flow->locked(fn () => response()->json([
+            'suggested_slot' => $this->scheduling->suggest($data['date']),
+        ]), expireUnpaid: false);
+    }
 
     public function show(int $ocularVisit): JsonResponse
     {
@@ -29,6 +41,9 @@ class AdminOcularVisitsController extends Controller
         $this->validateSchedule($data);
 
         return $this->flow->locked(function () use ($request, $data) {
+            if ($data['status'] !== 'cancelled') {
+                $this->scheduling->validate($data);
+            }
             $id = DB::table('ocular_visits')->insertGetId([
                 'villa_id' => 1,
                 ...$this->scheduleValues($data),
@@ -54,6 +69,8 @@ class AdminOcularVisitsController extends Controller
         return $this->flow->locked(function () use ($ocularVisit, $data) {
             $current = $this->find($ocularVisit);
             abort_if($current->status === 'cancelled', 422, 'Cancelled ocular visits cannot be rescheduled.');
+            abort_if((int) $current->revision !== $data['revision'], 409, 'This ocular visit changed while you were viewing it. Refresh the details and try again.');
+            $this->scheduling->validate($data, $ocularVisit);
             $changed = DB::table('ocular_visits')->where('id', $ocularVisit)
                 ->where('revision', $data['revision'])->where('status', '!=', 'cancelled')
                 ->update([...$this->scheduleValues($data), 'revision' => DB::raw('revision + 1'), 'updated_at' => $this->flow->stamp()]);
@@ -92,7 +109,10 @@ class AdminOcularVisitsController extends Controller
         $data = $request->validate(['revision' => ['required', 'integer', 'min:1']]);
 
         return $this->flow->locked(function () use ($id, $data, $from, $to) {
-            $this->find($id);
+            $current = $this->find($id);
+            abort_if((int) $current->revision !== $data['revision'], 409, 'This ocular visit changed while you were viewing it. Refresh the details and try again.');
+            abort_unless($current->status === $from, 422, 'Only ocular visits awaiting approval can be approved.');
+            $this->scheduling->validate((array) $current, $id);
             $changed = DB::table('ocular_visits')->where('id', $id)
                 ->where('revision', $data['revision'])->where('status', $from)
                 ->update(['status' => $to, 'revision' => DB::raw('revision + 1'), 'updated_at' => $this->flow->stamp()]);

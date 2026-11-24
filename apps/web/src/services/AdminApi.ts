@@ -152,6 +152,9 @@ export const AdminApi = {
         reservationApi<PaymentReviewData>(`/admin/reservations/${reservationId}/payment-review/cash-payments`, 'POST', data),
     createOcularVisit: (data: OcularVisitInput) =>
         reservationApi<{ ocular_visit: OcularVisit }>('/admin/ocular-visits', 'POST', data),
+    suggestedOcularSlot: (date: string, signal?: AbortSignal) =>
+        reservationApi<{ suggested_slot: { start_time: string; end_time: string } | null }>(
+            `/admin/ocular-visits/suggested-slot?date=${encodeURIComponent(date)}`, 'GET', undefined, signal),
     ocularVisit: (id: number, signal?: AbortSignal) =>
         reservationApi<{ ocular_visit: OcularVisit }>(`/admin/ocular-visits/${id}`, 'GET', undefined, signal),
     updateOcularVisit: (id: number, data: OcularVisitUpdate) =>

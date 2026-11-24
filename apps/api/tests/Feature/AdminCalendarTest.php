@@ -181,6 +181,132 @@ class AdminCalendarTest extends TestCase
         $this->assertDatabaseCount('ocular_visits', 0);
     }
 
+    public function test_ocular_suggestions_and_consecutive_visits_work_for_admin_and_owner(): void
+    {
+        foreach (['admin' => '/api/admin', 'owner' => '/api/owner/operations'] as $role => $prefix) {
+            $this->actingAs($this->account($role));
+            $payload = $this->ocularPayload(now('Asia/Manila')->addDays($role === 'admin' ? 30 : 31)->toDateString());
+            $url = $prefix.'/ocular-visits';
+            $this->getJson($url.'/suggested-slot?date='.$payload['visit_date'])->assertOk()
+                ->assertJsonPath('suggested_slot', ['start_time' => '10:00', 'end_time' => '11:00']);
+            $this->postJson($url, $payload)->assertCreated();
+            $this->getJson($url.'/suggested-slot?date='.$payload['visit_date'])->assertOk()
+                ->assertJsonPath('suggested_slot', ['start_time' => '11:00', 'end_time' => '12:00']);
+            $this->postJson($url, [...$payload, 'start_time' => '11:00', 'end_time' => '12:00', 'status' => 'approved'])->assertCreated();
+            $this->postJson($url, [...$payload, 'start_time' => '09:00', 'end_time' => '10:00'])->assertCreated();
+            $this->postJson($url, [...$payload, 'start_time' => '10:30', 'end_time' => '11:30'])
+                ->assertUnprocessable()->assertJsonValidationErrors('start_time');
+        }
+    }
+
+    public function test_ocular_conflicts_cover_containment_cancelled_visits_and_rescheduling_self(): void
+    {
+        $this->actingAs($this->account('admin'));
+        $payload = $this->ocularPayload(now('Asia/Manila')->addDays(30)->toDateString());
+        $url = '/api/admin/ocular-visits';
+        $id = $this->postJson($url, $payload)->assertCreated()->json('ocular_visit.id');
+        foreach ([['10:15', '10:45'], ['09:30', '11:30'], ['09:30', '10:30'], ['10:30', '11:30']] as [$start, $end]) {
+            $this->postJson($url, [...$payload, 'start_time' => $start, 'end_time' => $end])
+                ->assertUnprocessable()->assertJsonPath('errors.start_time.0', 'This time overlaps an existing ocular visit. Choose another start and end time.');
+        }
+        $this->patchJson($url.'/'.$id, [...$payload, 'revision' => 1])->assertOk()->assertJsonPath('ocular_visit.revision', 2);
+        $other = $this->postJson($url, [...$payload, 'start_time' => '11:00', 'end_time' => '12:00'])->assertCreated()->json('ocular_visit.id');
+        $this->patchJson($url.'/'.$id, [...$payload, 'start_time' => '10:30', 'end_time' => '11:30', 'revision' => 2])
+            ->assertUnprocessable()->assertJsonValidationErrors('start_time');
+        $this->postJson($url.'/'.$other.'/cancel', ['revision' => 1])->assertOk();
+        $this->patchJson($url.'/'.$id, [...$payload, 'start_time' => '11:00', 'end_time' => '12:00', 'revision' => 2])->assertOk();
+        $this->getJson($url.'/suggested-slot?date='.$payload['visit_date'])->assertOk()
+            ->assertJsonPath('suggested_slot.start_time', '10:00');
+    }
+
+    public function test_ocular_visits_respect_protected_stays_cleaning_and_blocks(): void
+    {
+        $admin = $this->account('admin');
+        $this->actingAs($admin);
+        $day = now('Asia/Manila')->addDays(30)->startOfDay();
+        foreach (['confirmed', 'reserved', 'payment_review', 'awaiting_deposit', 'expired', 'cancelled'] as $index => $status) {
+            $date = $day->copy()->addDays($index * 2);
+            $id = DB::table('reservations')->insertGetId($this->reservation($admin,
+                $date->copy()->subDay()->addHours(14), $date->copy()->addHours(11), $status, 'OCULAR-'.$index));
+            if (in_array($status, ['awaiting_deposit', 'expired', 'cancelled'], true)) {
+                DB::table('reservation_opportunities')->insert(['reservation_id' => $id, 'status' => 'expired',
+                    'granted_at' => now()->subDay(), 'deposit_deadline' => now()->subHour()]);
+            }
+            $payload = $this->ocularPayload($date->toDateString());
+            $this->postJson('/api/admin/ocular-visits', $payload)->assertUnprocessable()->assertJsonValidationErrors('start_time');
+            $this->postJson('/api/admin/ocular-visits', [...$payload, 'start_time' => '12:00', 'end_time' => '13:00'])
+                ->assertUnprocessable()->assertJsonValidationErrors('start_time');
+            $this->getJson('/api/admin/ocular-visits/suggested-slot?date='.$date->toDateString())->assertOk()
+                ->assertJsonPath('suggested_slot', ['start_time' => '13:00', 'end_time' => '14:00']);
+            $this->postJson('/api/admin/ocular-visits', [...$payload, 'start_time' => '13:00', 'end_time' => '14:00'])->assertCreated();
+        }
+        // A whole-day block leaves no suggested slot. Released blocks do not occupy time.
+        $date = $day->copy()->addDays(20);
+        $block = DB::table('availability_blocks')->insertGetId(['villa_id' => 1, 'starts_on' => $date->toDateString(),
+            'ends_on' => $date->copy()->addDay()->toDateString(), 'reason' => 'Maintenance', 'created_by' => $admin->id]);
+        $this->getJson('/api/admin/ocular-visits/suggested-slot?date='.$date->toDateString())->assertOk()->assertJsonPath('suggested_slot', null);
+        $this->postJson('/api/admin/ocular-visits', $this->ocularPayload($date->toDateString()))->assertUnprocessable();
+        DB::table('availability_blocks')->where('id', $block)->update(['released_at' => now()]);
+        $this->getJson('/api/admin/ocular-visits/suggested-slot?date='.$date->toDateString())->assertOk()->assertJsonPath('suggested_slot.start_time', '10:00');
+    }
+
+    public function test_ocular_approval_rechecks_new_protected_entries(): void
+    {
+        $admin = $this->account('admin');
+        $this->actingAs($admin);
+        $day = now('Asia/Manila')->addDays(30)->startOfDay();
+        $payload = $this->ocularPayload($day->toDateString());
+        $id = $this->postJson('/api/admin/ocular-visits', $payload)->assertCreated()->json('ocular_visit.id');
+        DB::table('reservations')->insert($this->reservation($admin, $day->copy()->addHours(9),
+            $day->copy()->addHours(12), 'confirmed', 'OCULAR-APPROVAL'));
+        $this->postJson('/api/admin/ocular-visits/'.$id.'/approve', ['revision' => 1])
+            ->assertUnprocessable()->assertJsonValidationErrors('start_time');
+        $this->assertDatabaseHas('ocular_visits', ['id' => $id, 'status' => 'pending_review', 'revision' => 1]);
+    }
+
+    public function test_ocular_slot_suggestions_require_staff_and_reject_past_dates(): void
+    {
+        $url = '/api/admin/ocular-visits/suggested-slot?date=';
+        $this->getJson($url.now('Asia/Manila')->addDay()->toDateString())->assertUnauthorized();
+        $this->actingAs($this->account('guest'))->getJson($url.now('Asia/Manila')->addDay()->toDateString())->assertForbidden();
+        $this->actingAs($this->account('admin'))->getJson($url.now('Asia/Manila')->subDay()->toDateString())->assertUnprocessable();
+    }
+
+    public function test_ocular_suggestions_skip_partial_gaps_and_use_custom_visit_end_times(): void
+    {
+        $this->actingAs($this->account('admin'));
+        $payload = $this->ocularPayload(now('Asia/Manila')->addDays(30)->toDateString());
+        $this->postJson('/api/admin/ocular-visits', [...$payload, 'end_time' => '10:30'])->assertCreated();
+        $this->postJson('/api/admin/ocular-visits', [...$payload, 'start_time' => '11:00', 'end_time' => '12:15'])->assertCreated();
+        $this->getJson('/api/admin/ocular-visits/suggested-slot?date='.$payload['visit_date'])->assertOk()
+            ->assertJsonPath('suggested_slot', ['start_time' => '12:15', 'end_time' => '13:15']);
+    }
+
+    public function test_ocular_suggestions_today_are_in_the_future_in_manila(): void
+    {
+        $this->actingAs($this->account('admin'));
+        \Carbon\CarbonImmutable::withTestNow('2030-01-05T10:30:30+08:00', function () {
+            $this->getJson('/api/admin/ocular-visits/suggested-slot?date=2030-01-05')->assertOk()
+                ->assertJsonPath('suggested_slot', ['start_time' => '10:31', 'end_time' => '11:31']);
+        });
+    }
+
+    public function test_an_ordinary_waiting_request_does_not_block_an_ocular_visit(): void
+    {
+        $admin = $this->account('admin');
+        $this->actingAs($admin);
+        $day = now('Asia/Manila')->addDays(30)->startOfDay();
+        DB::table('reservations')->insert($this->reservation($admin, $day->copy()->addHours(9),
+            $day->copy()->addHours(12), 'queued', 'OCULAR-QUEUED'));
+        $this->postJson('/api/admin/ocular-visits', $this->ocularPayload($day->toDateString()))->assertCreated();
+    }
+
+    private function ocularPayload(string $date): array
+    {
+        return ['guest_name' => 'Visitor', 'contact_details' => '09171234567', 'visit_date' => $date,
+            'start_time' => '10:00', 'end_time' => '11:00', 'status' => 'pending_review'];
+    }
+
     private function account(string $role): User
     {
         return User::factory()->create(['role_id' => Role::where('name', $role)->sole()->id])->fresh();

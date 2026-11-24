@@ -178,10 +178,13 @@ class ReservationQueueTest extends TestCase
         $this->actingAs($this->staff('admin'));
         $release = $this->postJson("/api/reservations/$leader/opportunity/release")->assertOk()
             ->assertJsonPath('eligible_candidates', 2)->assertJsonPath('selected_reservation_id', $first)->json('release_id');
-        // First stay ends at 11 AM. A newly approved noon visit conflicts with its cleaning time.
-        $this->postJson('/api/admin/ocular-visits', ['guest_name' => 'Site visit', 'contact_details' => 'Front desk',
+        // Scheduling now protects the FIFO candidate, including its cleaning time.
+        $visit = ['guest_name' => 'Site visit', 'contact_details' => 'Front desk',
             'visit_date' => $short['checkout'], 'start_time' => '12:00', 'end_time' => '12:30',
-            'status' => 'approved'])->assertCreated();
+            'status' => 'approved'];
+        $this->postJson('/api/admin/ocular-visits', $visit)->assertUnprocessable();
+        // Simulate an external calendar change to verify grant-time revalidation as well.
+        DB::table('ocular_visits')->insert([...$visit, 'villa_id' => 1, 'created_by' => auth()->id()]);
         $this->recommendation($release)->assertOk()
             ->assertJsonPath('result.eligible_candidates', 1)->assertJsonPath('result.selected_reservation_id', $second);
         $this->postJson("/api/reservations/$first/opportunity", ['release_id' => $release])->assertConflict();
