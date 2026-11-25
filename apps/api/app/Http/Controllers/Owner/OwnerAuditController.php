@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Owner;
 
 use App\Http\Controllers\Controller;
+use App\Services\AuditChain;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,15 +16,9 @@ class OwnerAuditController extends Controller
             'search' => ['nullable', 'string', 'max:200'], 'date' => ['nullable', 'date_format:Y-m-d'],
             'module' => ['nullable', 'string', 'max:60'], 'action' => ['nullable', 'string', 'max:80'],
         ]);
-        $events = DB::table('audit_events')->select('id', 'occurred_at', 'user_name', 'role', 'action', 'module', 'details')
-            ->selectRaw("'audit' as source");
-        $history = DB::table('reservation_status_history as h')
-            ->leftJoin('users as u', 'u.id', '=', 'h.changed_by')->leftJoin('roles as r', 'r.id', '=', 'u.role_id')
-            ->selectRaw("h.id, h.changed_at as occurred_at, coalesce(u.name, 'System') as user_name,
-                coalesce(r.name, 'system') as role, coalesce(h.event, 'status_changed') as action,
-                'Reservations' as module, h.reason as details, 'reservation_history' as source");
-        $union = $events->unionAll($history);
-        $all = DB::query()->fromSub($union, 'entries');
+        $events = DB::table('audit_events')->select('id', 'occurred_at', 'user_id', 'user_name', 'role', 'action', 'module', 'details', 'sequence', 'previous_hash', 'event_hash')
+            ->selectRaw("CASE WHEN source_table = 'reservation_status_history' THEN 'reservation_history' ELSE 'audit' END as source");
+        $all = DB::query()->fromSub($events, 'entries');
         $modules = (clone $all)->distinct()->orderBy('module')->pluck('module');
         $actions = (clone $all)->distinct()->orderBy('action')->pluck('action');
         $search = trim($data['search'] ?? '');
@@ -49,6 +44,6 @@ class OwnerAuditController extends Controller
             return $entry;
         });
         return response()->json([...$page->toArray(), 'filters' => ['modules' => $modules, 'actions' => $actions],
-            'integrity' => 'Standard application history; cryptographic audit chaining is not implemented.']);
+            'integrity' => app(AuditChain::class)->verify()]);
     }
 }

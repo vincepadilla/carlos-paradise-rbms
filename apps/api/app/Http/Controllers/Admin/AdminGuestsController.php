@@ -212,13 +212,15 @@ class AdminGuestsController extends Controller
             'password' => ['prohibited'],
         ]);
 
-        DB::transaction(function () use ($guest, $validated): void {
+        DB::transaction(function () use ($guest, $validated, $request): void {
             $profile = User::query()
                 ->whereKey($guest)
                 ->whereHas('role', fn (Builder $query) => $query->where('name', 'guest'))
                 ->lockForUpdate()
                 ->firstOrFail();
 
+            $fields = ['name', 'email', 'phone', 'address', 'is_active'];
+            $before = $profile->only($fields);
             $profile->forceFill([
                 'name' => trim($validated['name']),
                 'email' => mb_strtolower(trim($validated['email'])),
@@ -226,6 +228,8 @@ class AdminGuestsController extends Controller
                 'address' => $this->nullableTrimmed($validated['address'] ?? null),
                 'is_active' => $validated['is_active'],
             ])->save();
+            app(\App\Services\OwnerAudit::class)->record($request->user(), 'guest_updated', 'Guests', "Updated guest #{$guest}.",
+                ['guest_id' => $guest, 'before' => $before, 'after' => $profile->only($fields)]);
         });
 
         return $this->show($guest);

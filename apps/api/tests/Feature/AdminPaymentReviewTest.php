@@ -92,6 +92,9 @@ class AdminPaymentReviewTest extends TestCase
         $this->assertDatabaseHas('payments', ['id' => $payment, 'amount' => 5000, 'status' => 'approved']);
         $this->assertDatabaseHas('payment_reviews', ['payment_id' => $payment, 'reviewed_by' => $admin->id, 'decision' => 'approved', 'notes' => 'Transfer verified.']);
         $this->assertNotNull(DB::table('payment_reviews')->where('payment_id', $payment)->value('reviewed_at'));
+        $reviewId = DB::table('payment_reviews')->where('payment_id', $payment)->value('id');
+        $this->assertDatabaseHas('audit_events', ['source_table' => 'payment_reviews', 'source_id' => $reviewId, 'user_id' => $admin->id]);
+        $this->assertSame('verified', app(\App\Services\AuditChain::class)->verify()['status']);
         $this->assertDatabaseHas('reservation_opportunities', ['reservation_id' => $id, 'status' => 'completed']);
         $this->assertDatabaseHas('reservation_status_history', ['reservation_id' => $id, 'changed_by' => $admin->id, 'to_status' => 'confirmed']);
         $this->getJson('/api/reservations/'.$id)->assertOk()->assertJsonPath('reservation.payments.0.status', 'approved')

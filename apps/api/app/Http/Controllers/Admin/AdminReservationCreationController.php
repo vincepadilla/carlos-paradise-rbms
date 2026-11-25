@@ -103,6 +103,10 @@ class AdminReservationCreationController extends Controller
             }
 
             $guest = $this->validateGuest($data, true);
+            if ($guest['new']) {
+                app(\App\Services\OwnerAudit::class)->record($request->user(), 'guest_created', 'Guests', "Created guest #{$guest['id']}.",
+                    ['guest_id' => $guest['id'], 'name' => $guest['name'], 'email' => $guest['email']]);
+            }
             $request->merge(['staff_pricing' => true]);
             $result = $this->quoteController->quote($request, $this->settingsController)->getData(true);
             $quote = $result['quote'];

@@ -337,7 +337,7 @@ class BookingPaymentsController extends Controller
                     'updated_at' => $this->flow->stamp(),
                 ]);
 
-            DB::table('payment_reviews')->insert([
+            $reviewId = DB::table('payment_reviews')->insertGetId([
                 'payment_id' => $paymentRecord->id,
                 'reviewed_by' => $request->user()->id,
 
@@ -349,6 +349,7 @@ class BookingPaymentsController extends Controller
                 'created_at' => $this->flow->stamp(),
                 'updated_at' => $this->flow->stamp(),
             ]);
+            app(\App\Services\AuditChain::class)->recordSource('payment_reviews', $reviewId);
 
             if ($data['decision'] === 'approved') {
                 /*

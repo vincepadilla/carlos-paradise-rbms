@@ -12,7 +12,7 @@ class ApplicationBackup
         'reservation_status_history', 'reservation_extension_access', 'reservation_damages',
         'payment_methods', 'payments', 'payment_reviews', 'availability_blocks', 'ocular_visits',
         'admin_notifications', 'admin_notification_recipients', 'outgoing_emails',
-        'document_versions', 'active_documents', 'audit_events'];
+        'document_versions', 'active_documents', 'audit_events', 'audit_chain_heads'];
 
     public function snapshot(): array
     {
@@ -41,6 +41,7 @@ class ApplicationBackup
                 'generated_at' => now('Asia/Manila')->toIso8601String(), 'tables' => $tables,
                 'limitations' => ['Data export only. Automatic restore is not supported.',
                     'Passwords, tokens, OAuth connections, private file paths and file contents are excluded.',
+                    'Audit context may be redacted in this export; verify the original database, not redacted export hashes.',
                     'Keep a separate verified database and private-file backup for disaster recovery.']];
         });
     }

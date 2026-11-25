@@ -16,13 +16,14 @@ use App\Http\Controllers\Admin\AdminReservationManagementController;
 use App\Http\Controllers\Admin\AdminReservationCreationController;
 use App\Http\Controllers\Admin\AdminReservationReportsController;
 use App\Http\Middleware\RequireAdmin;
+use App\Http\Middleware\AuditStaffMutation;
 use App\Http\Middleware\RequireOwner;
 use App\Http\Middleware\RequireAdminOrOwner;
 use Illuminate\Support\Facades\Route;
 
 // These routes use the same web session and CSRF stack as reservations.
 foreach (['api/admin' => RequireAdmin::class, 'api/owner/operations' => RequireOwner::class] as $prefix => $authorization) {
-    Route::prefix($prefix)->middleware(['auth:web', $authorization])->group(function () {
+    Route::prefix($prefix)->middleware(['auth:web', $authorization, AuditStaffMutation::class])->group(function () {
         Route::get('/dashboard/summary', [AdminDashboardController::class, 'summary']);
         Route::get('/reservations', [AdminReservationManagementController::class, 'index']);
         Route::get('/reports/reservations', [AdminReservationReportsController::class, 'index']);
@@ -64,7 +65,7 @@ foreach (['api/admin' => RequireAdmin::class, 'api/owner/operations' => RequireO
 }
 
 foreach (['api/admin' => RequireAdminOrOwner::class, 'api/owner/operations' => RequireOwner::class] as $prefix => $authorization) {
-    Route::prefix($prefix)->middleware(['auth:web', $authorization])->group(function () {
+    Route::prefix($prefix)->middleware(['auth:web', $authorization, AuditStaffMutation::class])->group(function () {
         Route::get('/reservation-create/options', [AdminReservationCreationController::class, 'options']);
         Route::get('/reservation-create/guests', [AdminReservationCreationController::class, 'guests'])->middleware('throttle:60,1');
         Route::post('/reservation-create/preview', [AdminReservationCreationController::class, 'preview'])->middleware('throttle:30,1');

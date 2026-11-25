@@ -6,9 +6,10 @@ use App\Http\Controllers\Owner\OwnerDatabaseController;
 use App\Http\Controllers\Owner\OwnerDocumentsController;
 use App\Http\Controllers\Owner\OwnerSettingsController;
 use App\Http\Middleware\RequireOwner;
+use App\Http\Middleware\AuditStaffMutation;
 use Illuminate\Support\Facades\Route;
 
-Route::prefix('api/owner')->middleware(['auth:web', RequireOwner::class])->group(function () {
+Route::prefix('api/owner')->middleware(['auth:web', RequireOwner::class, AuditStaffMutation::class])->group(function () {
     Route::get('/settings', [OwnerSettingsController::class, 'index']);
     Route::patch('/settings', [OwnerSettingsController::class, 'update'])->middleware('throttle:30,1');
     Route::get('/payment-methods', [OwnerSettingsController::class, 'paymentMethods']);

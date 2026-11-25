@@ -13,6 +13,8 @@ Schedule::command('calendar:sync-reservations')
     ->everyMinute()
     ->withoutOverlapping(60);
 
+Schedule::command('audit:verify')->hourly()->withoutOverlapping(60);
+
 Schedule::command('calendar:sync-blocks')
     ->everyMinute()
     ->withoutOverlapping(60);

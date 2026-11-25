@@ -173,33 +173,36 @@ class ReservationWorkflow
         ?string $event = null,
         ?array $changes = null
     ): void {
-        /*
-         * These mappings also support the history status
-         * constraints from the original uploaded SQL.
-         */
-        $map = [
-            'queued' => 'pending',
-            'awaiting_deposit' => 'held',
-            'payment_review' => 'reserved',
-            'completed' => 'confirmed',
-        ];
+        DB::transaction(function () use ($reservationId, $from, $to, $actor, $reason, $event, $changes) {
+            /*
+             * These mappings also support the history status
+             * constraints from the original uploaded SQL.
+             */
+            $map = [
+                'queued' => 'pending',
+                'awaiting_deposit' => 'held',
+                'payment_review' => 'reserved',
+                'completed' => 'confirmed',
+            ];
 
-        DB::table('reservation_status_history')->insert([
-            'reservation_id' => $reservationId,
-            'from_status' => $from === null
-                ? null
-                : ($map[$from] ?? $from),
-            'to_status' => $map[$to] ?? $to,
-            'changed_by' => $actor,
-            'event' => $event,
-            'changes' => $changes === null ? null : json_encode($changes, JSON_THROW_ON_ERROR),
+            $historyId = DB::table('reservation_status_history')->insertGetId([
+                'reservation_id' => $reservationId,
+                'from_status' => $from === null
+                    ? null
+                    : ($map[$from] ?? $from),
+                'to_status' => $map[$to] ?? $to,
+                'changed_by' => $actor,
+                'event' => $event,
+                'changes' => $changes === null ? null : json_encode($changes, JSON_THROW_ON_ERROR),
 
-            'reason' => $reason.' [application status: '.$to.']',
+                'reason' => $reason.' [application status: '.$to.']',
 
-            'changed_at' => $this->now()->toIso8601String(),
-            'created_at' => $this->stamp(),
-            'updated_at' => $this->stamp(),
-        ]);
+                'changed_at' => $this->now()->toIso8601String(),
+                'created_at' => $this->stamp(),
+                'updated_at' => $this->stamp(),
+            ]);
+            app(AuditChain::class)->recordSource('reservation_status_history', $historyId);
+        });
     }
 
     /*

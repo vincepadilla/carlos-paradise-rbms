@@ -160,6 +160,11 @@ class OwnerPortalTest extends TestCase
         $this->actingAs($this->account('admin'))->getJson('/api/owner/documents/'.$first.'/download')->assertForbidden();
         $this->assertDatabaseCount('document_versions', 2);
         $this->assertDatabaseCount('active_documents', 1);
+        $event = DB::table('audit_events')->where('action', 'document_uploaded')->first();
+        $context = json_decode($event->context, true);
+        $this->assertSame(hash('sha256', "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF"), $context['file_sha256']);
+        $this->assertSame($context['file_sha256'], $context['request']['files']['file']['sha256']);
+        $this->assertSame('verified', app(\App\Services\AuditChain::class)->verify()['status']);
         $selected = app(GuestEmailCatalog::class)->selectedDocuments(['house-rules-policies']);
         $this->assertSame(DB::table('document_versions')->where('version', 2)->value('storage_path'), $selected[0]['path']);
     }
@@ -244,9 +249,11 @@ class OwnerPortalTest extends TestCase
     public function test_audit_date_filters_use_manila_dates_at_the_midnight_boundary(): void
     {
         $owner = $this->account('owner');
+        $this->travelTo(\Carbon\CarbonImmutable::parse('2026-11-10T16:30:00+00:00'));
         app(OwnerAudit::class)->record($owner, 'settings_updated', 'System Settings', 'Midnight boundary fixture.');
-        DB::table('audit_events')->update(['occurred_at' => '2026-11-10T16:30:00+00:00']);
-        $this->actingAs($owner)->getJson('/api/owner/audit-trail?date=2026-11-11')->assertOk()->assertJsonPath('total', 1);
+        $this->travelBack();
+        $this->actingAs($owner)->getJson('/api/owner/audit-trail?date=2026-11-11')->assertOk()->assertJsonPath('total', 1)
+            ->assertJsonPath('data.0.occurred_at', '2026-11-11T00:30:00+08:00');
         $this->getJson('/api/owner/audit-trail?date=2026-11-10')->assertOk()->assertJsonPath('total', 0);
     }
 

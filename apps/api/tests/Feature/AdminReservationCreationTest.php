@@ -82,6 +82,10 @@ class AdminReservationCreationTest extends TestCase
         $created = User::where('email', 'snapshot@example.test')->sole();
         $this->assertNull($created->password);
         $this->assertSame('guest', $created->role->name);
+        $event = DB::table('audit_events')->where('action', 'guest_created')->sole();
+        $this->assertSame($admin->id, $event->user_id);
+        $this->assertSame($created->id, json_decode($event->context, true)['guest_id']);
+        $this->assertSame('verified', app(\App\Services\AuditChain::class)->verify()['status']);
 
         $duplicate = $this->payload(['guest_mode' => 'new', 'guest_id' => null, 'contact_email' => 'SNAPSHOT@example.test']);
         $this->postJson('/api/admin/reservation-create/preview', $duplicate)

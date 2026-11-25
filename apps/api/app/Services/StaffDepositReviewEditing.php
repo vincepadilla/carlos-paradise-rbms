@@ -93,11 +93,12 @@ class StaffDepositReviewEditing
                 ]);
 
                 if ($canApprove) {
-                    DB::table('payment_reviews')->insert([
+                    $reviewId = DB::table('payment_reviews')->insertGetId([
                         'payment_id' => $paymentId, 'reviewed_by' => $actor->id, 'decision' => 'approved',
                         'notes' => 'Cash received and recorded by authenticated staff.', 'reviewed_at' => $this->flow->now()->toIso8601String(),
                         'created_at' => $this->flow->stamp(), 'updated_at' => $this->flow->stamp(),
                     ]);
+                    app(AuditChain::class)->recordSource('payment_reviews', $reviewId);
                 }
 
                 $coverageMet = $prospective >= $required;

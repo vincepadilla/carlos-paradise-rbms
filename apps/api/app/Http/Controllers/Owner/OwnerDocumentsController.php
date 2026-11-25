@@ -51,7 +51,9 @@ class OwnerDocumentsController extends Controller
                     'notes' => $data['notes'] ?? null, 'uploaded_by' => $request->user()->id, 'created_at' => now(),
                 ]);
                 DB::table('active_documents')->updateOrInsert(['document_key' => $data['key']], ['version_id' => $id, 'updated_at' => now()]);
-                $audit->record($request->user(), 'document_uploaded', 'Documents', "Activated {$data['key']} version {$version} (#{$id}).");
+                $audit->record($request->user(), 'document_uploaded', 'Documents', "Activated {$data['key']} version {$version} (#{$id}).",
+                    ['document_id' => $id, 'document_key' => $data['key'], 'version' => $version,
+                        'file_sha256' => hash_file('sha256', $file->getRealPath())]);
             });
         } catch (Throwable $error) {
             Storage::disk('local')->delete($path);
