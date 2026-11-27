@@ -44,10 +44,23 @@
 .owner-page .owner-audit-table { min-width: 950px; table-layout: fixed; }
 .owner-audit-integrity { margin: 0 0 20px; padding: 16px; border: 1px solid #97b6a0; border-radius: 10px; background: #f1f8f3; }
 .owner-audit-integrity.broken { border-color: #c96c60; background: #fff1ef; }
+.owner-audit-integrity.error { border-color: #b88a46; background: #fff8ed; }
+.owner-audit-integrity.checking { border-color: var(--admin-line); background: #f6f1e9; }
 .owner-audit-integrity p { margin: 6px 0; }
 .owner-audit-integrity small { display: block; margin-bottom: 10px; }
 .owner-audit-table details { margin-top: 8px; }
 .owner-audit-table code { overflow-wrap: anywhere; }
+.owner-audit-check-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+.owner-audit-check-actions .admin-button:disabled { opacity: .65; cursor: wait; }
+.owner-audit-help-toggle { border: 0; background: none; padding: 10px 0; color: var(--admin-brown); font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.owner-audit-help-toggle:focus-visible,.owner-audit-technical summary:focus-visible { outline: 2px solid var(--admin-brown); outline-offset: 4px; }
+.owner-audit-integrity .owner-audit-last-checked { font-size: 12px; }
+.owner-audit-integrity .owner-audit-help { margin-top: 12px; }
+.owner-audit-technical summary { cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.owner-audit-technical dl { margin: 12px 0 0; }
+.owner-audit-technical dt { font-weight: 600; font-size: 11px; }
+.owner-audit-technical dd { margin: 5px 0 12px; min-width: 0; }
+.owner-audit-technical code { display: block; white-space: normal; word-break: break-all; line-height: 1.7; user-select: text; -webkit-user-select: text; }
 .owner-audit-table th:first-child { width: 145px; }
 .owner-audit-table th:nth-child(2) { width: 140px; }
 .owner-audit-table th:nth-child(3) { width: 80px; }
